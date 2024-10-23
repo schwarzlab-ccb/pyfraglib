@@ -183,6 +183,8 @@ def windowed_protection_score_slow(
             wps_df.loc[it] = new_row
             it += 1
 
+    regions.reset()
+
     logging.getLogger("pyfraglib").debug(
         "calculated WPS for {} positions".format(it)
     )
@@ -255,6 +257,8 @@ def chromosome_map_to_df(
         wps_df.loc[it:(it+rlen), "info"] = info
 
         it += rlen + 1
+
+    regions.reset()
 
     return wps_df
 
