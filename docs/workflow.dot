@@ -1,0 +1,22 @@
+digraph Workflow {
+    bgcolor="transparent";
+
+    A  -> B [label="extract",fontcolor=darkred,style=bold];
+    AA -> B [label="--with-vcf",fontcolor=darkred,style=dashed];
+    A [label="BAM file",shape=box,fontsize=20];
+    AA [label="VCF file",shape=box,fontsize=20,style=dashed];
+    B [label="FRAG file",shape=box,fontsize=20];
+
+    B -> C [label="stats",fontcolor=darkred,style=bold];
+    B -> D [label="lengths",fontcolor=darkred,style=bold];
+    B -> E [label="scores",fontcolor=darkred,style=bold];
+    EE -> E [fontcolor=darkred,style=bold];
+    E -> F;
+    E -> G;
+    C [label="overview stats",shape=circle,fontsize=12];
+    D [label="length distribution",shape=circle,fontsize=12];
+    E [label="fragmentomics\nscores",shape=circle,fontsize=12];
+    EE [label="BED file",shape=box,fontsize=20];
+    F [label="motif diversity score",shape=box,fontsize=10];
+    G [label="windowed protection score",shape=box,fontsize=10];
+}

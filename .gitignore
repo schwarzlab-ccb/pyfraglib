@@ -1,0 +1,17 @@
+pyfrag_out
+frag_out
+plot_out
+scores_out
+pcnsl_cohort
+.mypy_cache/
+__pycache__/
+*egg-info/
+build/
+dist/
+data/
+plots/
+project-lymphoma-cfdna-old/
+*.out
+job.sh
+tags
+.ipynb_checkpoints/
