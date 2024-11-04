@@ -17,6 +17,7 @@ import pickle
 import pysam
 import gzip
 
+from dataclasses import dataclass
 from functools import partial
 from intervaltree import IntervalTree, Interval  # type: ignore
 from multiprocessing import Pool
@@ -33,31 +34,33 @@ VALID_CHROMOSOME_NAMES: Final = [str(x) for x in range(1, 23)] + \
                                 ["mt", "MT"]
 
 
+@dataclass(slots=True)
 class Fragment:
+    # @NOTE(ds): `left' and `right' are defined according to genomic
+    # orientation. We assume that the forward (+) strand (5' -> 3') has
+    # increasing coordinates (as it is the case with BAM files). Also,
+    # positions are 0-based.
+    #
+    # @NOTE(ds): We cannot store `pysam.AlignedSegment's in this class
+    # because otherwise serialization would not work.
+    start_pos: int  # first aligned position (0-based)
+    end_pos: int  # one past last aligned position
+    chrom: str
+    is_forward: bool
+    length: int
+    end5p: str  # 5' -> 3' orientation
+    end3p: str  # 5' -> 3' orientation
+    is_bogus: bool
+    is_mutated: Optional[bool]
+
     def __init__(
         self, read: pysam.AlignedSegment, mate: pysam.AlignedSegment,
         mutated_reads: Optional[set[pysam.AlignedSegment]]
     ) -> None:
-        # @NOTE(ds): `left' and `right' are defined according to genomic
-        # orientation. We assume that the forward (+) strand (5' -> 3') has
-        # increasing coordinates (as it is the case with BAM files). Also,
-        # positions are 0-based.
-        #
-        # @NOTE(ds): We cannot store `pysam.AlignedSegment's in this class
-        # because otherwise serialization would not work.
-        self.start_pos: int  # first aligned position (0-based)
-        self.end_pos: int  # one past last aligned position
-        self.chrom: str
-        self.is_forward: bool
-        self.length: int
-        self.end5p: str  # 5' -> 3' orientation
-        self.end3p: str  # 5' -> 3' orientation
-
         # @NOTE(ds): We do all genomic calculations in one big function.
         # All variables above are filled in after this call.
         self.assign_read_pair_coords(read, mate)
 
-        self.is_mutated: Optional[bool]
         if not mutated_reads:
             self.is_mutated = None
         else:
@@ -220,18 +223,21 @@ class Fragment:
                     read_cache[read.query_name] = read
             else:
                 num_unpaired += 1
-        bam_file.close()
-        if vcfpath:
-            vcf_file.close()
 
         num_proper_reads: int = fragments.length() * 2
+        num_total_reads: int = num_proper_reads + num_unpaired
         logger.info(
             "unpaired or improperly paired reads: {} of {} ({}%)".format(
                 num_unpaired, num_proper_reads,
-                round(100*num_unpaired/num_proper_reads, 3)))
+                round(100*num_unpaired/num_total_reads, 3)))
 
         if num_proper_reads == 0:
             fail("no fragments identified")
+
+        # @NOTE(ds): Careful cleanup. We must not leak memory.
+        bam_file.close()
+        if vcfpath:
+            vcf_file.close()
 
         return fragments
 
@@ -289,13 +295,12 @@ class Fragment:
 
         return mutated_reads
 
-    # `get_fragments_from_bams' builds ontop of `get_fragment_from_bam' by
-    # retrieving fragment information from multiple BAM files and storing them
-    # in a dictionary. Again, we do not ensure that `filepaths' contains just
-    # BAM file paths. Dict keys are just the file names (without the .bam
-    # extension and without any directory prefixes).
-    # To be a little more sophisticated, we do not return a naked dict but a
-    # thin wrapper object.
+    # `from_bams' builds ontop of `from_bam' by retrieving fragment information
+    # from multiple BAM files and storing them in a dictionary. Again, we do
+    # not ensure that `filepaths' contains just BAM file paths. Dict keys are
+    # just the file names (without the .bam extension and without any directory
+    # prefixes). To be a little more sophisticated, we do not return a naked
+    # dict but a thin wrapper object.
     @staticmethod
     def from_bams(
         filepaths: list[str], vcfpaths: Optional[list[str]]
@@ -333,7 +338,10 @@ def task(filepath: str, vcfpath: str | None,
     frags_per_bam.append(name, frags)
 
 
+@dataclass(slots=True)
 class FragmentList():
+    __fragments: list[Fragment]
+
     def __init__(self) -> None:
         self.__fragments: list[Fragment] = []
 
