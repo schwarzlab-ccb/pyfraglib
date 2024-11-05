@@ -136,9 +136,9 @@ def create_argparser() -> argparse.ArgumentParser:
 
 # @NOTE(ds): At this point, we can assume that `out_dir' exists.
 # Loading all `FragmentList's into a collection before saving the to disk is
-# super expensive in terms of memory. We do it anyways because the creation
-# of summary statistics with other subcommands requires the collection anyways.
-# Users will either have to down-sample or loop over individual fragment files.
+# super expensive in terms of memory. We did that in previous versions of
+# `pyfraglib' but changed things around to be able to handle large directories
+# of even larger BAM files.
 def extract(out_dir: str, args: argparse.Namespace) -> None:
     bam_file: Final[str] = args.bam_file
     bam_dir: Final[str] = args.bam_dir
@@ -178,11 +178,9 @@ def extract(out_dir: str, args: argparse.Namespace) -> None:
     else:
         logger.info("not expecting any VCF files")
 
-    frag_collection: FragmentCollection = \
-        Fragment.from_bams(bam_files, vcf_files)
-
-    logger.info("writing one FRAG file per BAM to `{}'".format(out_dir))
-    frag_collection.to_frag_files(out_dir)
+    # NOTE(ds): Instead of accumulating all results in memory and writing them
+    # out at once, we extract and write BAM/FRAG files independently.
+    Fragment.bams_to_frags(bam_files, vcf_files, out_dir)
 
 
 # @NOTE(ds): `stats' and `lengths' follow very similar patterns.

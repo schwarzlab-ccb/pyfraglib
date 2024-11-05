@@ -301,6 +301,11 @@ class Fragment:
     # just the file names (without the .bam extension and without any directory
     # prefixes). To be a little more sophisticated, we do not return a naked
     # dict but a thin wrapper object.
+    # This function comes with a lot of memory overhead! It is not advisable to
+    # use it for larger collections of BAM files. The overhead is because
+    # individual BAM files are processed and the results are accumulated in
+    # memory. Unfortunately, the in-memory representation of `Fragment's is
+    # quite large.
     @staticmethod
     def from_bams(
         filepaths: list[str], vcfpaths: Optional[list[str]]
@@ -318,7 +323,7 @@ class Fragment:
 
             with Pool(processes=detect_cpus()) as pool:
                 partial_task: Callable[[str, str], None] = partial(
-                    task, frags_per_bam=shared_collection  # type: ignore
+                    task0, frags_per_bam=shared_collection  # type: ignore
                 )
                 pool.starmap(partial_task, input_data)
 
@@ -327,15 +332,44 @@ class Fragment:
                 shared_collection._getvalue()  # type: ignore
             )
 
+    @staticmethod
+    def bams_to_frags(
+        filepaths: list[str], vcfpaths: Optional[list[str]], out_dir: str
+    ) -> None:
+        logger: logging.Logger = logging.getLogger("pyfraglib")
+        logger.info("writing FRAG files to `{}'".format(out_dir))
+
+        # @NOTE(ds): We use the same multiprocessing idioms as in `from_bams'.
+        input_data: list[tuple[str, str | None]] = []
+
+        for idx, filepath in enumerate(filepaths):
+            vcfpath: Optional[str] = \
+                None if not vcfpaths else vcfpaths[idx]
+            input_data.append((filepath, vcfpath))
+        with Pool(processes=detect_cpus()) as pool:
+            partial_task: Callable[[str, str], None] = partial(
+                task1, out_dir=out_dir
+            )
+            pool.starmap(partial_task, input_data)
+        logger.info("done writing FRAG files to `{}'".format(out_dir))
+
 
 # @NOTE(ds): Constraints of multiprocessing and pickle force us to define this
 # function outside of `from_bams'.
-def task(filepath: str, vcfpath: str | None,
-         frags_per_bam: "FragmentCollection") -> None:
+def task0(filepath: str, vcfpath: str | None,
+          frags_per_bam: "FragmentCollection") -> None:
     frags: FragmentList = Fragment.from_bam(filepath, vcfpath)
     filename: str = os.path.basename(filepath)
-    name, _ext = os.path.splitext(filename)
+    name, _ = os.path.splitext(filename)
     frags_per_bam.append(name, frags)
+
+
+def task1(filepath: str, vcfpath: str | None,
+          out_dir: str) -> None:
+    frags: FragmentList = Fragment.from_bam(filepath, vcfpath)
+    filename: str = os.path.basename(filepath)
+    name, _ = os.path.splitext(filename)
+    frags.to_frag_file(name, out_dir)
 
 
 @dataclass(slots=True)
@@ -368,6 +402,13 @@ class FragmentList():
             if frag.is_mutated:
                 counter += 1
         return counter
+
+    def to_frag_file(self, name: str, out_dir: str) -> None:
+        outfile_path: str = os.path.join(out_dir, name) + ".frag"
+        outfile: gzip.GzipFile
+        with gzip.open(outfile_path, "wb") as outfile:
+            for fragment in self.__fragments:
+                fragment.dump(outfile)
 
     # @NOTE(ds): Returns the 5' and 3' motifs as well as the number of
     # analyzed fragments.
@@ -441,8 +482,4 @@ class FragmentCollection():
 
     def to_frag_files(self, out_dir: str) -> None:
         for name, fragments in self:
-            outfile_path: str = os.path.join(out_dir, name) + ".frag"
-            outfile: gzip.GzipFile
-            with gzip.open(outfile_path, "wb") as outfile:
-                for fragment in fragments:
-                    fragment.dump(outfile)
+            fragments.to_frag_file(name, out_dir)
