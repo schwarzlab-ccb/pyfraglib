@@ -249,6 +249,7 @@ class Fragment:
         mutated_reads: set[pysam.AlignedSegment] = set()
 
         num_unknown_variants: int = 0
+        num_simplex_reads: int = 0
         variant: pysam.VariantRecord
         fname: bytes = vcf_file.filename
         vcf_filename: str = fname.decode()
@@ -279,6 +280,12 @@ class Fragment:
                     read_base: str = read.query_sequence[read_index]
                     if read_base in variant.alts:
                         mutated_reads.add(read)
+                        try:
+                            num_supp_reads: pysam.TagValue = read.get_tag("XI")
+                            is_dup: bool = int(cast(int, num_supp_reads)) >= 2
+                            num_simplex_reads += 0 if is_dup else 1
+                        except KeyError:
+                            num_simplex_reads += 1
                     elif read_base != variant.ref:
                         # NOTE(ds): Read has a base that's neither a ref nor
                         # an alt allele. We _do not_ include this read in the
@@ -292,6 +299,9 @@ class Fragment:
         logger.info("skipped at least {} reads with variant because read base "
                     "did not match ref nor alt allele (`{}')".format(
                         num_unknown_variants, vcf_filename))
+        logger.info("found {} mutated reads without duplex support (out of "
+                    "{} mutated reads total)".format(num_simplex_reads,
+                                                     len(mutated_reads)))
 
         return mutated_reads
 
@@ -354,8 +364,11 @@ class Fragment:
         logger.info("done writing FRAG files to `{}'".format(out_dir))
 
 
-# @NOTE(ds): Constraints of multiprocessing and pickle force us to define this
-# function outside of `from_bams'.
+# @NOTE(ds): Constraints of multiprocessing and pickle force us to define these
+# functions outside of `from_bams' and `bams_to_frags'. Tasks 0 and 1 only
+# differ in how they treat the resulting `FragmentList's. Whereas t0 writes
+# the into a shared buffer, t1 writes them to disk immediately. That's freeing
+# the used memory and reducing our mem footprint.
 def task0(filepath: str, vcfpath: str | None,
           frags_per_bam: "FragmentCollection") -> None:
     frags: FragmentList = Fragment.from_bam(filepath, vcfpath)
