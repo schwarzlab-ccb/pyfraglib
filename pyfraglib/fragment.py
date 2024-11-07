@@ -249,7 +249,7 @@ class Fragment:
         mutated_reads: set[pysam.AlignedSegment] = set()
 
         num_unknown_variants: int = 0
-        num_simplex_reads: int = 0
+        num_singles: int = 0
         variant: pysam.VariantRecord
         fname: bytes = vcf_file.filename
         vcf_filename: str = fname.decode()
@@ -279,13 +279,9 @@ class Fragment:
 
                     read_base: str = read.query_sequence[read_index]
                     if read_base in variant.alts:
+                        if read not in mutated_reads and not is_duplex(read):
+                            num_singles += 1
                         mutated_reads.add(read)
-                        try:
-                            num_supp_reads: pysam.TagValue = read.get_tag("XI")
-                            is_dup: bool = int(cast(int, num_supp_reads)) >= 2
-                            num_simplex_reads += 0 if is_dup else 1
-                        except KeyError:
-                            num_simplex_reads += 1
                     elif read_base != variant.ref:
                         # NOTE(ds): Read has a base that's neither a ref nor
                         # an alt allele. We _do not_ include this read in the
@@ -296,11 +292,11 @@ class Fragment:
                     # The variant position is probably deleted from `read'.
                     pass
 
-        logger.info("skipped at least {} reads with variant because read base "
-                    "did not match ref nor alt allele (`{}')".format(
+        logger.info("skipped at least {} variants because read base did not "
+                    "match ref nor alt allele (`{}')".format(
                         num_unknown_variants, vcf_filename))
         logger.info("found {} mutated reads without duplex support (out of "
-                    "{} mutated reads total)".format(num_simplex_reads,
+                    "{} mutated reads total)".format(num_singles,
                                                      len(mutated_reads)))
 
         return mutated_reads
@@ -456,6 +452,23 @@ class FragmentList():
             table.insert(frag)
 
         return table
+
+
+def is_duplex(read: pysam.AlignedSegment) -> bool:
+    has_xi: bool = True
+    has_xj: bool = True
+
+    try:
+        read.get_tag("XI")
+    except KeyError:
+        has_xi = False
+
+    try:
+        read.get_tag("XJ")
+    except KeyError:
+        has_xj = False
+
+    return has_xi and has_xj
 
 
 # @NOTE(ds): An `IntervalTable' maps chromosomes to a unique `IntervalTree'.
