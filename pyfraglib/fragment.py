@@ -338,6 +338,9 @@ class Fragment:
                 shared_collection._getvalue()  # type: ignore
             )
 
+    # @NOTE(ds): As opposed to `from_bams', `bams_to_frags' works on multiple
+    # BAM files in parallel, writing them out to FRAG files _without_
+    # collecting all data in memory. That's much more efficient.
     @staticmethod
     def bams_to_frags(
         filepaths: list[str], vcfpaths: Optional[list[str]], out_dir: str
@@ -375,6 +378,10 @@ def task0(filepath: str, vcfpath: str | None,
 
 def task1(filepath: str, vcfpath: str | None,
           out_dir: str) -> None:
+
+    logger: logging.Logger = logging.getLogger("pyfraglib")
+    logger.info("extracting BAM file `{}'".format(filepath))
+
     frags: FragmentList = Fragment.from_bam(filepath, vcfpath)
     filename: str = os.path.basename(filepath)
     name, _ = os.path.splitext(filename)
