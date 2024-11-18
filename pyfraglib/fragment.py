@@ -210,26 +210,34 @@ class Fragment:
             vcf_file: pysam.VariantFile = pysam.VariantFile(vcfpath)
             mut_reads = Fragment.build_mutated_reads_set(bam_file, vcf_file)
 
-        num_unpaired: int = 0  # no. of reads unpaired _or_ not properly paired
+        num_total_reads: int = 0
+        num_unpaired: int = 0
+        num_duplicates: int = 0
         fragments: FragmentList = FragmentList()
         read_cache: dict[str, pysam.AlignedSegment] = {}
         for read in bam_file.fetch():
             assert read.query_name
-            if read.is_proper_pair:
+            num_total_reads += 1
+
+            if not read.is_proper_pair:
+                num_unpaired += 1
+            elif read.is_duplicate:
+                num_duplicates += 1
+            else:
                 if read.query_name in read_cache:
                     mate: pysam.AlignedSegment = read_cache[read.query_name]
                     fragments.append(Fragment(read, mate, mut_reads))
+                    read_cache.pop(read.query_name)  # _major_ mem saver
                 else:
                     read_cache[read.query_name] = read
-            else:
-                num_unpaired += 1
 
         num_proper_reads: int = fragments.length() * 2
-        num_total_reads: int = num_proper_reads + num_unpaired
         logger.info(
-            "unpaired or improperly paired reads: {} of {} ({}%)".format(
-                num_unpaired, num_proper_reads,
-                round(100*num_unpaired/num_total_reads, 3)))
+            "total reads: {}, unpaired : {}%, duplicates: {}%".format(
+                num_total_reads,
+                round(100*num_unpaired/num_total_reads, 3),
+                round(100*num_duplicates/num_total_reads, 3)))
+        logger.debug("{} reads left in cache".format(len(read_cache)))
 
         if num_proper_reads == 0:
             fail("no fragments identified")
@@ -345,9 +353,6 @@ class Fragment:
     def bams_to_frags(
         filepaths: list[str], vcfpaths: Optional[list[str]], out_dir: str
     ) -> None:
-        logger: logging.Logger = logging.getLogger("pyfraglib")
-        logger.info("writing FRAG files to `{}'".format(out_dir))
-
         # @NOTE(ds): We use the same multiprocessing idioms as in `from_bams'.
         input_data: list[tuple[str, str | None]] = []
 
@@ -360,7 +365,6 @@ class Fragment:
                 task1, out_dir=out_dir
             )
             pool.starmap(partial_task, input_data)
-        logger.info("done writing FRAG files to `{}'".format(out_dir))
 
 
 # @NOTE(ds): Constraints of multiprocessing and pickle force us to define these
@@ -378,10 +382,6 @@ def task0(filepath: str, vcfpath: str | None,
 
 def task1(filepath: str, vcfpath: str | None,
           out_dir: str) -> None:
-
-    logger: logging.Logger = logging.getLogger("pyfraglib")
-    logger.info("extracting BAM file `{}'".format(filepath))
-
     frags: FragmentList = Fragment.from_bam(filepath, vcfpath)
     filename: str = os.path.basename(filepath)
     name, _ = os.path.splitext(filename)
