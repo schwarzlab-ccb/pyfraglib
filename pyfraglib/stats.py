@@ -30,25 +30,6 @@ def fragments_per_chromosome_barplot(
         "creating fragment-per-chromosome histograms in `{}'".format(out_dir)
     )
 
-    chrom_map: defaultdict[str, int] = defaultdict(int)
-    num_frags: int = 0
-    frag: Fragment
-    for frag in fragments:
-        if frag.is_bogus:
-            continue
-        num_frags += 1
-        chrom_map[frag.chrom] += 1
-
-    fig: matplotlib.figure.Figure = plt.figure()
-    outpath: str = os.path.join(out_dir, "{}_frags_per_chrom.png".format(name))
-
-    plt.bar(list(chrom_map.keys()), list(chrom_map.values()))
-    plt.title("{}: Fragments per chromosome n={}".format(name, num_frags))
-    plt.xlabel("Chromosomes")
-    plt.ylabel("# of Fragments")
-
-    fig.savefig(outpath, dpi=fig.dpi, transparent=True)
-
     chrom_map_mut: defaultdict[str, int] = defaultdict(int)
     chrom_map_wt:  defaultdict[str, int] = defaultdict(int)
     num_frags = 0
@@ -77,7 +58,7 @@ def fragments_per_chromosome_barplot(
     plt.ylabel("# of Fragments")
     plt.legend()
 
-    fig.savefig(outpath, dpi=fig.dpi, transparent=True)
+    fig.savefig(outpath, dpi=fig.dpi)
 
 
 def end_motifs_barplot(
@@ -139,7 +120,7 @@ def end_motifs_barplot(
         plt.xticks(rotation=80, fontsize=0.6)
         plt.tick_params(axis="x", length=0, pad=0.4)
 
-        fig.savefig(outpath, dpi=1200, bbox_inches="tight", transparent=True)
+        fig.savefig(outpath, dpi=1200, bbox_inches="tight")
 
 
 def log_stats(

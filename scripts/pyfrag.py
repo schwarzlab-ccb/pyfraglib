@@ -25,14 +25,12 @@ import pandas as pd
 from typing import Final, NoReturn, Optional
 
 import pyfraglib
-from pyfraglib import Fragment, FragmentList, FragmentCollection
+from pyfraglib import Fragment, FragmentList
 from pyfraglib.core import CodeUnreachableError
 from pyfraglib.fragfile import FragFile
-from pyfraglib.lengths import fragment_length_histogram, \
-                              fragment_length_histograms
+from pyfraglib.lengths import fragment_length_plot
 from pyfraglib.stats import fragments_per_chromosome_barplot, \
-                            end_motifs_barplot, \
-                            log_stats
+                            end_motifs_barplot, log_stats
 from pyfraglib.scores import motif_diversity, windowed_protection_score, \
                              wps_scatter_plot
 
@@ -230,7 +228,6 @@ def lengths(out_dir: str, args: argparse.Namespace) -> None:
     if len(frag_files) == 0:
         fail("no bam files found; file extension `.frag' is required", logger)
 
-    frag_collection: FragmentCollection = FragmentCollection()
     for path in frag_files:
         logger.info("loading `{}'".format(path))
 
@@ -239,10 +236,7 @@ def lengths(out_dir: str, args: argparse.Namespace) -> None:
         fragment_file.close()
 
         name: str = filename_only(path)
-        fragment_length_histogram(fragments, out_dir, name)
-        frag_collection.append(name, fragments)
-
-    fragment_length_histograms(frag_collection, out_dir)
+        fragment_length_plot(fragments, out_dir, name)
 
 
 # @NOTE(ds): We interleave the calculation of our scores. It's ugly, but

@@ -26,6 +26,7 @@ from pyfraglib.core import fail, PyfragManager, detect_cpus
 from typing import Callable, Final, Generator, Optional, cast
 
 INSERT_SIZE_UPPER_BOUND: Final = 700
+MIN_MAPQ: Final = 30
 DEFAULT_KMER_LEN: Final = 3
 MAX_KMER_LEN: Final = 4
 VALID_CHROMOSOME_NAMES: Final = [str(x) for x in range(1, 23)] + \
@@ -75,7 +76,6 @@ class Fragment:
 
         read_len: int = abs(read.template_length)
         mate_len: int = abs(mate.template_length)
-        mates_improperly_paired: bool = False
 
         # @NOTE(ds): A whole lot of length-related conditions might define a
         # fragment to be bogus.
@@ -87,34 +87,20 @@ class Fragment:
                 (read_len != mate_len):
             is_bogus = True
 
+        if read.mapping_quality < MIN_MAPQ or mate.mapping_quality < MIN_MAPQ:
+            is_bogus = True
+
         # @NOTE(ds): Pairing across contigs and unmatched read orientations
         # are also unexpected and constitute bogus'ness.
         if (read.reference_name != mate.reference_name):
-            mates_improperly_paired = True
             is_bogus = True
         elif (read.is_read1 and mate.is_read1) or \
                 (read.is_read2 and mate.is_read2):
-            mates_improperly_paired = True
             is_bogus = True
 
-        end_motif_has_n: bool = False
         if 'N' in self.end5p or 'N' in self.end3p:
-            end_motif_has_n = True
             is_bogus = True
 
-        if is_bogus:
-            logger: logging.Logger = logging.getLogger("pyfraglib")
-            logger.debug(
-                "bogus fragment on contig {} "
-                "(read_len={}, mate_len={}, start-end={}-{}={}, "
-                "mates improperly paired={}, fd={}), N in end "
-                "motif={}".format(
-                    self.chrom, read_len, mate_len, self.end_pos,
-                    self.start_pos, self.end_pos - self.start_pos,
-                    mates_improperly_paired, self.is_forward,
-                    end_motif_has_n
-                )
-            )
         return is_bogus
 
     def assign_read_pair_coords(
@@ -217,13 +203,18 @@ class Fragment:
         read_cache: dict[str, pysam.AlignedSegment] = {}
         for read in bam_file.fetch():
             assert read.query_name
+
+            invalid_read: bool = False
             num_total_reads += 1
 
             if not read.is_proper_pair:
                 num_unpaired += 1
-            elif read.is_duplicate:
+                invalid_read = True
+            if read.is_duplicate:
                 num_duplicates += 1
-            else:
+                invalid_read = True
+
+            if not invalid_read:
                 if read.query_name in read_cache:
                     mate: pysam.AlignedSegment = read_cache[read.query_name]
                     fragments.append(Fragment(read, mate, mut_reads))
@@ -231,16 +222,12 @@ class Fragment:
                 else:
                     read_cache[read.query_name] = read
 
-        num_proper_reads: int = fragments.length() * 2
         logger.info(
             "total reads: {}, unpaired : {}%, duplicates: {}%".format(
                 num_total_reads,
                 round(100*num_unpaired/num_total_reads, 3),
                 round(100*num_duplicates/num_total_reads, 3)))
         logger.debug("{} reads left in cache".format(len(read_cache)))
-
-        if num_proper_reads == 0:
-            fail("no fragments identified")
 
         # @NOTE(ds): Careful cleanup. We must not leak memory.
         bam_file.close()
@@ -258,6 +245,7 @@ class Fragment:
 
         num_unknown_variants: int = 0
         num_singles: int = 0
+        num_mutated_reads: int = 0
         variant: pysam.VariantRecord
         fname: bytes = vcf_file.filename
         vcf_filename: str = fname.decode()
@@ -287,8 +275,9 @@ class Fragment:
 
                     read_base: str = read.query_sequence[read_index]
                     if read_base in variant.alts:
-                        if read not in mutated_reads and not is_duplex(read):
+                        if not is_duplex(read):
                             num_singles += 1
+                        num_mutated_reads += 1
                         mutated_reads.add(read)
                     elif read_base != variant.ref:
                         # NOTE(ds): Read has a base that's neither a ref nor
@@ -305,7 +294,7 @@ class Fragment:
                         num_unknown_variants, vcf_filename))
         logger.info("found {} mutated reads without duplex support (out of "
                     "{} mutated reads total)".format(num_singles,
-                                                     len(mutated_reads)))
+                                                     num_mutated_reads))
 
         return mutated_reads
 

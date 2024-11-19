@@ -276,4 +276,4 @@ def wps_scatter_plot(df: pd.DataFrame, name: str, out_dir: str) -> None:
     plt.xlabel("Genomic Position")
     plt.ylabel("WPS")
 
-    fig.savefig(outpath, dpi=900, transparent=True)
+    fig.savefig(outpath, dpi=900)
