@@ -13,6 +13,7 @@
 # License along with this program. If not, see <https://www.gnu.org/licenses/>.
 import logging
 import os
+import signal
 import sys
 
 import numpy as np
@@ -51,9 +52,14 @@ hg19_chromosomes: Final[list[tuple[str, int, str, str]]] = [
 ]
 
 
+# `fail' terminates the program even if called from a subprocess.
 def fail(msg: str) -> NoReturn:
     logger: logging.Logger = logging.getLogger("pyfraglib")
     logger.fatal(msg)
+
+    # @NOTE(ds): We signal to a potential parent.
+    os.kill(os.getppid(), signal.SIGINT)
+
     sys.exit(1)
 
 

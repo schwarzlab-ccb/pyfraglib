@@ -48,7 +48,7 @@ setup(
     install_requires=cast(list[str], [
         "pysam==0.22.1", "matplotlib==3.9.0", "numpy<1.27", "seaborn==0.13.2",
         "matplotlib-stubs==0.2.0", "types-seaborn==0.13.2.20240820",
-        "pandas==2.2.2", "intervaltree==3.1.0"
+        "pandas==2.2.2", "intervaltree==3.1.0", "scipy==1.14.1"
     ]),
     package_data={"pyfraglib": ["py.typed"]},
     scripts=["scripts/pyfrag.py", "scripts/txt_to_vcf.py"],

@@ -16,6 +16,7 @@
 import argparse
 import logging
 import os
+import signal
 import sys
 import pysam
 
@@ -40,10 +41,16 @@ version_string: Final[str] = "pyfrag v{} (running on Python v{})" \
 
 
 # @NOTE(ds): We re-define fail to be more specific with the logger that we
-# use. Otherwise, we could have just used pyfraglib's `fail'.
+# use. Otherwise, we could have just used pyfraglib's `fail'. Also, we
+# probably do not need to signal a parent process.
 def fail(msg: str, logger: logging.Logger) -> NoReturn:
     logger.fatal(msg)
     sys.exit(1)
+
+
+def signal_handler(sig: int, frame: object) -> NoReturn:
+    logger: logging.Logger = logging.getLogger("pyfrag")
+    fail("an error occurred", logger)
 
 
 # @NOTE(ds): We always require our users to indicate an output directory. What
@@ -368,6 +375,8 @@ if __name__ == "__main__":
         level = logging.INFO
     logging.getLogger("pyfraglib").setLevel(level)
     logging.getLogger("pyfrag").setLevel(level)
+
+    signal.signal(signal.SIGINT, signal_handler)
 
     subcmd: str = args.subcommand
     switch_on_subcommand(subcmd, args, logger)

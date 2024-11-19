@@ -22,9 +22,8 @@ if [[ "$1" == "--install" || "$2" == "--install" ]]; then
     echo "Successfully installed latest \`pyfraglib' locally."
 fi
 
-SLURM_CPUS_PER_TASK=4 pyfrag.py -o frag_out/ extract --bam-dir data/ \
-    --with-vcf &&
-pyfrag.py -o plot_out/ stats -d frag_out/ &&
-pyfrag.py -o plot_out/ lengths -d frag_out/ &&
-pyfrag.py -o scores_out/ scores -d frag_out/ -b \
+pyfrag.py -o frag_out/ extract -f data/full/DED123_BL_full.bam --with-vcf &&
+pyfrag.py -o plot_out/ stats -f frag_out/DED123_BL_full.frag &&
+pyfrag.py -o plot_out/ lengths -f frag_out/DED123_BL_full.frag &&
+pyfrag.py -o scores_out/ scores -f frag_out/DED123_BL_full.frag -b \
     data/ref/loci_covered_by_panel.bed.gz

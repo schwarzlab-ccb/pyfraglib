@@ -14,17 +14,19 @@
 import logging
 
 from pyfraglib.core import fail, PyfragManager
+from pyfraglib.math import fit_gmm, plot_gmm
 from pyfraglib.fragment import Fragment, FragmentList, FragmentCollection
 from pyfraglib.fragfile import FragFile
 from pyfraglib.stats import fragments_per_chromosome_barplot
 from pyfraglib.lengths import fragment_length_histogram
 
-__version__ = "0.0.2"
+__version__ = "0.1.0"
 __repo_url__ = "https://bitbucket.org/schwarzlab/project-lymphoma-cfdna/"
 __all__ = ["Fragment", "FragmentList", "FragmentCollection", "fail",
            "FragFile",
            "fragments_per_chromosome_barplot",
-           "fragment_length_histogram"]
+           "fragment_length_histogram",
+           "fit_gmm", "plot_gmm"]
 
 logging.basicConfig(level=logging.NOTSET)
 logging.getLogger('matplotlib.font_manager').setLevel(logging.ERROR)
