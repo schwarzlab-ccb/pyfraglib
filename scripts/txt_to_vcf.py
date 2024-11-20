@@ -101,9 +101,11 @@ def convert(infile: str, outfile: str, logger: logging.Logger) -> None:
 
                     # We know very little about the info that our fields
                     # provide. And unfortunately, some of the info names are
-                    # invalid.
+                    # invalid. We substitute the invalid parts with a
+                    # placeholder to avoid warnings later on.
                     info_name: str = field_names[it].replace("-", "_")
-                    info_name = re.sub("[+-]", "*", info_name)
+                    info_name = re.sub("[*+-]", "INVALID{}".format(it),
+                                       info_name)
                     field_names[it] = info_name
 
                     vcf_file.header.info.add(
