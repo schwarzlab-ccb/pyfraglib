@@ -28,7 +28,12 @@ __all__ = ["Fragment", "FragmentList", "FragmentCollection", "fail",
            "fragment_length_plot",
            "fit_gmm", "plot_gmm"]
 
-logging.basicConfig(level=logging.NOTSET)
+logging.basicConfig(
+    level=logging.NOTSET,
+    format='[%(asctime)s %(levelname)s %(name)-9s %(process)s] %(message)s',
+    datefmt='%Y-%m-%d %H:%M:%S'
+)
+
 logging.getLogger('matplotlib.font_manager').setLevel(logging.ERROR)
 logging.getLogger('matplotlib.pyplot').setLevel(logging.ERROR)
 

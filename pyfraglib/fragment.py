@@ -210,8 +210,18 @@ class Fragment:
             num_unpaired: int = 0
             num_duplicates: int = 0
             read_cache: dict[str, pysam.AlignedSegment] = {}
-            progress_bar: tqdm.tqdm[int] = tqdm.tqdm(total=bam_file.count(),
-                                                     leave=False)
+
+            # @NOTE(ds): `idxstats' should not fail because a BAI must exist.
+            idxstats_output: str = pysam.idxstats(filepath)  # type: ignore
+            idxstats_total_reads: int = sum(
+                int(line.split('\t')[2]) + int(line.split('\t')[3])
+                for line
+                in idxstats_output.splitlines()
+            )
+            progress_bar: tqdm.tqdm[int] = tqdm.tqdm(
+                total=idxstats_total_reads, leave=False
+            )
+
             for read in bam_file.fetch():
                 assert read.query_name
 
@@ -220,8 +230,9 @@ class Fragment:
 
                 # @NOTE(ds): We don't want to do updates every fragment, even
                 # though `tqdm' is supposed to be very fast.
-                if (num_total_reads % 10000 == 0):
-                    progress_bar.update(10000)
+                increment: int = 100_000
+                if (num_total_reads % increment == 0):
+                    progress_bar.update(increment)
 
                 if not read.is_proper_pair:
                     num_unpaired += 1

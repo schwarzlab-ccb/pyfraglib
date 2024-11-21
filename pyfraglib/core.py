@@ -148,6 +148,6 @@ def detect_cpus() -> int:
     logger: logging.Logger = logging.getLogger("pyfraglib")
     num_cores: Final[int] = int(os.environ.get("SLURM_CPUS_PER_TASK", 1))
 
-    logger.info("{} cores detected".format(num_cores))
+    logger.info("{} core(s) detected".format(num_cores))
 
     return num_cores
