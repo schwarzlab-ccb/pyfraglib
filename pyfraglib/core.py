@@ -47,8 +47,36 @@ hg19_chromosomes: Final[list[tuple[str, int, str, str]]] = [
     ("22", 51304566,  "CM000684.1", "NC_000022.10"),
     ("X",  155270560, "CM000685.1", "NC_000023.10"),
     ("Y",  59373566,  "CM000686.1", "NC_000024.9"),
-    ("M",  16571,     "",           "NC_001807.4"),
-    ("MT", 16569,     "J01415.2",   "NC_012920.1")
+    ("M",  16569,     "J01415.2",   "NC_012920.1")
+]
+
+# @NOTE(ds): From ``https://www.ncbi.nlm.nih.gov/grc/human/data?asm=GRCh38''.
+hg38_chromosomes: Final[list[tuple[str, int, str, str]]] = [
+    ("1",  248956422, "CM000663.2", "NC_000001.11"),
+    ("2",  242193529, "CM000664.2", "NC_000002.12"),
+    ("3",  198295559, "CM000665.2", "NC_000003.12"),
+    ("4",  190214555, "CM000666.2", "NC_000004.12"),
+    ("5",  181538259, "CM000667.2", "NC_000005.10"),
+    ("6",  170805979, "CM000668.2", "NC_000006.12"),
+    ("7",  159345973, "CM000669.2", "NC_000007.14"),
+    ("8",  145138636, "CM000670.2", "NC_000008.11"),
+    ("9",  138394717, "CM000671.2", "NC_000009.12"),
+    ("10", 133797422, "CM000672.2", "NC_000010.11"),
+    ("11", 135086622, "CM000673.2", "NC_000011.10"),
+    ("12", 133275309, "CM000674.2", "NC_000012.12"),
+    ("13", 114364328, "CM000675.2", "NC_000013.11"),
+    ("14", 107043718, "CM000676.2", "NC_000014.9"),
+    ("15", 101991189, "CM000677.2", "NC_000015.10"),
+    ("16", 90338345,  "CM000678.2", "NC_000016.10"),
+    ("17", 83257441,  "CM000679.2", "NC_000017.11"),
+    ("18", 80373285,  "CM000680.2", "NC_000018.10"),
+    ("19", 58617616,  "CM000681.2", "NC_000019.10"),
+    ("20", 64444167,  "CM000682.2", "NC_000020.11"),
+    ("21", 46709983,  "CM000683.2", "NC_000021.9"),
+    ("22", 50818468,  "CM000684.2", "NC_000022.11"),
+    ("X",  156040895, "CM000685.2", "NC_000023.11"),
+    ("Y",  57227415,  "CM000686.2", "NC_000024.10"),
+    ("M",  16569,     "J01415.2",   "NC_012920.1")
 ]
 
 
@@ -78,10 +106,18 @@ class PyfragManager(BaseManager):
     pass
 
 
-def get_chromosome_length(chrom: str) -> int:
+def get_chromosome_length(chrom: str, genome: str = "hg19") -> int:
+    chromosomes: list[tuple[str, int, str, str]]
+    if genome == "hg19":
+        chromosomes = hg19_chromosomes
+    elif genome == "hg38":
+        chromosomes = hg38_chromosomes
+    else:
+        fail("unknown genome `{}' requested".format(genome))
+
     if chrom.startswith("chr"):
         chrom = chrom[3:]
-    for name, length, _, _ in hg19_chromosomes:
+    for name, length, _, _ in chromosomes:
         if chrom == name:
             return length
     fail("unknown chromosome `{}'".format(chrom))

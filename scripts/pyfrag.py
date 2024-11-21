@@ -81,7 +81,7 @@ def create_argparser() -> argparse.ArgumentParser:
     argparser_extract.add_argument(
         "-d", "--bam-dir", type=str, dest="bam_dir", required=False,
         help="Input BAM files to be analyzed in batch mode. Must not be "
-        "combined with `--bam-file'.")
+        "combined with `--bam-file'. Might consume a lot of memory.")
     argparser_extract.add_argument(
         "-f", "--bam-file", type=str, dest="bam_file", required=False,
         help="Input BAM file to be analyzed. Must not be combined with "
@@ -92,6 +92,11 @@ def create_argparser() -> argparse.ArgumentParser:
         "every BAM (e.g. `patient1.bam' must have `patient1.vcf' in the same "
         "directory). Variants must be SNVs. All fragments for which one of "
         "the reads carries the ALT allele are then annotated as mutated.")
+    argparser_extract.add_argument(
+        "--nanopore", action="store_true", dest="is_nanopore",
+        default=False, help="If set, input BAM file(s) will be treated as "
+        "single-end long read sequencing (e.g. ONT sequencing). If not set "
+        "(default), BAMs are expected to be paired-end.")
 
     argparser_stats: argparse.ArgumentParser = subparsers.add_parser(
         "stats", help="Given (a) `.frag' file(s), extract descriptive "
@@ -135,6 +140,10 @@ def create_argparser() -> argparse.ArgumentParser:
         "-b", "--bed-file", type=str, dest="bed_file", required=True,
         help="A correctly formatted BED file (see docs) that provides "
         "genomic coordinates for score calculation.")
+    argparser_scores.add_argument(
+        "--hg38", action="store_true", dest="is_hg38",
+        default=False, help="If set, hg38 will be assumed for the analyses. "
+        "If unset (default), hg19 is assumed.")
 
     return argparser
 
@@ -147,6 +156,7 @@ def create_argparser() -> argparse.ArgumentParser:
 def extract(out_dir: str, args: argparse.Namespace) -> None:
     bam_file: Final[str] = args.bam_file
     bam_dir: Final[str] = args.bam_dir
+    is_nanopore: Final[bool] = args.is_nanopore
 
     if bam_file and bam_dir:
         fail("--bam-dir and --bam-file are incompatible options", logger)
@@ -185,7 +195,7 @@ def extract(out_dir: str, args: argparse.Namespace) -> None:
 
     # NOTE(ds): Instead of accumulating all results in memory and writing them
     # out at once, we extract and write BAM/FRAG files independently.
-    Fragment.bams_to_frags(bam_files, vcf_files, out_dir)
+    Fragment.bams_to_frags(bam_files, vcf_files, out_dir, is_nanopore)
 
 
 # @NOTE(ds): `stats' and `lengths' follow very similar patterns.
@@ -247,6 +257,9 @@ def scores(out_dir: str, args: argparse.Namespace) -> None:
     frag_dir: Final[str] = args.frag_dir
     bed_file: Final[str] = args.bed_file
 
+    is_hg38: Final[bool] = args.is_hg38
+    genome: Final[str] = "hg38" if is_hg38 else "hg19"
+
     if frag_file and frag_dir:
         fail("--frag-dir and --frag-file are incompatible options", logger)
     elif not frag_file and not frag_dir:
@@ -278,7 +291,8 @@ def scores(out_dir: str, args: argparse.Namespace) -> None:
         motif_diversity_scores.loc[it] = new_row
 
         logger.info("calculating windowed protection score")
-        wps_df: pd.DataFrame = windowed_protection_score(fragments, regions)
+        wps_df: pd.DataFrame = windowed_protection_score(fragments, regions,
+                                                         genome)
         wps_outpath: str = os.path.join(out_dir, "wps_{}.csv".format(name))
         logger.info("saving windowed protection score to `{}'".format(
             wps_outpath))

@@ -19,7 +19,7 @@ import matplotlib
 import matplotlib.pyplot as plt
 
 from collections import defaultdict
-from pyfraglib.fragment import Fragment, FragmentList
+from pyfraglib.fragment import FragmentList
 
 
 def fragments_per_chromosome_barplot(

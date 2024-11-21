@@ -11,11 +11,12 @@
 # FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License for
 # more details. You should have received a copy of the GNU General Public
 # License along with this program. If not, see <https://www.gnu.org/licenses/>.
+import gzip
 import logging
 import os
 import pickle
 import pysam
-import gzip
+import tqdm
 
 from dataclasses import dataclass
 from functools import partial
@@ -31,8 +32,7 @@ DEFAULT_KMER_LEN: Final = 3
 MAX_KMER_LEN: Final = 4
 VALID_CHROMOSOME_NAMES: Final = [str(x) for x in range(1, 23)] + \
                                 ["chr{}".format(x) for x in range(1, 23)] + \
-                                ["X", "x", "Y", "y", "chrX", "chrY"] + \
-                                ["mt", "MT"]
+                                ["X", "x", "Y", "y", "chrX", "chrY", "M", "m"]
 
 
 @dataclass(slots=True)
@@ -183,9 +183,9 @@ class Fragment:
     # The same is true for the optional VCF file that can be provided to enable
     # annotation of mutated fragments.
     @staticmethod
-    def from_bam(filepath: str, vcfpath: Optional[str]) -> "FragmentList":
+    def from_bam(filepath: str, vcfpath: Optional[str],
+                 is_nanopore: bool = False) -> "FragmentList":
         logger: logging.Logger = logging.getLogger("pyfraglib")
-        logger.info("processing BAM file `{}'".format(filepath))
 
         bam_file: pysam.AlignmentFile = pysam.AlignmentFile(filepath)
         if not bam_file.has_index():
@@ -196,38 +196,56 @@ class Fragment:
             vcf_file: pysam.VariantFile = pysam.VariantFile(vcfpath)
             mut_reads = Fragment.build_mutated_reads_set(bam_file, vcf_file)
 
-        num_total_reads: int = 0
-        num_unpaired: int = 0
-        num_duplicates: int = 0
         fragments: FragmentList = FragmentList()
-        read_cache: dict[str, pysam.AlignedSegment] = {}
-        for read in bam_file.fetch():
-            assert read.query_name
+        if is_nanopore:
+            # @TODO(ds): implement this!
+            logger.info("processing BAM file `{}' as single-ended".format(
+                filepath))
+            fail("single-ended parsing not implemented")
+        else:
+            logger.info("processing BAM file `{}' as paired-ended".format(
+                filepath))
 
-            invalid_read: bool = False
-            num_total_reads += 1
+            num_total_reads: int = 0
+            num_unpaired: int = 0
+            num_duplicates: int = 0
+            read_cache: dict[str, pysam.AlignedSegment] = {}
+            progress_bar: tqdm.tqdm[int] = tqdm.tqdm(total=bam_file.count(),
+                                                     leave=False)
+            for read in bam_file.fetch():
+                assert read.query_name
 
-            if not read.is_proper_pair:
-                num_unpaired += 1
-                invalid_read = True
-            if read.is_duplicate:
-                num_duplicates += 1
-                invalid_read = True
+                invalid_read: bool = False
+                num_total_reads += 1
 
-            if not invalid_read:
-                if read.query_name in read_cache:
-                    mate: pysam.AlignedSegment = read_cache[read.query_name]
-                    fragments.append(Fragment(read, mate, mut_reads))
-                    read_cache.pop(read.query_name)  # _major_ mem saver
-                else:
-                    read_cache[read.query_name] = read
+                # @NOTE(ds): We don't want to do updates every fragment, even
+                # though `tqdm' is supposed to be very fast.
+                if (num_total_reads % 10000 == 0):
+                    progress_bar.update(10000)
 
-        logger.info(
-            "total reads: {}, unpaired : {}%, duplicates: {}%".format(
-                num_total_reads,
-                round(100*num_unpaired/num_total_reads, 3),
-                round(100*num_duplicates/num_total_reads, 3)))
-        logger.debug("{} reads left in cache".format(len(read_cache)))
+                if not read.is_proper_pair:
+                    num_unpaired += 1
+                    invalid_read = True
+                if read.is_duplicate:
+                    num_duplicates += 1
+                    invalid_read = True
+
+                if not invalid_read:
+                    if read.query_name in read_cache:
+                        mate: pysam.AlignedSegment = \
+                            read_cache[read.query_name]
+                        fragments.append(Fragment(read, mate, mut_reads))
+                        read_cache.pop(read.query_name)  # _major_ mem saver
+                    else:
+                        read_cache[read.query_name] = read
+
+            progress_bar.close()
+            logger.info(
+                "total reads: {}, unpaired: {}%, duplicates: {}%".format(
+                    num_total_reads,
+                    round(100*num_unpaired/num_total_reads, 3),
+                    round(100*num_duplicates/num_total_reads, 3)))
+            logger.debug("{} reads left in cache".format(len(read_cache)))
 
         # @NOTE(ds): Careful cleanup. We must not leak memory.
         bam_file.close()
@@ -309,10 +327,16 @@ class Fragment:
     # individual BAM files are processed and the results are accumulated in
     # memory. Unfortunately, the in-memory representation of `Fragment's is
     # quite large.
+    # @NOTE(ds): `from_bams' cannot work with Nanopore data because we do not
+    # want to use this function much anyways.
     @staticmethod
     def from_bams(
-        filepaths: list[str], vcfpaths: Optional[list[str]]
+        filepaths: list[str], vcfpaths: Optional[list[str]],
+        is_nanopore: bool = False
     ) -> "FragmentCollection":
+        if is_nanopore:
+            fail("internal error: `from_bams' cannot work with nanopore data")
+
         # @NOTE(ds): Unfortunately, we have to do a lot of dynamic typing.
         # Thus, mypy complains on multiple occasions.
         with PyfragManager() as mngr:
@@ -337,10 +361,13 @@ class Fragment:
 
     # @NOTE(ds): As opposed to `from_bams', `bams_to_frags' works on multiple
     # BAM files in parallel, writing them out to FRAG files _without_
-    # collecting all data in memory. That's much more efficient.
+    # collecting all data in memory. That's much more efficient. Also, the
+    # caller can specify that the input BAM files contain unpair Nanopore
+    # reads.
     @staticmethod
     def bams_to_frags(
-        filepaths: list[str], vcfpaths: Optional[list[str]], out_dir: str
+        filepaths: list[str], vcfpaths: Optional[list[str]], out_dir: str,
+        is_nanopore: bool = False
     ) -> None:
         # @NOTE(ds): We use the same multiprocessing idioms as in `from_bams'.
         input_data: list[tuple[str, str | None]] = []
@@ -351,7 +378,7 @@ class Fragment:
             input_data.append((filepath, vcfpath))
         with Pool(processes=detect_cpus()) as pool:
             partial_task: Callable[[str, str], None] = partial(
-                task1, out_dir=out_dir
+                task1, out_dir=out_dir, is_nanopore=is_nanopore
             )
             pool.starmap(partial_task, input_data)
 
@@ -370,10 +397,17 @@ def task0(filepath: str, vcfpath: str | None,
 
 
 def task1(filepath: str, vcfpath: str | None,
-          out_dir: str) -> None:
-    frags: FragmentList = Fragment.from_bam(filepath, vcfpath)
+          out_dir: str, is_nanopore: bool) -> None:
+    logger: logging.Logger = logging.getLogger("pyfraglib")
+
+    frags: FragmentList = Fragment.from_bam(filepath, vcfpath, is_nanopore)
     filename: str = os.path.basename(filepath)
     name, _ = os.path.splitext(filename)
+
+    # @NOTE(ds): We are pretty inconsistent when it comes to logging. Sometimes
+    # we log in the worker functions (like we do in `from_bam'), but sometimes
+    # we log in the dispatchers, too (like below).
+    logger.info("saving `{}.frag' to `{}'".format(name, out_dir))
     frags.to_frag_file(name, out_dir)
 
 

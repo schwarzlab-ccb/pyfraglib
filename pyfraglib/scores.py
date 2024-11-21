@@ -25,7 +25,8 @@ import numpy.typing as npt
 from collections import defaultdict
 from intervaltree import Interval  # type: ignore
 from pyfraglib.core import shannon_entropy, simpson_index, fail, \
-                           get_chromosome_length, hg19_chromosomes
+                           get_chromosome_length, hg19_chromosomes, \
+                           hg38_chromosomes
 from pyfraglib.fragment import FragmentList, IntervalTable
 
 
@@ -66,9 +67,10 @@ def motif_diversity(
 # @NOTE(ds): This is a simply dispatch function to facilitate selection of a
 # WPS implementation.
 def windowed_protection_score(
-    fragments: FragmentList, regions: pysam.TabixFile, win_size: int = 120
+    fragments: FragmentList, regions: pysam.TabixFile, win_size: int = 120,
+    genome: str = "hg19"
 ) -> pd.DataFrame:
-    return windowed_protection_score_fast(fragments, regions, win_size)
+    return windowed_protection_score_fast(fragments, regions, win_size, genome)
 
 
 # @NOTE(ds): We removed the `step_size' argument because this algorithm does
@@ -85,11 +87,13 @@ def windowed_protection_score(
 # The implementation below tries to be extremely careful about interval
 # definitions to not introduce 1-off errors.
 def windowed_protection_score_fast(
-    fragments: FragmentList, regions: pysam.TabixFile, win_size: int = 120
+    fragments: FragmentList, regions: pysam.TabixFile, win_size: int = 120,
+    genome: str = "hg19"
 ) -> pd.DataFrame:
     assert win_size > 0
 
-    chromosome_map: dict[str, npt.NDArray[np.int64]] = create_chromosome_map()
+    chromosome_map: dict[str, npt.NDArray[np.int64]] = \
+        create_chromosome_map(genome)
 
     for fragment in fragments:
         if fragment.is_bogus:
@@ -102,7 +106,8 @@ def windowed_protection_score_fast(
 
         win_half: int = win_size // 2
         istart: int = max(frag_start - win_half, 0)
-        iend: int = min(frag_end + win_half, get_chromosome_length(frag_chrom))
+        iend: int = min(frag_end + win_half,
+                        get_chromosome_length(frag_chrom, genome))
 
         if frag_len < win_size:
             chromosome_map[frag_chrom][istart:iend] -= 1  # type: ignore
@@ -114,7 +119,7 @@ def windowed_protection_score_fast(
             chromosome_map[frag_chrom][ostart:oend] += 1  # type: ignore
             chromosome_map[frag_chrom][oend:iend] -= 1  # type: ignore
 
-    return chromosome_map_to_df(chromosome_map, regions)
+    return chromosome_map_to_df(chromosome_map, regions, genome)
 
 
 # @NOTE(ds): We assume a correctly formatted BED file to be provided for the
@@ -122,7 +127,7 @@ def windowed_protection_score_fast(
 # the the resulting dataframe (e.g. gene names).
 def windowed_protection_score_slow(
     fragments: FragmentList, regions: pysam.TabixFile,
-    win_size: int = 120, step_size: int = 1,
+    win_size: int = 120, step_size: int = 1, genome: str = "hg19"
 ) -> pd.DataFrame:
     assert win_size > 0
     assert step_size > 0
@@ -156,7 +161,7 @@ def windowed_protection_score_slow(
             if not cur_chrom:
                 cur_chrom = chrom
             elif chrom != cur_chrom:
-                cum_pos += get_chromosome_length(cur_chrom)
+                cum_pos += get_chromosome_length(cur_chrom, genome)
                 cur_chrom = chrom
 
             intervals: list[Interval]  # type: ignore
@@ -202,12 +207,22 @@ def precalc_size(regions: pysam.TabixFile, step_size: int) -> int:
     return it
 
 
-def create_chromosome_map() -> dict[str, npt.NDArray[np.int64]]:
+def create_chromosome_map(
+    genome: str = "hg19"
+) -> dict[str, npt.NDArray[np.int64]]:
     chrom_map: dict[str, npt.NDArray[np.int64]] = dict()
     name: str
     length: int
+    chromosomes: list[tuple[str, int, str, str]]
 
-    for name, length, _, _ in hg19_chromosomes:
+    if genome == "hg19":
+        chromosomes = hg19_chromosomes
+    elif genome == "hg38":
+        chromosomes = hg38_chromosomes
+    else:
+        fail("unknown genome `{}' requested".format(genome))
+
+    for name, length, _, _ in chromosomes:
         chrom_map[name] = np.zeros(length, dtype=np.int64)
 
     return chrom_map
@@ -217,7 +232,8 @@ def create_chromosome_map() -> dict[str, npt.NDArray[np.int64]]:
 # E.g. listing chr1 regions, chr3 regions, and chr2 regions in this order will
 # produce incorrect results with respect to the absolute genome position!
 def chromosome_map_to_df(
-    chrom_map: dict[str, npt.NDArray[np.int64]], regions: pysam.TabixFile
+    chrom_map: dict[str, npt.NDArray[np.int64]], regions: pysam.TabixFile,
+    genome: str = "hg19"
 ) -> pd.DataFrame:
     col_names: list[str] = ["chrom", "pos", "abs_pos", "wps", "info"]
     wps_df: pd.DataFrame = pd.DataFrame(
@@ -243,7 +259,7 @@ def chromosome_map_to_df(
             cur_chrom = chrom
             chromosome = chrom_map[chrom]
         elif chrom != cur_chrom:
-            cum_pos += get_chromosome_length(cur_chrom)
+            cum_pos += get_chromosome_length(cur_chrom, genome)
             cur_chrom = chrom
             chromosome = chrom_map[chrom]
 
