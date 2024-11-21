@@ -292,7 +292,7 @@ def scores(out_dir: str, args: argparse.Namespace) -> None:
 
         logger.info("calculating windowed protection score")
         wps_df: pd.DataFrame = windowed_protection_score(fragments, regions,
-                                                         genome)
+                                                         genome=genome)
         wps_outpath: str = os.path.join(out_dir, "wps_{}.csv".format(name))
         logger.info("saving windowed protection score to `{}'".format(
             wps_outpath))
