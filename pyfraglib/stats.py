@@ -52,14 +52,17 @@ def fragments_per_chromosome_barplot(
     assert chrom_map_wt.keys() == chrom_map_mut.keys()
     plt.bar(list(chrom_map_wt.keys()), list(chrom_map_wt.values()),
             label="wildtype fragments")
-    plt.bar(list(chrom_map_mut.keys()), list(chrom_map_mut.values()),
-            bottom=list(chrom_map_wt.values()), label="mutated fragments")
+    if sum(chrom_map_mut.values()) != 0:
+        plt.bar(list(chrom_map_mut.keys()), list(chrom_map_mut.values()),
+                bottom=list(chrom_map_wt.values()), label="mutated fragments")
+
+    plt.xticks(rotation=45)  # better rotate bc. we do not homogenize chr names
     plt.title("{}: Fragments per chromosome n={}".format(name, num_frags))
     plt.xlabel("Chromosomes")
     plt.ylabel("# of Fragments")
     plt.legend()
 
-    fig.savefig(outpath, dpi=fig.dpi)
+    fig.savefig(outpath, dpi=900)
 
 
 def end_motifs_barplot(

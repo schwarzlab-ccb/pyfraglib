@@ -52,4 +52,4 @@ def fragment_length_plot(
     plt.ylabel("Density")
     plt.legend()
 
-    fig.savefig(outpath, dpi=fig.dpi, transparent=True)
+    fig.savefig(outpath, dpi=fig.dpi)
