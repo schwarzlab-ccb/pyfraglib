@@ -30,7 +30,7 @@ __all__ = ["Fragment", "FragmentList", "FragmentCollection", "fail",
 
 logging.basicConfig(
     level=logging.NOTSET,
-    format='[%(asctime)s %(levelname)s %(name)-9s %(process)s] %(message)s',
+    format='[%(asctime)s %(levelname)-8s %(name)-9s %(process)s] %(message)s',
     datefmt='%Y-%m-%d %H:%M:%S'
 )
 

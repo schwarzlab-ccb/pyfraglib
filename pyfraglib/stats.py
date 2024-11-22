@@ -19,6 +19,7 @@ import matplotlib
 import matplotlib.pyplot as plt
 
 from collections import defaultdict
+from pyfraglib.core import fail
 from pyfraglib.fragment import FragmentList
 
 
@@ -129,6 +130,9 @@ def log_stats(
     num_bogus_frags: int = fragments.count_bogus_fragments()
     num_mut_frags: int = fragments.count_mutated_fragments()
     num_frags: int = fragments.length()
+
+    if num_frags == 0:
+        fail("no fragments found")
 
     logger.info(
         "identified {} fragments (bogus: {} ({}%), mutated: {} ({}%))".format(
