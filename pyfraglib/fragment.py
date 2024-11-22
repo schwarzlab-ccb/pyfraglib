@@ -85,15 +85,20 @@ class Fragment:
     ) -> None:
         assert read.reference_end
         assert read.reference_name
-        assert read.query_sequence
 
         self.start_pos = read.reference_start
         self.end_pos = read.reference_end
         self.chrom = read.reference_name
-        self.length = read.template_length
-        self.end5p = read.query_sequence[0:MAX_KMER_LEN]
-        self.end3p = read.query_sequence[-MAX_KMER_LEN:]
+        self.length = self.end_pos - self.start_pos
         self.is_mutated = read in mutated_reads if mutated_reads else None
+
+        default: str = 'N' * MAX_KMER_LEN
+        if read.query_sequence:
+            self.end5p = read.query_sequence[0:MAX_KMER_LEN]
+            self.end3p = read.query_sequence[-MAX_KMER_LEN:]
+        else:
+            self.end3p = self.end5p = default
+
         self.is_bogus = self.determine_bogus(read, None)  # must be called last
 
     def determine_bogus(
@@ -103,13 +108,13 @@ class Fragment:
 
         if 'N' in self.end5p or 'N' in self.end3p:
             is_bogus = True
+        if self.chrom not in VALID_CHROMOSOME_NAMES:
+            is_bogus = True
 
         # @NOTE(ds): We are checking a subset of properties that apply to
         # single-ended data and return early.
         if not mate:
-            if self.length >= INSERT_SIZE_UPPER_BOUND or self.length == 0:
-                is_bogus = True
-            if self.length != (self.end_pos - self.start_pos):
+            if self.length >= INSERT_SIZE_UPPER_BOUND or self.length <= 0:
                 is_bogus = True
             if read.mapping_quality < MIN_MAPQ:
                 is_bogus = True
@@ -123,8 +128,6 @@ class Fragment:
         # @NOTE(ds): A whole lot of length-related conditions might define a
         # fragment to be bogus.
         if self.length >= INSERT_SIZE_UPPER_BOUND or self.length == 0:
-            is_bogus = True
-        elif self.chrom not in VALID_CHROMOSOME_NAMES:
             is_bogus = True
         elif (self.length != (self.end_pos - self.start_pos)) or \
                 (read_len != mate_len):
