@@ -88,15 +88,15 @@ def plot_gmm(data: npt.NDArray[np.float64], m1: float, m2: float, pi: float,
 
     plt.hist(data, bins=120, density=True, alpha=0.5, color="gray")
     plt.plot(x, pdf1, color="blue", linestyle="-.",
-             label=r"$\sigma_1={}$, $\mu_1={:.2}$".format(m1, std1))
+             label=r"$\sigma_1={:.3}$, $\mu_1={:.4}$".format(m1, std1))
     plt.plot(x, pdf2, color="orange", linestyle="--",
-             label=r"$\sigma_2={}$, $\mu_2={:.2}$".format(m2, std2))
+             label=r"$\sigma_2={:.3}$, $\mu_2={:.4}$".format(m2, std2))
     plt.plot(x, pdf_gmm, color="red", linewidth=2,
              label=r"GMM fit, $\pi={:.4}$".format(pi))
     plt.xlabel("Data value")
     plt.ylabel("Density")
     plt.legend()
-    plt.title("Gaussian Mixture Model Fit")
+    plt.title("Gaussian Mixture Model {}, n={}".format(name, len(data)))
 
     outpath: str = \
         os.path.join(out_dir, "{}_gmm_frags_len.png".format(name))
