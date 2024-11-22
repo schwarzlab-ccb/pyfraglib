@@ -11,9 +11,12 @@
 # FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License for
 # more details. You should have received a copy of the GNU General Public
 # License along with this program. If not, see <https://www.gnu.org/licenses/>.
+import os
+
 import matplotlib.pyplot as plt
 import numpy as np
 import numpy.typing as npt
+
 from scipy.optimize import minimize
 from scipy.stats import norm
 
@@ -43,6 +46,8 @@ def negative_log_likelihood(
     return -np.sum(np.log(pdf + epsilon))  # type: ignore
 
 
+# @NOTE(ds): Fit a GMM of 2 1D Gaussians with fixed means `m1' and `m2' and
+# return the parameter estimates as `[pi, std1, std2]'.
 def fit_gmm(
     m1: float, m2: float,
     data: npt.NDArray[np.float64]
@@ -67,9 +72,10 @@ def fit_gmm(
 
 # @NOTE(ds): Given 2 means and 2 standard deviations, we plot a histogram of
 # `data' and overlay 2 normals. The parameters for the normals will most likely
-# come from a GMM, that's why the function is named like this.
-def plot_gmm(data: npt.NDArray[np.float64], m1: float, m2: float,
-             pi: float, std1: float, std2: float, bins: int = 50) -> None:
+# come from a GMM, that's why the function is named like this. `name' and
+# `out_dir' are concatenated into a destination filepath.
+def plot_gmm(data: npt.NDArray[np.float64], m1: float, m2: float, pi: float,
+             std1: float, std2: float, out_dir: str, name: str) -> None:
     x: npt.NDArray[np.float64] = np.linspace(np.min(data), np.max(data), 1000)
 
     pdf1: npt.NDArray[np.float64] = \
@@ -78,12 +84,20 @@ def plot_gmm(data: npt.NDArray[np.float64], m1: float, m2: float,
         (1 - pi) * norm.pdf(x, loc=m2, scale=std2)  # type: ignore
     pdf_gmm: npt.NDArray[np.float64] = pdf1 + pdf2
 
-    plt.hist(data, bins=bins, density=True, alpha=0.5, color="gray")
-    plt.plot(x, pdf1, label="Gaussian 1", color="blue", linestyle="-.")
-    plt.plot(x, pdf2, label="Gaussian 2", color="orange", linestyle="--")
-    plt.plot(x, pdf_gmm, label="GMM (fitted)", color="red", linewidth=2)
+    fig = plt.figure()
+
+    plt.hist(data, bins=120, density=True, alpha=0.5, color="gray")
+    plt.plot(x, pdf1, color="blue", linestyle="-.",
+             label=r"$\sigma_1={}$, $\mu_1={:.2}$".format(m1, std1))
+    plt.plot(x, pdf2, color="orange", linestyle="--",
+             label=r"$\sigma_2={}$, $\mu_2={:.2}$".format(m2, std2))
+    plt.plot(x, pdf_gmm, color="red", linewidth=2,
+             label=r"GMM fit, $\pi={:.4}$".format(pi))
     plt.xlabel("Data value")
     plt.ylabel("Density")
     plt.legend()
     plt.title("Gaussian Mixture Model Fit")
-    plt.show()  # type: ignore
+
+    outpath: str = \
+        os.path.join(out_dir, "{}_gmm_frags_len.png".format(name))
+    fig.savefig(outpath, dpi=fig.dpi)

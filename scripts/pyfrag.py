@@ -28,7 +28,7 @@ import pyfraglib
 from pyfraglib import Fragment, FragmentList
 from pyfraglib.core import CodeUnreachableError
 from pyfraglib.fragfile import FragFile
-from pyfraglib.lengths import fragment_length_plot
+from pyfraglib.lengths import fragment_length_plot, fragment_length_gmm
 from pyfraglib.stats import fragments_per_chromosome_barplot, \
                             end_motifs_barplot, log_stats
 from pyfraglib.scores import motif_diversity, windowed_protection_score, \
@@ -247,6 +247,7 @@ def lengths(out_dir: str, args: argparse.Namespace) -> None:
 
         name: str = filename_only(path)
         fragment_length_plot(fragments, out_dir, name)
+        fragment_length_gmm(fragments, out_dir, name)
 
 
 # @NOTE(ds): We interleave the calculation of our scores. It's ugly, but

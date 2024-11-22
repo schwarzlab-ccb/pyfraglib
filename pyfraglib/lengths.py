@@ -15,10 +15,13 @@ import os
 import logging
 
 import matplotlib.pyplot as plt
+import numpy as np
+import numpy.typing as npt
 import seaborn as sns
 
 from typing import Final
 from pyfraglib import FragmentList
+from pyfraglib.math import fit_gmm, plot_gmm
 
 
 def fragment_length_plot(
@@ -29,14 +32,17 @@ def fragment_length_plot(
         "creating fragment length plots in `{}'".format(out_dir)
     )
 
-    frag_lengths_mut: list[int] = [
-        frag.length for frag in fragments if
-        (not frag.is_bogus and frag.is_mutated)
-    ]
-    frag_lengths_wt: list[int] = [
-        frag.length for frag in fragments if
-        (not frag.is_bogus and not frag.is_mutated)
-    ]
+    frag_lengths_mut: list[int] = []
+    frag_lengths_wt: list[int] = []
+
+    for frag in fragments:
+        if frag.is_bogus:
+            continue
+        if frag.is_mutated:
+            frag_lengths_mut.append(frag.length)
+        else:
+            frag_lengths_wt.append(frag.length)
+
     num_frags: Final[int] = len(frag_lengths_mut) + len(frag_lengths_wt)
 
     fig = plt.figure()
@@ -53,3 +59,19 @@ def fragment_length_plot(
     plt.legend()
 
     fig.savefig(outpath, dpi=fig.dpi)
+
+
+def fragment_length_gmm(fragments: FragmentList,
+                        out_dir: str, name: str) -> None:
+    logger: logging.Logger = logging.getLogger("pyfraglib")
+    logger.info(
+        "fitting GMM, writing results to `{}'".format(out_dir)
+    )
+
+    frag_lens: npt.NDArray[np.float64] = np.array(
+        [frag.length for frag in fragments if not frag.is_bogus]
+    )
+
+    m1, m2 = 167, 2*167
+    [pi, std1, std2] = fit_gmm(m1, m2, frag_lens)
+    plot_gmm(frag_lens, m1, m2, pi, std1, std2, out_dir, name)

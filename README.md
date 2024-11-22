@@ -17,6 +17,7 @@ no comprehensive tool exists to implement a "fragmentomics workflow".
 
 ```bash
 python3 -m pip install pyfraglib
+# in addition, the user needs samtools and zlib installed, e.g. via conda
 ```
 
 Since the most recent version of `pyfraglib` might not be on PyPI yet, you can
