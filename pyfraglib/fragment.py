@@ -18,11 +18,11 @@ import pickle
 import pysam
 import tqdm
 
+from collections import defaultdict
 from dataclasses import dataclass
 from functools import partial
 from intervaltree import IntervalTree, Interval  # type: ignore
 from multiprocessing import Pool
-from collections import defaultdict
 from pyfraglib.core import fail, PyfragManager, detect_cpus
 from typing import Callable, Final, Generator, Optional, cast
 
@@ -54,12 +54,22 @@ class Fragment:
     is_bogus: bool
     is_mutated: Optional[bool]
 
+    # @NOTE(ds): With `mate' set to `None', we are assuming single-ended data.
     def __init__(
+        self, read: pysam.AlignedSegment, mate: Optional[pysam.AlignedSegment],
+        mutated_reads: Optional[set[pysam.AlignedSegment]]
+    ) -> None:
+        if not mate:
+            self.init_single_ended(read, mutated_reads)
+        else:
+            self.init_paired_ended(read, mate, mutated_reads)
+
+    def init_paired_ended(
         self, read: pysam.AlignedSegment, mate: pysam.AlignedSegment,
         mutated_reads: Optional[set[pysam.AlignedSegment]]
     ) -> None:
-        # @NOTE(ds): We do all genomic calculations in one big function.
-        # All variables above are filled in after this call.
+        # @NOTE(ds): We do all genomic calculations for paired-end reads in one
+        # big function. All variables above are filled in after this call.
         self.assign_read_pair_coords(read, mate)
 
         if not mutated_reads:
@@ -69,11 +79,44 @@ class Fragment:
 
         self.is_bogus = self.determine_bogus(read, mate)  # must be called last
 
+    def init_single_ended(
+        self, read: pysam.AlignedSegment,
+        mutated_reads: Optional[set[pysam.AlignedSegment]]
+    ) -> None:
+        assert read.reference_end
+        assert read.reference_name
+        assert read.query_sequence
+
+        self.start_pos = read.reference_start
+        self.end_pos = read.reference_end
+        self.chrom = read.reference_name
+        self.length = read.template_length
+        self.end5p = read.query_sequence[0:MAX_KMER_LEN]
+        self.end3p = read.query_sequence[-MAX_KMER_LEN:]
+        self.is_mutated = read in mutated_reads if mutated_reads else None
+        self.is_bogus = self.determine_bogus(read, None)  # must be called last
+
     def determine_bogus(
-        self, read: pysam.AlignedSegment, mate: pysam.AlignedSegment
+        self, read: pysam.AlignedSegment, mate: Optional[pysam.AlignedSegment]
     ) -> bool:
         is_bogus: bool = False
 
+        if 'N' in self.end5p or 'N' in self.end3p:
+            is_bogus = True
+
+        # @NOTE(ds): We are checking a subset of properties that apply to
+        # single-ended data and return early.
+        if not mate:
+            if self.length >= INSERT_SIZE_UPPER_BOUND or self.length == 0:
+                is_bogus = True
+            if self.length != (self.end_pos - self.start_pos):
+                is_bogus = True
+            if read.mapping_quality < MIN_MAPQ:
+                is_bogus = True
+            return is_bogus
+
+        # @NOTE(ds): We operate on paired-ended sequencing data from this point
+        # on.
         read_len: int = abs(read.template_length)
         mate_len: int = abs(mate.template_length)
 
@@ -96,9 +139,6 @@ class Fragment:
             is_bogus = True
         elif (read.is_read1 and mate.is_read1) or \
                 (read.is_read2 and mate.is_read2):
-            is_bogus = True
-
-        if 'N' in self.end5p or 'N' in self.end3p:
             is_bogus = True
 
         return is_bogus
@@ -196,31 +236,51 @@ class Fragment:
             vcf_file: pysam.VariantFile = pysam.VariantFile(vcfpath)
             mut_reads = Fragment.build_mutated_reads_set(bam_file, vcf_file)
 
+        # @NOTE(ds): `idxstats' should not fail because a BAI must exist.
+        idxstats_output: str = pysam.idxstats(filepath)  # type: ignore
+        idxstats_total_reads: int = sum(
+            int(line.split('\t')[2]) + int(line.split('\t')[3])
+            for line
+            in idxstats_output.splitlines()
+        )
+        # @NOTE(ds): In the following loops, we don't want to do updates every
+        # read, even though `tqdm' is supposed to be very fast.
+        increment: int = 100_000
+        progress_bar: tqdm.tqdm[int]
+
+        num_total_reads: int = 0
+        num_duplicates: int = 0
         fragments: FragmentList = FragmentList()
+
         if is_nanopore:
-            # @TODO(ds): implement this!
             logger.info("processing BAM file `{}' as single-ended".format(
                 filepath))
-            fail("single-ended parsing not implemented")
+            progress_bar = tqdm.tqdm(total=idxstats_total_reads, leave=False)
+
+            for read in bam_file.fetch():
+                assert read.query_name
+
+                num_total_reads += 1
+                if (num_total_reads % increment == 0):
+                    progress_bar.update(increment)
+
+                if read.is_duplicate:
+                    num_duplicates += 1
+                else:
+                    fragments.append(Fragment(read, None, mut_reads))
+
+            progress_bar.close()
+            logger.info(
+                "total reads: {}, duplicates: {}%".format(
+                    num_total_reads,
+                    round(100*num_duplicates/num_total_reads, 3)))
         else:
             logger.info("processing BAM file `{}' as paired-ended".format(
                 filepath))
+            progress_bar = tqdm.tqdm(total=idxstats_total_reads, leave=False)
 
-            num_total_reads: int = 0
             num_unpaired: int = 0
-            num_duplicates: int = 0
             read_cache: dict[str, pysam.AlignedSegment] = {}
-
-            # @NOTE(ds): `idxstats' should not fail because a BAI must exist.
-            idxstats_output: str = pysam.idxstats(filepath)  # type: ignore
-            idxstats_total_reads: int = sum(
-                int(line.split('\t')[2]) + int(line.split('\t')[3])
-                for line
-                in idxstats_output.splitlines()
-            )
-            progress_bar: tqdm.tqdm[int] = tqdm.tqdm(
-                total=idxstats_total_reads, leave=False
-            )
 
             for read in bam_file.fetch():
                 assert read.query_name
@@ -228,9 +288,6 @@ class Fragment:
                 invalid_read: bool = False
                 num_total_reads += 1
 
-                # @NOTE(ds): We don't want to do updates every fragment, even
-                # though `tqdm' is supposed to be very fast.
-                increment: int = 100_000
                 if (num_total_reads % increment == 0):
                     progress_bar.update(increment)
 
@@ -338,16 +395,11 @@ class Fragment:
     # individual BAM files are processed and the results are accumulated in
     # memory. Unfortunately, the in-memory representation of `Fragment's is
     # quite large.
-    # @NOTE(ds): `from_bams' cannot work with Nanopore data because we do not
-    # want to use this function much anyways.
     @staticmethod
     def from_bams(
         filepaths: list[str], vcfpaths: Optional[list[str]],
         is_nanopore: bool = False
     ) -> "FragmentCollection":
-        if is_nanopore:
-            fail("internal error: `from_bams' cannot work with nanopore data")
-
         # @NOTE(ds): Unfortunately, we have to do a lot of dynamic typing.
         # Thus, mypy complains on multiple occasions.
         with PyfragManager() as mngr:
@@ -361,7 +413,8 @@ class Fragment:
 
             with Pool(processes=detect_cpus()) as pool:
                 partial_task: Callable[[str, str], None] = partial(
-                    task0, frags_per_bam=shared_collection  # type: ignore
+                    task0, frags_per_bam=shared_collection,  # type: ignore
+                    is_nanopore=is_nanopore
                 )
                 pool.starmap(partial_task, input_data)
 
@@ -400,8 +453,8 @@ class Fragment:
 # the into a shared buffer, t1 writes them to disk immediately. That's freeing
 # the used memory and reducing our mem footprint.
 def task0(filepath: str, vcfpath: str | None,
-          frags_per_bam: "FragmentCollection") -> None:
-    frags: FragmentList = Fragment.from_bam(filepath, vcfpath)
+          frags_per_bam: "FragmentCollection", is_nanopore: bool) -> None:
+    frags: FragmentList = Fragment.from_bam(filepath, vcfpath, is_nanopore)
     filename: str = os.path.basename(filepath)
     name, _ = os.path.splitext(filename)
     frags_per_bam.append(name, frags)
