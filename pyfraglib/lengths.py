@@ -72,6 +72,5 @@ def fragment_length_gmm(fragments: FragmentList,
         [frag.length for frag in fragments if not frag.is_bogus]
     )
 
-    m1, m2 = 167, 2*167
-    [pi, std1, std2] = fit_gmm(m1, m2, frag_lens)
-    plot_gmm(frag_lens, m1, m2, pi, std1, std2, out_dir, name)
+    m1, m2, std1, std2, pi = fit_gmm(frag_lens)
+    plot_gmm(frag_lens, m1, m2, std1, std2, pi, out_dir, name)

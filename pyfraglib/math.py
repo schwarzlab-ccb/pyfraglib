@@ -21,13 +21,12 @@ from scipy.optimize import minimize
 from scipy.stats import norm
 
 
+# @NOTE(ds): `params' is: mu_1, mu_2, std_1, std_2, pi.
 def gaussian_mixture(
-    params: tuple[float, float, float],
+    params: tuple[float, float, float, float, float],
     data: list[float],
-    fixed_mus: tuple[float, float]
 ) -> npt.NDArray[np.float64]:
-    pi, std1, std2 = params
-    m1, m2 = fixed_mus
+    m1, m2, std1, std2, pi = params
 
     pdf1 = norm.pdf(data, loc=m1, scale=std1)
     pdf2 = norm.pdf(data, loc=m2, scale=std2)
@@ -36,37 +35,41 @@ def gaussian_mixture(
     return pdf  # type: ignore
 
 
+# @NOTE(ds): `params' is: mu_1, mu_2, std_1, std_2, pi.
 def negative_log_likelihood(
-    params: tuple[float, float, float],
+    params: tuple[float, float, float, float, float],
     data: list[float],
-    fixed_mus: tuple[float, float]
 ) -> npt.NDArray[np.float64]:
-    pdf: npt.NDArray[np.float64] = gaussian_mixture(params, data, fixed_mus)
+    pdf: npt.NDArray[np.float64] = gaussian_mixture(params, data)
     epsilon = 1e-10
     return -np.sum(np.log(pdf + epsilon))  # type: ignore
 
 
-# @NOTE(ds): Fit a GMM of 2 1D Gaussians with fixed means `m1' and `m2' and
-# return the parameter estimates as `[pi, std1, std2]'.
-def fit_gmm(
-    m1: float, m2: float,
-    data: npt.NDArray[np.float64]
-) -> list[float]:
-    fixed_means: list[float] = [m1, m2]
-
-    # `initial_params' and `bounds' must be in order "pi", "std1", "std2".
-    initial_params: list[float] = [0.5, 5.0, 5.0]
-    bounds: list[tuple[float, float]] = [(0, 1), (1e-2, 50), (1e-2, 100)]
+# @NOTE(ds): Fit a GMM of 2 1D Gaussians with bounds on the 5 free parameters.
+# Right now, the bounds are hard-coded because we can make reasonable
+# assumptions that should hold for (almost) all types of fragmentomics
+# datasets.
+def fit_gmm(data: npt.NDArray[np.float64]) -> list[float]:
+    initial_params: list[float] = [
+        167, 2*167,  # mu_1, mu_2
+        5.0, 5.0,  # std_1, std_2
+        0.5  # pi
+    ]
+    bounds: list[tuple[float, float]] = [
+        (50, 250), (250, 500),  # mu_1, mu_2
+        (0.1, 50), (0.1, 100),  # std_1, std_2
+        (0, 1)  # pi
+    ]
 
     result = minimize(  # type: ignore
         negative_log_likelihood,
         initial_params,
-        args=(data, fixed_means),
+        args=data,
         bounds=bounds,
         method='L-BFGS-B'
     )
 
-    # Optimized parameters as [pi, std1, std2].
+    # Optimized parameters as [m1, m2, std1, std2, pi].
     return result.x  # type: ignore
 
 
@@ -74,8 +77,8 @@ def fit_gmm(
 # `data' and overlay 2 normals. The parameters for the normals will most likely
 # come from a GMM, that's why the function is named like this. `name' and
 # `out_dir' are concatenated into a destination filepath.
-def plot_gmm(data: npt.NDArray[np.float64], m1: float, m2: float, pi: float,
-             std1: float, std2: float, out_dir: str, name: str) -> None:
+def plot_gmm(data: npt.NDArray[np.float64], m1: float, m2: float, std1: float,
+             std2: float, pi: float, out_dir: str, name: str) -> None:
     x: npt.NDArray[np.float64] = np.linspace(np.min(data), np.max(data), 1000)
 
     pdf1: npt.NDArray[np.float64] = \
@@ -88,9 +91,9 @@ def plot_gmm(data: npt.NDArray[np.float64], m1: float, m2: float, pi: float,
 
     plt.hist(data, bins=120, density=True, alpha=0.5, color="gray")
     plt.plot(x, pdf1, color="blue", linestyle="-.",
-             label=r"$\sigma_1={:.4}$, $\mu_1={:.4}$".format(std1, float(m1)))
+             label=r"$\mu_1={:.4}$, $\sigma_1={:.4}$".format(float(m1), std1))
     plt.plot(x, pdf2, color="orange", linestyle="--",
-             label=r"$\sigma_2={:.4}$, $\mu_2={:.4}$".format(std2, float(m2)))
+             label=r"$\mu_2={:.4}$, $\sigma_2={:.4}$".format(float(m2), std2))
     plt.plot(x, pdf_gmm, color="red", linewidth=2,
              label=r"GMM fit, $\pi={:.4}$".format(pi))
     plt.xlabel("Data value")
