@@ -1,9 +1,12 @@
 digraph Workflow {
-    bgcolor="transparent";
+    // bgcolor="transparent";
 
-    A  -> B [label="extract",fontcolor=darkred,style=bold];
+    A0 -> B [label="extract",fontcolor=darkred,style=bold];
+    A1 -> B [label="extract --nanopore",fontcolor=darkred,style=bold];
     AA -> B [label="--with-vcf",fontcolor=darkred,style=dashed];
-    A [label="BAM file",shape=box,fontsize=20];
+
+    A0 [label="paired-end BAM file",shape=box,fontsize=20];
+    A1 [label="single-end BAM file",shape=box,fontsize=20];
     AA [label="VCF file",shape=box,fontsize=20,style=dashed];
     B [label="FRAG file",shape=box,fontsize=20];
 
@@ -13,10 +16,17 @@ digraph Workflow {
     EE -> E [fontcolor=darkred,style=bold];
     E -> F;
     E -> G;
+    D -> H;
+    C -> I;
+    C -> J;
+
     C [label="overview stats",shape=circle,fontsize=12];
     D [label="length distribution",shape=circle,fontsize=12];
     E [label="fragmentomics\nscores",shape=circle,fontsize=12];
     EE [label="BED file",shape=box,fontsize=20];
     F [label="motif diversity score",shape=box,fontsize=10];
     G [label="windowed protection score",shape=box,fontsize=10];
+    H [label="Gaussian mixture model",shape=box,fontsize=10];
+    I [label="global endmotif plot",shape=box,fontsize=10];
+    J [label="stdout",shape=box,fontsize=10];
 }

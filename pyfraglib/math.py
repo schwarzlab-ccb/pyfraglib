@@ -55,8 +55,8 @@ def fit_gmm(
     fixed_means: list[float] = [m1, m2]
 
     # `initial_params' and `bounds' must be in order "pi", "std1", "std2".
-    initial_params: list[float] = [0.5, 1.0, 1.0]
-    bounds: list[tuple[float, float]] = [(0, 1), (1e-3, 1000), (1e-3, 1000)]
+    initial_params: list[float] = [0.5, 5.0, 5.0]
+    bounds: list[tuple[float, float]] = [(0, 1), (1e-2, 50), (1e-2, 100)]
 
     result = minimize(  # type: ignore
         negative_log_likelihood,
@@ -88,9 +88,9 @@ def plot_gmm(data: npt.NDArray[np.float64], m1: float, m2: float, pi: float,
 
     plt.hist(data, bins=120, density=True, alpha=0.5, color="gray")
     plt.plot(x, pdf1, color="blue", linestyle="-.",
-             label=r"$\sigma_1={:.3}$, $\mu_1={:.4}$".format(m1, std1))
+             label=r"$\sigma_1={:.4}$, $\mu_1={:.4}$".format(std1, float(m1)))
     plt.plot(x, pdf2, color="orange", linestyle="--",
-             label=r"$\sigma_2={:.3}$, $\mu_2={:.4}$".format(m2, std2))
+             label=r"$\sigma_2={:.4}$, $\mu_2={:.4}$".format(std2, float(m2)))
     plt.plot(x, pdf_gmm, color="red", linewidth=2,
              label=r"GMM fit, $\pi={:.4}$".format(pi))
     plt.xlabel("Data value")
