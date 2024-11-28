@@ -83,7 +83,13 @@ def fit_gmm(data: npt.NDArray[np.float64]) -> list[float]:
 # `out_dir' are concatenated into a destination filepath.
 def plot_gmm(data: npt.NDArray[np.float64], m1: float, m2: float, std1: float,
              std2: float, pi: float, out_dir: str, name: str) -> None:
-    x: npt.NDArray[np.float64] = np.linspace(np.min(data), np.max(data), 1000)
+    sample_size: int = len(data)
+    sample_min: np.float64 = np.min(data)
+    sample_max: np.float64 = np.max(data)
+    bins: list[float] = list(
+        np.arange(sample_min-30, sample_max+30)  # type: ignore
+    )
+    x: npt.NDArray[np.float64] = np.linspace(sample_min, sample_max, 1000)
 
     pdf1: npt.NDArray[np.float64] = \
         pi * norm.pdf(x, loc=m1, scale=std1)  # type: ignore
@@ -93,7 +99,7 @@ def plot_gmm(data: npt.NDArray[np.float64], m1: float, m2: float, std1: float,
 
     fig = plt.figure()
 
-    plt.hist(data, bins=120, density=True, alpha=0.5, color="gray")
+    plt.hist(data, bins=bins, density=True, alpha=0.5, color="gray")
     plt.plot(x, pdf1, color="blue", linestyle="-.",
              label=r"$\mu_1={:.4}$, $\sigma_1={:.4}$".format(float(m1), std1))
     plt.plot(x, pdf2, color="orange", linestyle="--",
@@ -105,7 +111,7 @@ def plot_gmm(data: npt.NDArray[np.float64], m1: float, m2: float, std1: float,
     plt.legend()
     plt.title("Gaussian Mixture Model for {}, n={}\n"
               r"$\mu_1 \in [{}, {}]$, $\mu_2 \in [{}, {}]$".format(
-                  name, len(data), gmm_bounds_mu1[0], gmm_bounds_mu1[1],
+                  name, sample_size, gmm_bounds_mu1[0], gmm_bounds_mu1[1],
                   gmm_bounds_mu2[0], gmm_bounds_mu2[1]))
 
     outpath: str = \
