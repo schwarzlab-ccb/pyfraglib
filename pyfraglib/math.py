@@ -19,6 +19,10 @@ import numpy.typing as npt
 
 from scipy.optimize import minimize
 from scipy.stats import norm
+from typing import Final
+
+gmm_bounds_mu1: Final[tuple[float, float]] = (80, 200)
+gmm_bounds_mu2: Final[tuple[float, float]] = (300, 420)
 
 
 # @NOTE(ds): `params' is: mu_1, mu_2, std_1, std_2, pi.
@@ -56,7 +60,7 @@ def fit_gmm(data: npt.NDArray[np.float64]) -> list[float]:
         0.5  # pi
     ]
     bounds: list[tuple[float, float]] = [
-        (50, 250), (250, 500),  # mu_1, mu_2
+        gmm_bounds_mu1, gmm_bounds_mu2,
         (0.1, 50), (0.1, 100),  # std_1, std_2
         (0, 1)  # pi
     ]
@@ -99,7 +103,10 @@ def plot_gmm(data: npt.NDArray[np.float64], m1: float, m2: float, std1: float,
     plt.xlabel("Data value")
     plt.ylabel("Density")
     plt.legend()
-    plt.title("Gaussian Mixture Model {}, n={}".format(name, len(data)))
+    plt.title("Gaussian Mixture Model for {}, n={}\n"
+              r"$\mu_1 \in [{}, {}]$, $\mu_2 \in [{}, {}]$".format(
+                  name, len(data), gmm_bounds_mu1[0], gmm_bounds_mu1[1],
+                  gmm_bounds_mu2[0], gmm_bounds_mu2[1]))
 
     outpath: str = \
         os.path.join(out_dir, "{}_gmm_frags_len.png".format(name))
