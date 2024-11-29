@@ -14,4 +14,6 @@
 # License along with this program. If not, see <https://www.gnu.org/licenses/>.
 python3 -m mypy scripts/ &&
 python3 -m mypy pyfraglib/ &&
+python3 -m flake8 scripts/ &&
+python3 -m flake8 pyfraglib/ &&
 python3 -m pip install .

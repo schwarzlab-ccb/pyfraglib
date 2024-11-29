@@ -22,8 +22,13 @@ cd pyfraglib
 conda env create -f pyfraglib.yml
 conda activate pyfraglib
 python3 -m pip install .
-# after all work's done, do:
-conda deactivate
+```
+
+During development, all code in `pyfraglib` is thoroughly type-checked using
+`mypy`. After an initial installation as described above, do:
+
+```bash
+./tools/dev_install.sh # typing & linting errors are reported
 ```
 
 As soon as `pyfraglib` is available through PyPI, installation will be even

@@ -24,7 +24,7 @@ from functools import partial
 from intervaltree import IntervalTree, Interval  # type: ignore
 from multiprocessing import Pool
 from pyfraglib.core import fail, PyfragManager, detect_cpus
-from typing import Callable, Final, Generator, Optional, cast
+from typing import Callable, Final, Generator, Optional, Never, cast
 
 INSERT_SIZE_UPPER_BOUND: Final = 700
 MIN_MAPQ: Final = 30
@@ -249,7 +249,7 @@ class Fragment:
         # @NOTE(ds): In the following loops, we don't want to do updates every
         # read, even though `tqdm' is supposed to be very fast.
         increment: int = 100_000
-        progress_bar: tqdm.tqdm[int]
+        progress_bar: tqdm.tqdm[Never]
 
         num_total_reads: int = 0
         num_duplicates: int = 0

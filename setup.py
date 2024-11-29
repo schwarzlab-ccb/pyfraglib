@@ -49,7 +49,8 @@ setup(
         "pysam==0.22.1", "matplotlib==3.9.0", "numpy<1.27", "seaborn==0.13.2",
         "matplotlib-stubs==0.2.0", "types-seaborn==0.13.2.20240820",
         "pandas==2.2.2", "intervaltree==3.1.0", "scipy==1.14.1",
-        "tqdm==4.67.0"
+        "scipy-stubs==1.14.1.4", "tqdm==4.67.0", "types-tqdm==4.67.0.20241119",
+        "mypy==1.13.0", "flake8==7.1.1"
     ]),
     package_data={"pyfraglib": ["py.typed"]},
     scripts=["scripts/pyfrag.py", "scripts/txt_to_vcf.py"],
