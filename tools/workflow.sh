@@ -18,7 +18,7 @@ if [[ "$1" == "--clean" || "$2" == "--clean" ]]; then
 fi
 
 if [[ "$1" == "--install" || "$2" == "--install" ]]; then
-    ./tools/local_install.sh || exit 1
+    ./tools/dev_install.sh || exit 1
     echo "Successfully installed latest \`pyfraglib' locally."
 fi
 

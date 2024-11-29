@@ -34,8 +34,9 @@ logging.basicConfig(
     datefmt='%Y-%m-%d %H:%M:%S'
 )
 
-logging.getLogger('matplotlib.font_manager').setLevel(logging.ERROR)
-logging.getLogger('matplotlib.pyplot').setLevel(logging.ERROR)
+logging.getLogger("matplotlib.font_manager").setLevel(logging.ERROR)
+logging.getLogger("matplotlib.pyplot").setLevel(logging.ERROR)
+logging.getLogger("PIL.PngImagePlugin").setLevel(logging.ERROR)
 
 PyfragManager.register(  # type: ignore
     "FragmentCollection", FragmentCollection)

@@ -22,7 +22,7 @@ from scipy.stats import norm
 from typing import Final
 
 gmm_bounds_mu1: Final[tuple[float, float]] = (80, 200)
-gmm_bounds_mu2: Final[tuple[float, float]] = (300, 420)
+gmm_bounds_mu2: Final[tuple[float, float]] = (250, 420)
 
 
 # @NOTE(ds): `params' is: mu_1, mu_2, std_1, std_2, pi.
