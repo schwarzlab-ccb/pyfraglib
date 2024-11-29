@@ -34,7 +34,7 @@ from pyfraglib.stats import fragments_per_chromosome_barplot, \
 from pyfraglib.scores import motif_diversity, windowed_protection_score, \
                              wps_scatter_plot
 
-version_string: Final[str] = "pyfrag v{} (running on Python v{})" \
+version_string: Final[str] = "pyfraglib v{} (running on Python v{})" \
     .format(pyfraglib.__version__, sys.version.split(" ")[0])
 
 
@@ -74,6 +74,8 @@ def create_argparser() -> argparse.ArgumentParser:
             required=True, help="Select from a number of utilities. "
             "Example: ``$ pyfraglib.py extract --bam-file=<FILE>''",
             dest="subcommand")
+
+    subparsers.add_parser("version", help="Show version info.")
 
     argparser_extract: argparse.ArgumentParser = subparsers.add_parser(
         "extract", help="Extract fragment information from BAM file(s). "
@@ -309,6 +311,10 @@ def scores(out_dir: str, args: argparse.Namespace) -> None:
 
 def switch_on_subcommand(subcmd: str, args: argparse.Namespace,
                          logger: logging.Logger) -> None:
+    if subcmd == "version":
+        logger.info(version_string)
+        exit(0)
+
     out_dir: str = args.out_dir
     if not os.path.isdir(out_dir):
         logger.info("creating directory `{}'".format(out_dir))
