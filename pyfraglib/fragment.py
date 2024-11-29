@@ -26,8 +26,8 @@ from multiprocessing import Pool
 from pyfraglib.core import fail, PyfragManager, detect_cpus
 from typing import Callable, Final, Generator, Optional, Never, cast
 
-INSERT_SIZE_UPPER_BOUND: Final = 700
-MIN_MAPQ: Final = 30
+INSERT_SIZE_UPPER_BOUND: Final = 900
+MIN_MAPQ: Final = 20
 DEFAULT_KMER_LEN: Final = 3
 MAX_KMER_LEN: Final = 4
 VALID_CHROMOSOME_NAMES: Final = [str(x) for x in range(1, 23)] + \
@@ -127,7 +127,7 @@ class Fragment:
 
         # @NOTE(ds): A whole lot of length-related conditions might define a
         # fragment to be bogus.
-        if self.length >= INSERT_SIZE_UPPER_BOUND or self.length == 0:
+        if self.length >= INSERT_SIZE_UPPER_BOUND or self.length <= 0:
             is_bogus = True
         elif (self.length != (self.end_pos - self.start_pos)) or \
                 (read_len != mate_len):
@@ -149,21 +149,16 @@ class Fragment:
     def assign_read_pair_coords(
         self, read1: pysam.AlignedSegment, read2: pysam.AlignedSegment
     ) -> None:
-        s1: int = read1.reference_start
-        s2: int = read2.reference_start
-
         # @NOTE(ds): We are only looking at properly aligned, paired reads so
         # we should never encounter the following error.
-        if not (read1.reference_end and
-                read2.reference_end and
+        if not (read1.reference_end and read2.reference_end and
                 read1.reference_name):
             fail("assign_read_pair_coords: possibly unmapped read")
+        s1: int = read1.reference_start
+        s2: int = read2.reference_start
         e1: int = read1.reference_end
         e2: int = read2.reference_end
-
         assert (s1 < e1) and (s2 < e2)
-        assert (read1.query_name == read2.query_name)
-        assert (read1.is_proper_pair and read2.is_proper_pair)
 
         left_read: pysam.AlignedSegment
         right_read: pysam.AlignedSegment
@@ -282,7 +277,7 @@ class Fragment:
                 filepath))
             progress_bar = tqdm.tqdm(total=idxstats_total_reads, leave=False)
 
-            num_unpaired: int = 0
+            num_unmapped: int = 0
             read_cache: dict[str, pysam.AlignedSegment] = {}
 
             for read in bam_file.fetch():
@@ -294,8 +289,11 @@ class Fragment:
                 if (num_total_reads % increment == 0):
                     progress_bar.update(increment)
 
-                if not read.is_proper_pair:
-                    num_unpaired += 1
+                # @NOTE(ds): We cannot use `is_proper_pair' here because some
+                # aligners do weird stuff and set flag 0x2 incorrectly. We
+                # just find our pairs ourselves.
+                if read.is_unmapped:
+                    num_unmapped += 1
                     invalid_read = True
                 if read.is_duplicate:
                     num_duplicates += 1
@@ -312,9 +310,9 @@ class Fragment:
 
             progress_bar.close()
             logger.info(
-                "total reads: {}, unpaired: {}%, duplicates: {}%".format(
+                "total reads: {}, unmapped: {}%, duplicates: {}%".format(
                     num_total_reads,
-                    round(100*num_unpaired/num_total_reads, 3),
+                    round(100*num_unmapped/num_total_reads, 3),
                     round(100*num_duplicates/num_total_reads, 3)))
             logger.debug("{} reads left in cache".format(len(read_cache)))
 

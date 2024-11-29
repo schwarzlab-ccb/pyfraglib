@@ -20,7 +20,7 @@ from pyfraglib.fragfile import FragFile
 from pyfraglib.stats import fragments_per_chromosome_barplot
 from pyfraglib.lengths import fragment_length_plot
 
-__version__ = "0.3.0"
+__version__ = "0.3.1"
 __repo_url__ = "https://bitbucket.org/schwarzlab/project-lymphoma-cfdna/"
 __all__ = ["Fragment", "FragmentList", "FragmentCollection", "fail",
            "FragFile",
