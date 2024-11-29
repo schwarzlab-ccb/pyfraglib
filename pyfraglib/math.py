@@ -106,10 +106,10 @@ def plot_gmm(data: npt.NDArray[np.float64], m1: float, m2: float, std1: float,
              label=r"$\mu_2={:.4}$, $\sigma_2={:.4}$".format(float(m2), std2))
     plt.plot(x, pdf_gmm, color="red", linewidth=2,
              label=r"GMM fit, $\pi={:.4}$".format(pi))
-    plt.xlabel("Data value")
+    plt.xlabel("Fragment Lengths")
     plt.ylabel("Density")
     plt.legend()
-    plt.title("Gaussian Mixture Model for {}, n={}\n"
+    plt.title("GMM for {}, n={}\n"
               r"$\mu_1 \in [{}, {}]$, $\mu_2 \in [{}, {}]$".format(
                   name, sample_size, gmm_bounds_mu1[0], gmm_bounds_mu1[1],
                   gmm_bounds_mu2[0], gmm_bounds_mu2[1]))

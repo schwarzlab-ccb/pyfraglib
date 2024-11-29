@@ -53,7 +53,7 @@ def fragment_length_plot(
                 label="wildtype, n={}".format(len(frag_lengths_wt)))
     sns.kdeplot(frag_lengths_mut, bw_adjust=1,
                 label="mutated, n={}".format(len(frag_lengths_mut)))
-    plt.title("{}: Fragment Length Distribution n={}".format(name, num_frags))
+    plt.title("{}: Length Distribution n={}".format(name, num_frags))
     plt.xlabel("Fragment Lengths")
     plt.ylabel("Density")
     plt.legend()

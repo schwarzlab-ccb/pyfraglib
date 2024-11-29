@@ -179,7 +179,7 @@ class Fragment:
         self.start_pos = min(s1, s2)
         self.end_pos = max(e1, e2)
         self.chrom = read1.reference_name
-        self.length = left_read.template_length
+        self.length = abs(left_read.template_length)
 
         # @BUG(ds): Fragile code ahead!
         # @BUG(ds): We did not choose `read.query_alignment_sequence'. See the
