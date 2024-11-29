@@ -13,21 +13,21 @@ no comprehensive tool exists to implement a "fragmentomics workflow".
 
 ## Installation
 
-`pyfraglib` can be installed using `pip`, the Python package manager:
-
-```bash
-python3 -m pip install pyfraglib
-# in addition, the user needs samtools and zlib installed, e.g. via conda
-```
-
-Since the most recent version of `pyfraglib` might not be on PyPI yet, you can
-install from source, too:
+It is recommended that `pyfraglib` is installed into a dedicated conda
+environment using `pip`, the Python package manager:
 
 ```bash
 git clone git@bitbucket.org:schwarzlab/project-lymphoma-cfdna.git
 cd pyfraglib
+conda env create -f pyfraglib.yml
+conda activate pyfraglib
 python3 -m pip install .
+# after all work's done, do:
+conda deactivate
 ```
+
+As soon as `pyfraglib` is available through PyPI, installation will be even
+easier (no need to clone the repo then).
 
 ## Usage
 
@@ -49,26 +49,11 @@ pyfrag.py --help # show available subcommands and flags
 | Motif diversity score                    |                                     | in progress   |
 | Window protection score                  |                                     | in progress   |
 | D/U fragment ends ("OCF")                | Sun et al., Genome Research, 2019   | not yet       |
-| Promoter fragmentation entropy           |                                     | not yet       |
-| Maximum nucleosome protection            | Snyder et al., 2016                 | not yet       |
 | NMF-derived fragment length signatures   | Renaud et al., Elife, 2022          | not yet       |
 | DELFI Metric (short / long fragments)    | Cristiano et al., Nature 2019       | not yet       |
-| 2k- & NDR-TSS coverage metrics           | Ulz et al., Nature Genetics 2016    | not yet       |
-
-## Genomics features
-
-Obviously, more "conventional" genomics features such as single-nucleotide
-variants can be analyzed as well when dealing with cfDNA
-
-| cfDNA Feature                         | Related Publication                     |
-|---------------------------------------|-----------------------------------------|
-| Genome-wide SNVs                      |                                         |
-| SBS Signatures                        |                                         |
-| Genome-wide CNAs                      |                                         |
-| Subclonal reconstruction (ichorCNA)   | Adalsteinsson et al., Nature Comm 2017  |
-| Subclonal reconstruction (liquidCNA)  | Lakatos et al., iScience 2021           |
-
-We explicitly do not do that in our toolkit.
+| Maximum nucleosome protection            | Snyder et al., 2016                 | not planned   |
+| 2k- & NDR-TSS coverage metrics           | Ulz et al., Nature Genetics 2016    | not planned   |
+| Promoter fragmentation entropy           |                                     | not planned   |
 
 ## License
 `pyfraglib` is licensed under the GPL-v3 as indicated in the source files.
