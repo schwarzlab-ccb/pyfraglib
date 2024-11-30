@@ -310,11 +310,12 @@ class Fragment:
 
             progress_bar.close()
             logger.info(
-                "total reads: {}, unmapped: {}%, duplicates: {}%".format(
-                    num_total_reads,
-                    round(100*num_unmapped/num_total_reads, 3),
-                    round(100*num_duplicates/num_total_reads, 3)))
-            logger.debug("{} reads left in cache".format(len(read_cache)))
+                "total reads: {}, unmapped: {:.3}%, duplicates: {:.3}%".format(
+                    num_total_reads, 100*num_unmapped/num_total_reads,
+                    100*num_duplicates/num_total_reads))
+            logger.info(
+                "{:.3}% reads left in cache (probably unpaired)".format(
+                    100*len(read_cache)/num_total_reads))
 
         # @NOTE(ds): Careful cleanup. We must not leak memory.
         bam_file.close()
