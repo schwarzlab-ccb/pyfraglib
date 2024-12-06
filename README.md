@@ -45,6 +45,19 @@ pyfrag.py --help # show available subcommands and flags
 
 `tools/workflow.sh` gives an example of a commonly used sequence of commands.
 
+## Pipeline
+
+`pyfraglib` offers a simple batch mode for most operations, i.e. it can take
+a directory of BAM or FRAG files and perform analyses on them. Some operations
+(i.e. the `extract` subcommand) are even parallelized. We explicitly do not
+recommend using this functionality for the analysis of large cohorts. Even 10
+BAM files cannot be extracted at once without exceeding most workstation's
+memory. Thus, we include a convenient Nextflow pipeline in `tools/pipeline.nf`.
+It reads the input data from a TSV file and Nextflow parallelizes `pyfraglib`s
+operations as much as possible. See `tools/nextflow.config` for all paths and
+variables that must be set by the user. Currently, only `slurm` is supported as
+a scheduler (via the `ramses` profile).
+
 ## Implemented Algorithms
 
 | Fragmentomics Feature                    | Related Publication                 | Impl. Status  |
