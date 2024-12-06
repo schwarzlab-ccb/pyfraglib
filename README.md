@@ -1,5 +1,7 @@
 # PyFragLib
 
+![PyFragLib Logo](docs/pyfraglib_logo.jpg)
+
 ## Overview
 
 `pyfraglib` is a Python library to analyze high-throughput sequencing data of
