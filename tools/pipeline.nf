@@ -61,7 +61,7 @@ process pyfraglib_extract {
     conda activate !{params.conda_env}
     set -eu
 
-    pyfrag.py -o frag_out extract -f !{bam_path} --with-vcf
+    pyfrag.py -o . extract -f !{bam_path} --with-vcf
     """
 }
 
@@ -72,10 +72,19 @@ process pyfraglib_stats {
     publishDir "${params.out_dir}/${sample_id}", mode: 'copy', overwrite: true
 
     input:
-    path(frag_file)
+    tuple val(sample_id), path(frag_file)
+
+    output:
+    path("*.png")
 
     shell:
     """
+    set +eu
+    module load lang/Miniconda3
+    conda activate !{params.conda_env}
+    set -eu
+
+    pyfrag.py -o . stats -f !{frag_file}
     """
 }
 
@@ -86,10 +95,19 @@ process pyfraglib_lengths {
     publishDir "${params.out_dir}/${sample_id}", mode: 'copy', overwrite: true
 
     input:
-    path(frag_file)
+    tuple val(sample_id), path(frag_file)
+
+    output:
+    path("*.png")
 
     shell:
     """
+    set +eu
+    module load lang/Miniconda3
+    conda activate !{params.conda_env}
+    set -eu
+
+    pyfrag.py -o . lengths -f !{frag_file}
     """
 }
 
@@ -100,10 +118,20 @@ process pyfraglib_scores {
     publishDir "${params.out_dir}/${sample_id}", mode: 'copy', overwrite: true
 
     input:
-    path(frag_file)
+    tuple val(sample_id), path(frag_file)
+
+    output:
+    path("*.csv")
+    path("*.png")
 
     shell:
     """
+    set +eu
+    module load lang/Miniconda3
+    conda activate !{params.conda_env}
+    set -eu
+
+    pyfrag.py -o . scores -f !{frag_file} -b !{params.bed_file}
     """
 }
 
