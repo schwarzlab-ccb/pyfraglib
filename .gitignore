@@ -15,5 +15,6 @@ project-lymphoma-cfdna-old/
 job.sh
 tags
 .ipynb_checkpoints/
-
 notebooks/*.png
+.nextflow
+*.log*
