@@ -26,7 +26,7 @@ from collections import defaultdict
 from intervaltree import Interval  # type: ignore
 from pyfraglib.core import shannon_entropy, simpson_index, fail, \
                            get_chromosome_length, hg19_chromosomes, \
-                           hg38_chromosomes
+                           hg38_chromosomes, homogenize_contig_name
 from pyfraglib.fragment import FragmentList, IntervalTable
 
 
@@ -102,7 +102,7 @@ def windowed_protection_score_fast(
         frag_start: int = fragment.start_pos
         frag_end: int = fragment.end_pos  # 1 past end
         frag_len: int = fragment.length
-        frag_chrom: str = fragment.chrom
+        frag_chrom: str = homogenize_contig_name(fragment.chrom)
 
         win_half: int = win_size // 2
         istart: int = max(frag_start - win_half, 0)
@@ -127,14 +127,13 @@ def windowed_protection_score_fast(
 # the the resulting dataframe (e.g. gene names).
 def windowed_protection_score_slow(
     fragments: FragmentList, regions: pysam.TabixFile,
-    win_size: int = 120, step_size: int = 1, genome: str = "hg19"
+    win_size: int = 120, genome: str = "hg19"
 ) -> pd.DataFrame:
     assert win_size > 0
-    assert step_size > 0
 
     col_names: list[str] = ["chrom", "pos", "abs_pos", "wps", "info"]
     wps_df: pd.DataFrame = pd.DataFrame(
-        None, index=range(precalc_size(regions, step_size)), columns=col_names
+        None, index=range(precalc_size(regions)), columns=col_names
     )
 
     region: str
@@ -154,7 +153,7 @@ def windowed_protection_score_slow(
 
         # @NOTE(ds): To calculate our scores over the same windows as we do
         # with the fast algorithm, we need to slightly adjust the windows.
-        for win_start in range(int(istart)-60, int(iend)-60+1, step_size):
+        for win_start in range(int(istart)-60, int(iend)-60+1):
             win_end: int = win_start + win_size  # right-exclusive
             win_mid: int = win_start + win_size // 2
 
@@ -196,13 +195,13 @@ def windowed_protection_score_slow(
     return wps_df
 
 
-def precalc_size(regions: pysam.TabixFile, step_size: int) -> int:
+def precalc_size(regions: pysam.TabixFile) -> int:
     it: int = 0
     for region in regions.fetch():  # type: ignore
         istart: str
         iend: str
         _, istart, iend, _ = region.split()  # type: ignore
-        it += len(range(int(istart), int(iend)+1, step_size))
+        it += int(iend) - int(istart) + 1
     regions.reset()
     return it
 
@@ -237,7 +236,7 @@ def chromosome_map_to_df(
 ) -> pd.DataFrame:
     col_names: list[str] = ["chrom", "pos", "abs_pos", "wps", "info"]
     wps_df: pd.DataFrame = pd.DataFrame(
-        None, index=range(precalc_size(regions, 1)),
+        None, index=range(precalc_size(regions)),
         columns=col_names
     )
 
@@ -254,6 +253,7 @@ def chromosome_map_to_df(
         info: str
 
         chrom, istart, iend, info = region.split()
+        chrom = homogenize_contig_name(chrom)
 
         if not cur_chrom or chromosome is None:
             cur_chrom = chrom

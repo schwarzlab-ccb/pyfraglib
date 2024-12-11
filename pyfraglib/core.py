@@ -115,12 +115,17 @@ def get_chromosome_length(chrom: str, genome: str = "hg19") -> int:
     else:
         fail("unknown genome `{}' requested".format(genome))
 
-    if chrom.startswith("chr"):
-        chrom = chrom[3:]
+    chrom = homogenize_contig_name(chrom)
     for name, length, _, _ in chromosomes:
         if chrom == name:
             return length
     fail("unknown chromosome `{}'".format(chrom))
+
+
+def homogenize_contig_name(contig: str) -> str:
+    if contig.startswith("chr"):
+        contig = contig[3:]
+    return contig
 
 
 # @NOTE(ds): The input list needs to be normalized to proportions!
