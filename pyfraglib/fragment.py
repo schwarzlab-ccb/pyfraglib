@@ -91,6 +91,7 @@ class Fragment:
         self.chrom = read.reference_name
         self.length = self.end_pos - self.start_pos
         self.is_mutated = read in mutated_reads if mutated_reads else None
+        self.is_forward = read.is_forward
 
         default: str = 'N' * MAX_KMER_LEN
         if read.query_sequence:
