@@ -92,7 +92,9 @@ def windowed_protection_score_fast(
 ) -> pd.DataFrame:
     assert win_size > 0
 
-    chromosome_map: dict[str, npt.NDArray[np.int64]] = \
+    chromosome_map_wps: dict[str, npt.NDArray[np.int64]] = \
+        create_chromosome_map(genome)
+    chromosome_map_depth: dict[str, npt.NDArray[np.int64]] = \
         create_chromosome_map(genome)
 
     for fragment in fragments:
@@ -109,19 +111,23 @@ def windowed_protection_score_fast(
         iend: int = min(frag_end + win_half,
                         get_chromosome_length(frag_chrom, genome))
 
+        chromosome_map_depth[frag_chrom][istart:iend] += 1  # type: ignore
         if frag_len < win_size:
-            chromosome_map[frag_chrom][istart:iend] -= 1  # type: ignore
+            chromosome_map_wps[frag_chrom][istart:iend] -= 1  # type: ignore
         else:
             ostart: int = frag_start + win_half
             oend: int = frag_end - win_half  # 1 past end
 
-            chromosome_map[frag_chrom][istart:ostart] -= 1  # type: ignore
-            chromosome_map[frag_chrom][ostart:oend] += 1  # type: ignore
-            chromosome_map[frag_chrom][oend:iend] -= 1  # type: ignore
+            chromosome_map_wps[frag_chrom][istart:ostart] -= 1  # type: ignore
+            chromosome_map_wps[frag_chrom][ostart:oend] += 1  # type: ignore
+            chromosome_map_wps[frag_chrom][oend:iend] -= 1  # type: ignore
 
-    return chromosome_map_to_df(chromosome_map, regions, genome)
+    return chromosome_maps_to_df(chromosome_map_wps, chromosome_map_depth,
+                                 regions, genome)
 
 
+# @DEPRECATED(ds): This function should no longer be used!
+#
 # @NOTE(ds): We assume a correctly formatted BED file to be provided for the
 # `region' argument. An `info' field can be used to carry additional data over
 # the the resulting dataframe (e.g. gene names).
@@ -230,12 +236,13 @@ def create_chromosome_map(
 # @NOTE(ds): The input BED file must be sorted with respect to chromosomes.
 # E.g. listing chr1 regions, chr3 regions, and chr2 regions in this order will
 # produce incorrect results with respect to the absolute genome position!
-def chromosome_map_to_df(
-    chrom_map: dict[str, npt.NDArray[np.int64]], regions: pysam.TabixFile,
-    genome: str = "hg19"
+def chromosome_maps_to_df(
+    chrom_map_wps: dict[str, npt.NDArray[np.int64]],
+    chrom_map_depth: dict[str, npt.NDArray[np.int64]],
+    regions: pysam.TabixFile, genome: str = "hg19"
 ) -> pd.DataFrame:
-    col_names: list[str] = ["chrom", "pos", "abs_pos", "wps", "info"]
-    wps_df: pd.DataFrame = pd.DataFrame(
+    col_names: list[str] = ["chrom", "pos", "abs_pos", "wps", "info", "depth"]
+    output_df: pd.DataFrame = pd.DataFrame(
         None, index=range(precalc_size(regions)),
         columns=col_names
     )
@@ -244,7 +251,8 @@ def chromosome_map_to_df(
     it: int = 0
     cur_chrom: str | None = None
     cum_pos: int = 0
-    chromosome: npt.NDArray[np.int64] | None = None
+    chromosome_wps: npt.NDArray[np.int64] | None = None
+    chromosome_depth: npt.NDArray[np.int64] | None = None
 
     for region in regions.fetch():  # type: ignore
         chrom: str
@@ -255,28 +263,34 @@ def chromosome_map_to_df(
         chrom, istart, iend, info = region.split()
         chrom = homogenize_contig_name(chrom)
 
-        if not cur_chrom or chromosome is None:
+        if not cur_chrom or not chromosome_wps or not chromosome_depth:
             cur_chrom = chrom
-            chromosome = chrom_map[chrom]
+            chromosome_wps = chrom_map_wps[chrom]
+            chromosome_depth = chrom_map_depth[chrom]
         elif chrom != cur_chrom:
             cum_pos += get_chromosome_length(cur_chrom, genome)
             cur_chrom = chrom
-            chromosome = chrom_map[chrom]
+            chromosome_wps = chrom_map_wps[chrom]
+            chromosome_depth = chrom_map_depth[chrom]
 
         rlen: int = int(iend) - int(istart)  # region length - 1
         rel_pos: npt.NDArray[np.int64] = np.arange(int(istart), int(iend) + 1)
 
-        wps_df.loc[it:(it+rlen), "chrom"] = chrom
-        wps_df.loc[it:(it+rlen), "pos"] = rel_pos
-        wps_df.loc[it:(it+rlen), "abs_pos"] = rel_pos + cum_pos  # type: ignore
-        wps_df.loc[it:(it+rlen), "wps"] = chromosome[rel_pos]  # type: ignore
-        wps_df.loc[it:(it+rlen), "info"] = info
+        output_df.loc[it:(it+rlen), "chrom"] = chrom
+        output_df.loc[it:(it+rlen), "pos"] = rel_pos
+        output_df.loc[it:(it+rlen), "abs_pos"] = \
+            rel_pos + cum_pos  # type: ignore
+        output_df.loc[it:(it+rlen), "wps"] = \
+            chromosome_wps[rel_pos]  # type: ignore
+        output_df.loc[it:(it+rlen), "depth"] = \
+            chromosome_depth[rel_pos]  # type: ignore
+        output_df.loc[it:(it+rlen), "info"] = info
 
         it += rlen + 1
 
     regions.reset()
 
-    return wps_df
+    return output_df
 
 
 def wps_scatter_plot(df: pd.DataFrame, name: str, out_dir: str) -> None:
