@@ -293,17 +293,72 @@ def chromosome_maps_to_df(
     return output_df
 
 
-def wps_scatter_plot(df: pd.DataFrame, name: str, out_dir: str) -> None:
-    outpath: str = os.path.join(out_dir, "{}_wps.png".format(name))
+# @NOTE(ds): `exclude_chroms' must be in "1" format (not "chr1"). `region` is
+# only applied if a single chromosome is selected (by excluding all chromosomes
+# but one, that is).
+def score_line_plot(
+    df: pd.DataFrame, name: str, out_dir: str, score: str = "wps",
+    exclude_chroms: list[str] = ["Y", "M"], region: tuple[int, int] = (0, 0),
+    genome: str = "hg19"
+) -> None:
+    if score not in ["wps", "depth"]:
+        fail("unknown score `{}' requested".format(score))
+
+    outpath: str = os.path.join(out_dir, "{}_{}.png".format(name, score))
     logging.getLogger("pyfraglib").info(
-        "saving WPS plot for {} to `{}'".format(name, outpath)
+        "saving score plot for {} to `{}'".format(name, outpath)
     )
 
+    chromosomes: list[tuple[str, int, str, str]]
+    if genome == "hg19":
+        chromosomes = hg19_chromosomes
+    elif genome == "hg38":
+        chromosomes = hg38_chromosomes
+    else:
+        fail("unknown genome `{}' requested".format(genome))
+
     fig: matplotlib.figure.Figure = plt.figure()
+    plt.title("Sample {}".format(name))
+    plt.xlabel("Chromosomes")
+    plt.ylabel(score.capitalize())
 
-    plt.plot(df["abs_pos"], df["wps"])  # type: ignore
-    plt.title("Windowed Protection Score for {}".format(name))
-    plt.xlabel("Genomic Position")
-    plt.ylabel("WPS")
+    cumsum: int = 0
+    chrom_midpoints: list[int] = []
+    chrom_names: list[str] = []
+    color: str = "lightgrey"
+    for name, length, _, _ in chromosomes:
+        if name in exclude_chroms:
+            continue
 
+        chrom_midpoints.append(cumsum + length//2)
+        chrom_names.append(name)
+
+        plt.axvspan(cumsum, cumsum+length, color=color, alpha=0.3)
+        if color == "lightgrey":
+            color = "white"
+        else:
+            color = "lightgrey"
+
+        condition = df["chrom"] == name  # type: ignore
+        plt.plot(
+            df.loc[condition, "pos"] + cumsum,  # type: ignore
+            df.loc[condition, score],  # type: ignore
+            color="#1f77b4"
+        )
+
+        cumsum += length
+
+    if len(chrom_names) == 1:
+        plt.xlim(region)
+        plt.xticks([region[0], region[1], np.mean(region)],  # type: ignore
+                   [region[0], region[1], chrom_names[0]])  # type: ignore
+    else:
+        plt.xlim(-cumsum*0.05, cumsum*1.05)
+        staggered_chrom_names: list[str] = [
+            f"{label}\n" if i % 2 == 0 else f"\n{label}"
+            for i, label in enumerate(chrom_names)
+        ]
+        plt.xticks(chrom_midpoints, staggered_chrom_names, rotation=0)
+
+    plt.tight_layout()
     fig.savefig(outpath, dpi=900)

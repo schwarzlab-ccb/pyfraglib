@@ -32,7 +32,7 @@ from pyfraglib.lengths import fragment_length_plot, fragment_length_gmm
 from pyfraglib.stats import fragments_per_chromosome_barplot, \
                             end_motifs_barplot, log_stats
 from pyfraglib.scores import motif_diversity, windowed_protection_score, \
-                             wps_scatter_plot
+                             score_line_plot
 
 version_string: Final[str] = "pyfraglib v{} (running on Python v{})" \
     .format(pyfraglib.__version__, sys.version.split(" ")[0])
@@ -301,7 +301,7 @@ def scores(out_dir: str, args: argparse.Namespace) -> None:
             wps_outpath))
         wps_df.to_csv(wps_outpath, index=False)
 
-        wps_scatter_plot(wps_df, name, out_dir)
+        score_line_plot(wps_df, name, out_dir, genome)
 
     glbl_mds_outpath: str = os.path.join(
         out_dir, "global_motif_diversity_scores.csv"
