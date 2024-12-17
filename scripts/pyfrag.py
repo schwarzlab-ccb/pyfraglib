@@ -301,7 +301,7 @@ def scores(out_dir: str, args: argparse.Namespace) -> None:
             wps_outpath))
         wps_df.to_csv(wps_outpath, index=False)
 
-        score_line_plot(wps_df, name, out_dir, genome)
+        score_line_plot(wps_df, name, out_dir, genome=genome)
 
     glbl_mds_outpath: str = os.path.join(
         out_dir, "global_motif_diversity_scores.csv"
