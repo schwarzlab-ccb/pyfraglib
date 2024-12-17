@@ -275,7 +275,7 @@ def scores(out_dir: str, args: argparse.Namespace) -> None:
     regions: pysam.TabixFile = pysam.TabixFile(bed_file)
     col_names: list[str] = ["sample_name", "shannon_3p", "simpson_3p",
                             "shannon_5p", "simpson_5p"]
-    motif_diversity_scores: pd.DataFrame = pd.DataFrame(columns=col_names)
+    glbl_motif_diversity_scores: pd.DataFrame = pd.DataFrame(columns=col_names)
 
     for it, path in enumerate(frag_files):
         logger.info("loading `{}'".format(path))
@@ -291,7 +291,7 @@ def scores(out_dir: str, args: argparse.Namespace) -> None:
         new_row: list[str | float] = [
             name, shannon_3p, simpson_3p, shannon_5p, simpson_5p
         ]
-        motif_diversity_scores.loc[it] = new_row
+        glbl_motif_diversity_scores.loc[it] = new_row
 
         logger.info("calculating windowed protection score")
         wps_df: pd.DataFrame = windowed_protection_score(fragments, regions,
@@ -303,10 +303,12 @@ def scores(out_dir: str, args: argparse.Namespace) -> None:
 
         wps_scatter_plot(wps_df, name, out_dir)
 
-    mds_outpath: str = os.path.join(out_dir, "motif_diversity_scores.csv")
-    logger.info("saving motif diversity scores for all files to `{}'".format(
-        mds_outpath))
-    motif_diversity_scores.to_csv(mds_outpath, index=False)
+    glbl_mds_outpath: str = os.path.join(
+        out_dir, "global_motif_diversity_scores.csv"
+    )
+    logger.info("saving global motif diversity scores for all files "
+                "to `{}'".format(glbl_mds_outpath))
+    glbl_motif_diversity_scores.to_csv(glbl_mds_outpath, index=False)
 
 
 def switch_on_subcommand(subcmd: str, args: argparse.Namespace,

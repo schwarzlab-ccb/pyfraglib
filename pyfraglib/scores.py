@@ -241,7 +241,7 @@ def chromosome_maps_to_df(
     chrom_map_depth: dict[str, npt.NDArray[np.int64]],
     regions: pysam.TabixFile, genome: str = "hg19"
 ) -> pd.DataFrame:
-    col_names: list[str] = ["chrom", "pos", "abs_pos", "wps", "info", "depth"]
+    col_names: list[str] = ["chrom", "pos", "abs_pos", "wps", "depth", "info"]
     output_df: pd.DataFrame = pd.DataFrame(
         None, index=range(precalc_size(regions)),
         columns=col_names
@@ -263,7 +263,7 @@ def chromosome_maps_to_df(
         chrom, istart, iend, info = region.split()
         chrom = homogenize_contig_name(chrom)
 
-        if not cur_chrom or not chromosome_wps or not chromosome_depth:
+        if not cur_chrom or chromosome_wps is None or chromosome_depth is None:
             cur_chrom = chrom
             chromosome_wps = chrom_map_wps[chrom]
             chromosome_depth = chrom_map_depth[chrom]
