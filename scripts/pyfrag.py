@@ -341,6 +341,7 @@ def switch_on_subcommand(subcmd: str, args: argparse.Namespace,
         scores(out_dir, args)
     else:
         raise CodeUnreachableError("unkown subcommand `{}'".format(subcmd))
+    logger.info("done with `{}'".format(subcmd))
 
 
 def search_dir(directory: str, exts: list[str]) -> list[str]:

@@ -74,19 +74,28 @@ def fragment_length_gmm(fragments: FragmentList, config_filepath: str,
         [frag.length for frag in fragments if not frag.is_bogus]
     )
 
-    n, params = fit_gmm(frag_lens, config_filepath)
+    opt_result, n, params = fit_gmm(frag_lens, config_filepath)
+    if opt_result.success:  # type: ignore
+        logger.info("successfully fitted GMM")
+    else:
+        logger.warn("GMM fit did not converge, plotting anyways")
     plot_gmm(frag_lens, n, params, out_dir, name)
-    write_gmm_params(n, params, out_dir, name)
+    write_gmm_params(n, params,
+                     opt_result.fun,  opt_result.success,  # type: ignore
+                     out_dir, name)
 
 
 def write_gmm_params(
-    n: int, params: list[float], out_dir: str, name: str
+    n: int, params: list[float], obj_val: float, conv: bool,
+    out_dir: str, name: str
 ) -> None:
     outpath: str = \
         os.path.join(out_dir, "{}_gmm_frags_len.json".format(name))
     with open(outpath, "w") as file:
         data: dict[str, object] = {
             "number_of_gaussians": n,
+            "objective_value": obj_val,
+            "converged": conv,
             "estimated_means": list(params[:n]),
             "estimated_stds": list(params[n:2*n]),
             "estimated_pis": list(params[2*n:])
