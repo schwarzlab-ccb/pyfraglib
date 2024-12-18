@@ -224,9 +224,9 @@ def stats(out_dir: str, args: argparse.Namespace) -> None:
         fragment_file: FragFile = FragFile(path)
         fragments: FragmentList = fragment_file.get_fragment_list()
         fragment_file.close()
-        log_stats(fragments, logger)
 
         name: str = filename_only(path)
+        log_stats(fragments, logger, out_dir, name)
         fragments_per_chromosome_barplot(fragments, out_dir, name)
         end_motifs_barplot(fragments, out_dir, name, kmer_len=3)
 

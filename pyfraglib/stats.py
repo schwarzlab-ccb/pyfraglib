@@ -12,6 +12,7 @@
 # more details. You should have received a copy of the GNU General Public
 # License along with this program. If not, see <https://www.gnu.org/licenses/>.
 import os
+import json
 import logging
 import itertools
 
@@ -128,7 +129,8 @@ def end_motifs_barplot(
 
 
 def log_stats(
-    fragments: FragmentList, logger: logging.Logger
+    fragments: FragmentList, logger: logging.Logger,
+    out_dir: str, name: str
 ) -> None:
     num_bogus_frags: int = fragments.count_bogus_fragments()
     num_mut_frags: int = fragments.count_mutated_fragments()
@@ -144,3 +146,12 @@ def log_stats(
             num_mut_frags,
             round(100*num_mut_frags/num_frags, 3))
     )
+
+    outpath: str = os.path.join(out_dir, "{}_frag_stats.json".format(name))
+    with open(outpath, "w") as file:
+        data: dict[str, object] = {
+            "number_of_fragments": num_frags,
+            "number_of_bogus_fragments": num_bogus_frags,
+            "number_of_mutated_fragments": num_mut_frags
+        }
+        json.dump(data, file)
