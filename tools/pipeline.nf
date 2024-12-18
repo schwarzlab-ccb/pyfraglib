@@ -103,6 +103,7 @@ process pyfraglib_lengths {
 
     output:
     path("*.png")
+    path("*.json")
 
     shell:
     """
