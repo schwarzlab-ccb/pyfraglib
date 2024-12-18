@@ -61,16 +61,17 @@ def fragment_length_plot(
     fig.savefig(outpath, dpi=fig.dpi)
 
 
-def fragment_length_gmm(fragments: FragmentList,
+def fragment_length_gmm(fragments: FragmentList, config_filepath: str,
                         out_dir: str, name: str) -> None:
     logger: logging.Logger = logging.getLogger("pyfraglib")
     logger.info(
-        "fitting GMM, writing results to `{}'".format(out_dir)
+        "fitting GMM based on config file `{}', writing results to `{}'"
+        .format(config_filepath, out_dir)
     )
 
     frag_lens: npt.NDArray[np.float64] = np.array(
         [frag.length for frag in fragments if not frag.is_bogus]
     )
 
-    m1, m2, std1, std2, pi = fit_gmm(frag_lens)
-    plot_gmm(frag_lens, m1, m2, std1, std2, pi, out_dir, name)
+    n, params = fit_gmm(frag_lens, config_filepath)
+    plot_gmm(frag_lens, n, params, out_dir, name)

@@ -125,6 +125,10 @@ def create_argparser() -> argparse.ArgumentParser:
         "-f", "--frag-file", type=str, dest="frag_file", required=False,
         help="Input FRAG file to be analyzed. Must not be combined with "
         "`--frag-dir'.")
+    argparser_lengths.add_argument(
+        "-c", "--config-file", type=str, dest="config_file", required=True,
+        help="JSON config file for Gaussian mixture model. See "
+        "`config/gmm.json' for an example.")
 
     argparser_scores: argparse.ArgumentParser = subparsers.add_parser(
         "scores", help="Given (a) `.frag' file(s), calculate a variety of "
@@ -230,11 +234,15 @@ def stats(out_dir: str, args: argparse.Namespace) -> None:
 def lengths(out_dir: str, args: argparse.Namespace) -> None:
     frag_file: Final[str] = args.frag_file
     frag_dir: Final[str] = args.frag_dir
+    config_file: Final[str] = args.config_file
 
     if frag_file and frag_dir:
         fail("--frag-dir and --frag-file are incompatible options", logger)
     elif not frag_file and not frag_dir:
         fail("either one of --frag-dir or --frag-file is required", logger)
+
+    if not os.path.exists(config_file):
+        fail("config file `{}' does not exist".format(config_file), logger)
 
     frag_files: list[str] = get_frag_files(frag_dir, frag_file)
     if len(frag_files) == 0:
@@ -249,7 +257,7 @@ def lengths(out_dir: str, args: argparse.Namespace) -> None:
 
         name: str = filename_only(path)
         fragment_length_plot(fragments, out_dir, name)
-        fragment_length_gmm(fragments, out_dir, name)
+        fragment_length_gmm(fragments, config_file, out_dir, name)
 
 
 # @NOTE(ds): We interleave the calculation of our scores. It's ugly, but
