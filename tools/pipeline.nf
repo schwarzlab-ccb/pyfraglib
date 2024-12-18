@@ -16,7 +16,9 @@ nextflow.enable.dsl=2
 process stage_data {
     label "serial"
     tag "${sample_id}"
-    errorStrategy "ignore"
+    errorStrategy "terminate"
+
+    if (params.force_stage_data) { cache false }
 
     input:
     tuple val(sample_id), val(bam_file), val(bam_file_index), val(vcf_file)
@@ -48,6 +50,8 @@ process pyfraglib_extract {
     tag "${sample_id}"
     errorStrategy "ignore"
 
+    if (params.force_extract) { cache false }
+
     publishDir "${params.out_dir}/${sample_id}", mode: 'copy', overwrite: true
 
     input:
@@ -71,6 +75,8 @@ process pyfraglib_stats {
     label "parallel"
     tag "${sample_id}"
     errorStrategy "ignore"
+
+    if (params.force_stats) { cache false }
 
     publishDir "${params.out_dir}/${sample_id}", mode: 'copy', overwrite: true
 
@@ -97,6 +103,8 @@ process pyfraglib_lengths {
     tag "${sample_id}"
     errorStrategy "ignore"
 
+    if (params.force_lengths) { cache false }
+
     publishDir "${params.out_dir}/${sample_id}", mode: 'copy', overwrite: true
 
     input:
@@ -121,6 +129,8 @@ process pyfraglib_scores {
     label "parallel"
     tag "${sample_id}"
     errorStrategy "ignore"
+
+    if (params.force_scores) { cache false }
 
     publishDir "${params.out_dir}/${sample_id}", mode: 'copy', overwrite: true
 
