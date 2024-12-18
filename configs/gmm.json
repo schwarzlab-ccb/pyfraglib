@@ -1,7 +1,7 @@
 {
     "number_of_gaussians": 3,
-    "means_lower_bounds": [50, 200, 400],
-    "means_upper_bounds": [200, 400, 600],
-    "std_lower_bounds": [0.1, 0.1, 0.1],
+    "means_lower_bounds": [50, 250, 450],
+    "means_upper_bounds": [250, 450, 650],
+    "std_lower_bounds": [1, 1, 1],
     "std_upper_bounds": [50, 100, 200]
 }

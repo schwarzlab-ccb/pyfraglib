@@ -111,7 +111,7 @@ process pyfraglib_lengths {
     conda activate !{params.conda_env}
     set -eu
 
-    pyfrag.py -o . lengths -f !{frag_file}
+    pyfrag.py -o . lengths -f !{frag_file} -c !{params.gmm_config_file}
     """
 }
 
