@@ -19,7 +19,7 @@ import numpy as np
 import numpy.typing as npt
 
 from pyfraglib.core import fail
-from scipy.optimize import minimize
+from scipy.optimize import LinearConstraint, minimize
 from scipy.stats import norm
 
 
@@ -72,63 +72,78 @@ def read_gmm_config(
         _mu: object = config.get("means_upper_bounds")
         _sl: object = config.get("std_lower_bounds")
         _su: object = config.get("std_upper_bounds")
+        _im: object = config.get("initial_means")
+        _ip: object = config.get("initial_pis")
 
-        if not _ml or not _mu or not _sl or not _su:
+        if not _ml or not _mu or not _sl or not _su or not _im or not _ip:
             fail("missing required bounds array in GMM config")
         if (type(_ml) is not list or type(_mu) is not list or
-                type(_sl) is not list or type(_su) is not list):
+                type(_sl) is not list or type(_su) is not list or
+                type(_im) is not list or type(_ip) is not list):
             fail("bounds in GMM config must be float arrays")
-        if len(_ml) != n or len(_mu) != n or len(_sl) != n or len(_su) != n:
+        if (len(_ml) != n or len(_mu) != n or
+                len(_sl) != n or len(_su) != n or
+                len(_im) != n or len(_ip) != n):
             fail("bounds in GMM config must be float arrays")
 
         mean_bounds: list[tuple[float, float]] = []
         std_bounds: list[tuple[float, float]] = []
         mean_initial: list[float] = []
         std_initial: list[float] = []
-        _mla: list[float] = list(_ml)
-        _mua: list[float] = list(_mu)
-        _sla: list[float] = list(_sl)
-        _sua: list[float] = list(_su)
-        for ml, mu, sl, su in zip(_mla, _mua, _sla, _sua):
+        p_initial: list[float] = []
+        var_zip: zip[tuple[float, float, float, float, float, float]] = \
+            zip(_ml, _mu, _sl, _su, _im, _ip)
+        for ml, mu, sl, su, im, ip in var_zip:
             mean_bounds.append((ml, mu))
             std_bounds.append((sl, su))
-            mean_initial.append((ml+mu)/2)
+            mean_initial.append(im)
+            p_initial.append(ip)
+
+            # @NOTE(ds): Not configurable right now.
             std_initial.append((sl+su)/2)
 
-        p_initial: list[float] = [1.0/n] * n
         initials: list[float] = mean_initial + std_initial + p_initial
-
         p_bounds: list[tuple[float, float]] = [(0.0, 1.0)] * n
         bounds: list[tuple[float, float]] = mean_bounds + std_bounds + p_bounds
 
         return n, initials, bounds
 
 
-def weight_constraint(params: list[float]) -> float:
-    n: int = len(params) // 3
-    return np.sum(params[2*n:]) - 1  # type: ignore
+def hessian(
+    params: list[float], _n: int, _data: list[float],
+) -> npt.NDArray[np.float64]:
+    return np.zeros((len(params), len(params)))
 
 
 # @NOTE(ds): Fit a GMM of `n' 1D Gaussians with bounds on the free parameters.
-# The bounds are read from a configuration file.
+# The bounds are read from a configuration file. Optimized parameters are
+# returned and ordered as follows:
+# [m_1, m_2, ..., std_1, std_2, ..., pi_1, pi_2, ...].
 def fit_gmm(
     data: npt.NDArray[np.float64], config_filepath: str
-) -> tuple[int, list[float]]:
+) -> tuple[object, int, list[float]]:
     initial_params: list[float]
     bounds: list[tuple[float, float]]
     n, initial_params, bounds = read_gmm_config(config_filepath)
+
+    lin_constraint: LinearConstraint = LinearConstraint(
+        A=[[0, 0, 0, 0, 0, 0, 1, 1, 1]],  lb=1, ub=1  # type: ignore
+    )
 
     result = minimize(  # type: ignore
         negative_log_likelihood,
         initial_params,
         args=(n, data),
         bounds=bounds,
-        constraints={"type": "eq", "fun": weight_constraint},
-        method="SLSQP"
+        constraints=(lin_constraint, ),
+        method="trust-constr",
+        hess=hessian,
+        options={
+            "maxiter": 1e6,
+        }
     )
 
-    # Optimized parameters are ordered as [m1, std1, pi1, ...].
-    return (n, result.x)  # type: ignore
+    return (result, n, result.x)  # type: ignore
 
 
 # @NOTE(ds): Given `n' means and standard deviations, we plot a histogram of
