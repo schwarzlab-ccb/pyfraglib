@@ -12,6 +12,7 @@
 # more details. You should have received a copy of the GNU General Public
 # License along with this program. If not, see <https://www.gnu.org/licenses/>.
 import os
+import json
 import logging
 
 import matplotlib.pyplot as plt
@@ -75,3 +76,19 @@ def fragment_length_gmm(fragments: FragmentList, config_filepath: str,
 
     n, params = fit_gmm(frag_lens, config_filepath)
     plot_gmm(frag_lens, n, params, out_dir, name)
+    write_gmm_params(n, params, out_dir, name)
+
+
+def write_gmm_params(
+    n: int, params: list[float], out_dir: str, name: str
+) -> None:
+    outpath: str = \
+        os.path.join(out_dir, "{}_gmm_frags_len.json".format(name))
+    with open(outpath, "w") as file:
+        data: dict[str, object] = {
+            "number_of_gaussians": n,
+            "estimated_means": list(params[:n]),
+            "estimated_stds": list(params[n:2*n]),
+            "estimated_pis": list(params[2*n:])
+        }
+        json.dump(data, file)

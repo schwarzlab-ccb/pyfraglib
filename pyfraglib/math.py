@@ -47,11 +47,9 @@ def gaussian_mixture(
 def negative_log_likelihood(
     params: list[float], n: int, data: list[float],
 ) -> npt.NDArray[np.float64]:
-    # @NOTE(ds): We need to normalize the weights to ensure that their sum
-    # equals 1. We clip the mixture fractions to avoid numerical instability
+    # @NOTE(ds): We clip the mixture fractions to avoid numerical instability
     # issues.
     params[2*n:] = np.clip(params[2*n:], 1e-6, 1-1e-6)  # type: ignore
-    params[2*n:] /= np.sum(params[2*n:])  # type: ignore
     pdf: npt.NDArray[np.float64] = gaussian_mixture(params, n, data)
     epsilon = 1e-10
     return -np.sum(np.log(pdf + epsilon))  # type: ignore
