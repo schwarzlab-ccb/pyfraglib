@@ -74,12 +74,12 @@ def fragment_length_gmm(fragments: FragmentList, config_filepath: str,
         [frag.length for frag in fragments if not frag.is_bogus]
     )
 
-    opt_result, n, params = fit_gmm(frag_lens, config_filepath)
+    opt_result, n, params, data = fit_gmm(frag_lens, config_filepath)
     if opt_result.success:  # type: ignore
         logger.info("successfully fitted GMM")
     else:
         logger.warn("GMM fit did not converge, plotting anyways")
-    plot_gmm(frag_lens, n, params, out_dir, name)
+    plot_gmm(data, n, params, out_dir, name)
     write_gmm_params(n, params,
                      opt_result.fun,  opt_result.success,  # type: ignore
                      out_dir, name)

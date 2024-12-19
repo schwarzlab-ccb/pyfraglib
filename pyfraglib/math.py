@@ -13,6 +13,7 @@
 # License along with this program. If not, see <https://www.gnu.org/licenses/>.
 import os
 import json
+import logging
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -21,6 +22,9 @@ import numpy.typing as npt
 from pyfraglib.core import fail
 from scipy.optimize import LinearConstraint, minimize
 from scipy.stats import norm
+from typing import Final
+
+LARGE_DATASET_THRESHOLD: Final[int] = 1_000_000
 
 
 # @NOTE(ds): The ordering of `params' is as follows ('n' = # of Gaussians):
@@ -31,7 +35,7 @@ def gaussian_mixture(
     params: list[float], n: int, data: list[float],
 ) -> npt.NDArray[np.float64]:
     assert n > 0, "Cannot mix <= 0 Gaussians."
-    assert len(params) == 3*n, "Not enough mixture parameters."
+    assert len(params) == 3*n, "Incorrect number of mixture parameters."
 
     pdf: npt.NDArray[np.float64] | None = None
     for idx in range(n):
@@ -59,7 +63,7 @@ def negative_log_likelihood(
 # conditions in our sanity checks.
 def read_gmm_config(
     config_filepath: str
-) -> tuple[int, list[float], list[tuple[float, float]]]:
+) -> tuple[int, float, list[float], list[tuple[float, float]]]:
     with open(config_filepath, "r") as config_file:
         config: dict[str, object] = json.load(config_file)
 
@@ -67,6 +71,12 @@ def read_gmm_config(
         if not _n or type(_n) is not int or _n <= 0:
             fail("`number_of_gaussians' in GMM config must be an int > 0")
         n: int = int(_n)
+
+        _ssp: object = config.get("subsample_percentage")
+        if not _ssp or type(_ssp) is not float or _ssp <= 0.0 or _ssp > 1.0:
+            fail("`subsample_percentage' in GMM config must be a float > 0.0 "
+                 " and <= 1.0")
+        ssp: float = float(_ssp)
 
         _ml: object = config.get("means_lower_bounds")
         _mu: object = config.get("means_upper_bounds")
@@ -106,7 +116,7 @@ def read_gmm_config(
         p_bounds: list[tuple[float, float]] = [(0.0, 1.0)] * n
         bounds: list[tuple[float, float]] = mean_bounds + std_bounds + p_bounds
 
-        return n, initials, bounds
+        return n, ssp, initials, bounds
 
 
 def hessian(
@@ -121,19 +131,30 @@ def hessian(
 # [m_1, m_2, ..., std_1, std_2, ..., pi_1, pi_2, ...].
 def fit_gmm(
     data: npt.NDArray[np.float64], config_filepath: str
-) -> tuple[object, int, list[float]]:
+) -> tuple[object, int, list[float], npt.NDArray[np.float64]]:
+    logger: logging.Logger = logging.getLogger("pyfraglib")
+
     initial_params: list[float]
     bounds: list[tuple[float, float]]
-    n, initial_params, bounds = read_gmm_config(config_filepath)
+    n, subsample_perc, initial_params, bounds = \
+        read_gmm_config(config_filepath)
+
+    subsample_size: int = int(len(data)*subsample_perc)
+    data_sample: npt.NDArray[np.float64] = np.random.choice(
+        a=data, size=subsample_size, replace=False
+    )
+    if subsample_size > LARGE_DATASET_THRESHOLD:
+        logger.warn(f"fitting a GMM to {subsample_size} fragments might take "
+                    f"a long time - consider downsampling")
 
     lin_constraint: LinearConstraint = LinearConstraint(
-        A=[[0, 0, 0, 0, 0, 0, 1, 1, 1]],  lb=1, ub=1  # type: ignore
+        A=[[0]*2*n + [1]*n],  lb=1, ub=1  # type: ignore
     )
 
     result = minimize(  # type: ignore
         negative_log_likelihood,
         initial_params,
-        args=(n, data),
+        args=(n, data_sample),
         bounds=bounds,
         constraints=(lin_constraint, ),
         method="trust-constr",
@@ -141,11 +162,11 @@ def fit_gmm(
         # But it really isn't, so we do not set the Hessian to zero.
         # > hess=hessian,
         options={
-            "maxiter": 5000,
+            "maxiter": 1000,
         }
     )
 
-    return (result, n, result.x)  # type: ignore
+    return (result, n, result.x, data_sample)  # type: ignore
 
 
 # @NOTE(ds): Given `n' means and standard deviations, we plot a histogram of
