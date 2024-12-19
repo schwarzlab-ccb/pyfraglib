@@ -137,9 +137,11 @@ def fit_gmm(
         bounds=bounds,
         constraints=(lin_constraint, ),
         method="trust-constr",
-        hess=hessian,
+        # @NOTE(ds): The optimizer warns us that the objective seems linear.
+        # But it really isn't, so we do not set the Hessian to zero.
+        # > hess=hessian,
         options={
-            "maxiter": 1e6,
+            "maxiter": 5000,
         }
     )
 

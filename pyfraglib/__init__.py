@@ -33,11 +33,18 @@ logging.basicConfig(
     format='[%(asctime)s %(levelname)-8s %(name)-9s %(process)s] %(message)s',
     datefmt='%Y-%m-%d %H:%M:%S'
 )
+logging.captureWarnings(True)
 
+# @NOTE(ds): The `matplotlib' logging messages are just annoying. We turn them
+# off completely.
 logging.getLogger("matplotlib.font_manager").setLevel(logging.ERROR)
 logging.getLogger("matplotlib.pyplot").setLevel(logging.ERROR)
-logging.getLogger("PIL.PngImagePlugin").setLevel(logging.ERROR)
-logging.getLogger("asyncio").setLevel(logging.ERROR)
+
+# @NOTE(ds): Not sure if the following log messages could be interesting for
+# debugging.
+logging.getLogger("PIL.PngImagePlugin").setLevel(logging.DEBUG)
+logging.getLogger("asyncio").setLevel(logging.DEBUG)
+logging.getLogger("py.warnings").setLevel(logging.DEBUG)
 
 PyfragManager.register(  # type: ignore
     "FragmentCollection", FragmentCollection)
