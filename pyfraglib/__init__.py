@@ -28,6 +28,24 @@ __all__ = ["Fragment", "FragmentList", "FragmentCollection", "fail",
            "fragment_length_plot",
            "fit_gmm", "plot_gmm"]
 
+
+# @NOTE(ds): This filter changes the level of every record to `level' and only
+# logs the record if that new level is more severe than the log level of
+# the logger that emitted the record.
+class FixedLogLevelFilter(logging.Filter):
+    def __init__(self, level: int):
+        super().__init__()
+        self.level: int = level
+
+    def filter(self, record: logging.LogRecord) -> bool:
+        this_logger_name: str = record.name
+        this_logger: logging.Logger = logging.getLogger(this_logger_name)
+
+        record.levelno = self.level
+        record.levelname = logging.getLevelName(self.level)
+        return record.levelno >= this_logger.level
+
+
 logging.basicConfig(
     level=logging.NOTSET,
     format='[%(asctime)s %(levelname)-8s %(name)-9s %(process)s] %(message)s',
@@ -39,12 +57,17 @@ logging.captureWarnings(True)
 # off completely.
 logging.getLogger("matplotlib.font_manager").setLevel(logging.ERROR)
 logging.getLogger("matplotlib.pyplot").setLevel(logging.ERROR)
+logging.getLogger("PIL.PngImagePlugin").setLevel(logging.ERROR)
 
 # @NOTE(ds): Not sure if the following log messages could be interesting for
 # debugging.
-logging.getLogger("PIL.PngImagePlugin").setLevel(logging.DEBUG)
 logging.getLogger("asyncio").setLevel(logging.DEBUG)
-logging.getLogger("py.warnings").setLevel(logging.DEBUG)
+
+# @NOTE(ds): `py.warnings' logs everything as a WARNING. We don't want that
+# so we apply a filter to log everything as DEBUG.
+py_warnings_logger: logging.Logger = logging.getLogger("py.warnings")
+log_filter: FixedLogLevelFilter = FixedLogLevelFilter(logging.DEBUG)
+py_warnings_logger.addFilter(log_filter)
 
 PyfragManager.register(  # type: ignore
     "FragmentCollection", FragmentCollection)

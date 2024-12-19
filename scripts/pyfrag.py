@@ -401,6 +401,7 @@ if __name__ == "__main__":
         level = logging.INFO
     logging.getLogger("pyfraglib").setLevel(level)
     logging.getLogger("pyfrag").setLevel(level)
+    logging.getLogger("py.warnings").setLevel(level)
 
     signal.signal(signal.SIGINT, signal_handler)
 
