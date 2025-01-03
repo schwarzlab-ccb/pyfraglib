@@ -101,7 +101,7 @@ process pyfraglib_stats {
 process pyfraglib_lengths {
     label "parallel"
     tag "${sample_id}"
-    errorStrategy "ignore"
+    errorStrategy { task.attempt < 4 ? "retry" : "ignore" }
 
     if (params.force_lengths) { cache false }
 

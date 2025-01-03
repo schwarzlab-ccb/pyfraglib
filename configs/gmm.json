@@ -1,6 +1,6 @@
 {
     "number_of_gaussians": 3,
-    "subsample_percentage": 0.2,
+    "subsample_percentage": 0.10,
     "means_lower_bounds": [50, 250, 450],
     "means_upper_bounds": [250, 450, 650],
     "std_lower_bounds": [1, 1, 1],
