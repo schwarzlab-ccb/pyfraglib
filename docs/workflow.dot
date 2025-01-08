@@ -1,5 +1,20 @@
+// This file is part of `pyfraglib`, a software suite to calculate fragmentomics
+// features from cfDNA and perform downstream analyses.
+//
+// Copyright (C) 2024 Daniel Schütte, daniel.schuette@iccb-cologne.org
+//
+// This program is free software: you can redistribute it and/or modify it under
+// the terms of the GNU General Public License as published by the Free Software
+// Foundation, either version 3 of the License, or (at your option) any later
+// version. This program is distributed in the hope that it will be useful, but
+// WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+// FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License for
+// more details. You should have received a copy of the GNU General Public
+// License along with this program. If not, see <https://www.gnu.org/licenses/>.
+
 digraph Workflow {
-    // bgcolor="transparent";
+    // Sometimes, we want a transparent figure for presentations, etc.
+    // > bgcolor="transparent";
 
     A0 -> B [label="extract",fontcolor=darkred,style=bold];
     A1 -> B [label="extract --nanopore",fontcolor=darkred,style=bold];
@@ -12,21 +27,25 @@ digraph Workflow {
 
     B -> C [label="stats",fontcolor=darkred,style=bold];
     B -> D [label="lengths",fontcolor=darkred,style=bold];
+    DD -> D [fontcolor=darkred,style=bold];
     B -> E [label="scores",fontcolor=darkred,style=bold];
     EE -> E [fontcolor=darkred,style=bold];
     E -> F;
     E -> G;
+    E -> GG;
     D -> H;
     C -> I;
     C -> J;
 
-    C [label="overview stats",shape=circle,fontsize=12];
-    D [label="length distribution",shape=circle,fontsize=12];
+    C [label="overview\nstats",shape=circle,fontsize=12];
+    D [label="length\ndistribution",shape=circle,fontsize=12];
+    DD [label="JSON config",shape=box,fontsize=20];
     E [label="fragmentomics\nscores",shape=circle,fontsize=12];
     EE [label="BED file",shape=box,fontsize=20];
-    F [label="motif diversity score",shape=box,fontsize=10];
-    G [label="windowed protection score",shape=box,fontsize=10];
-    H [label="Gaussian mixture model",shape=box,fontsize=10];
-    I [label="global endmotif plot",shape=box,fontsize=10];
+    F [label="motif diversity\nscore",shape=box,fontsize=10];
+    G [label="windowed protection\nscore",shape=box,fontsize=10];
+    GG [label="fragment depth\nper site",shape=box,fontsize=10];
+    H [label="Gaussian mixture\nmodel",shape=box,fontsize=10];
+    I [label="global endmotif\nplot",shape=box,fontsize=10];
     J [label="stdout",shape=box,fontsize=10];
 }

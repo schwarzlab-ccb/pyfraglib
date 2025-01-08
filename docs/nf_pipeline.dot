@@ -1,0 +1,51 @@
+// This file is part of `pyfraglib`, a software suite to calculate fragmentomics
+// features from cfDNA and perform downstream analyses.
+//
+// Copyright (C) 2024 Daniel Schütte, daniel.schuette@iccb-cologne.org
+//
+// This program is free software: you can redistribute it and/or modify it under
+// the terms of the GNU General Public License as published by the Free Software
+// Foundation, either version 3 of the License, or (at your option) any later
+// version. This program is distributed in the hope that it will be useful, but
+// WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+// FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License for
+// more details. You should have received a copy of the GNU General Public
+// License along with this program. If not, see <https://www.gnu.org/licenses/>.
+
+digraph Nextflow_Pipeline {
+    // Sometimes, we want a transparent figure for presentations, etc.
+    // > bgcolor="transparent";
+    A -> B [label="nextflow run",fontcolor=darkred,style=bold];
+    B -> C1 [label=<proc<SUB>1</SUB>>];
+    B -> C2 [label=<proc<SUB>2</SUB>>];
+    B -> Ci [label=<proc<SUB>i</SUB>>,fontcolor=gray,color=gray,style=dashed];
+    B -> Cn [label=<proc<SUB>n</SUB>>];
+
+    C1 -> D1;
+    C2 -> D2;
+    Ci -> Di [fontcolor=gray,color=gray,style=dashed];
+    Cn -> Dn;
+
+    D1 -> E1;
+    D2 -> E2;
+    Di -> Ei [fontcolor=gray,color=gray,style=dashed];
+    Dn -> En;
+
+    A [label=<Sample Sheet of <I>n</I> samples>,shape=box,fontsize=20];
+    B [label="Nextflow\norchestrator",shape=circle,fontsize=12];
+
+    C1 [label=<extract BAM<SUB>1</SUB>>];
+    C2 [label=<extract BAM<SUB>2</SUB>>];
+    Ci [label=<extract BAM<SUB>i</SUB>>,fontcolor=gray,color=gray,style=dashed];
+    Cn [label=<extract BAM<SUB>n</SUB>>];
+
+    D1 [label=<process FRAG<SUB>1</SUB>>];
+    D2 [label=<process FRAG<SUB>2</SUB>>];
+    Di [label=<process FRAG<SUB>i</SUB>>,fontcolor=gray,color=gray,style=dashed];
+    Dn [label=<process FRAG<SUB>n</SUB>>];
+
+    E1 [label="save results"];
+    E2 [label="save results"];
+    Ei [label="save results",fontcolor=gray,color=gray,style=dashed];
+    En [label="save results"];
+}
