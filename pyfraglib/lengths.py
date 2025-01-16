@@ -21,8 +21,8 @@ import numpy.typing as npt
 import seaborn as sns
 
 from typing import Final
-from pyfraglib import FragmentList
-from pyfraglib.math import fit_gmm, plot_gmm
+from pyfraglib import FragmentList, fail
+from pyfraglib.math import fit_gmm, plot_gmm, goodness_of_fit_stats
 
 
 def fragment_length_plot(
@@ -74,20 +74,27 @@ def fragment_length_gmm(fragments: FragmentList, config_filepath: str,
         [frag.length for frag in fragments if not frag.is_bogus]
     )
 
-    opt_result, n, params, data = fit_gmm(frag_lens, config_filepath)
+    try:
+        opt_result, n, params, data = fit_gmm(frag_lens, config_filepath)
+    except Exception:
+        fail("fitting the GMM failed, probably due to non-convergence")
+
     if opt_result.success:  # type: ignore
         logger.info("successfully fitted GMM")
     else:
-        logger.warn("GMM fit did not converge, plotting anyways")
+        fail("fitting the GMM failed due to non-convergence")
+
     plot_gmm(data, n, params, out_dir, name)
+
+    gof: dict[str, object] = goodness_of_fit_stats(data, params, n)
     write_gmm_params(n, params,
                      opt_result.fun,  opt_result.success,  # type: ignore
-                     out_dir, name)
+                     gof, out_dir, name)
 
 
 def write_gmm_params(
     n: int, params: list[float], obj_val: float, conv: bool,
-    out_dir: str, name: str
+    goodness_of_fit: dict[str, object], out_dir: str, name: str
 ) -> None:
     outpath: str = \
         os.path.join(out_dir, "{}_gmm_frags_len.json".format(name))
@@ -100,4 +107,5 @@ def write_gmm_params(
             "estimated_stds": list(params[n:2*n]),
             "estimated_pis": list(params[2*n:])
         }
+        data |= goodness_of_fit
         json.dump(data, file)

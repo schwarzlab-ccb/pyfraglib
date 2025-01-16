@@ -21,7 +21,7 @@ import numpy.typing as npt
 
 from pyfraglib.core import fail
 from scipy.optimize import LinearConstraint, minimize
-from scipy.stats import norm
+from scipy.stats import norm, ks_1samp, energy_distance, wasserstein_distance
 from typing import Final
 
 LARGE_DATASET_THRESHOLD: Final[int] = 1_000_000
@@ -45,6 +45,20 @@ def gaussian_mixture(
         else:
             pdf += norm.pdf(data, loc=m, scale=s) * p  # type: ignore
     return pdf  # type: ignore
+
+
+def mixture_cdf(x: float, params: list[float], n: int) -> float:
+    cdf: float = 0
+    for idx in range(n):
+        m, s, p = params[idx], params[n+idx], params[2*n+idx]
+        cdf += p * norm.cdf(x, loc=m, scale=s)  # type: ignore
+    return cdf
+
+
+def mixture_cdf_wrapper(
+    data: list[float], params: list[float], n: int
+) -> npt.NDArray[np.float64]:
+    return np.array([mixture_cdf(x, params, n) for x in data])  # type: ignore
 
 
 # @NOTE(ds): `params' is as described above.
@@ -167,6 +181,24 @@ def fit_gmm(
     )
 
     return (result, n, result.x, data_sample)  # type: ignore
+
+
+def goodness_of_fit_stats(
+    data: npt.NDArray[np.float64], params: list[float], n: int
+) -> dict[str, object]:
+    def dist(d: npt.NDArray[np.float64]) -> npt.NDArray[np.float64]:
+        return mixture_cdf_wrapper(d, params, n)  # type: ignore
+
+    theoretical_data: npt.NDArray[np.float64] = dist(data)
+    ks_stat, ks_pval = ks_1samp(data, dist)  # type: ignore
+    energy_result = energy_distance(data, theoretical_data)
+    wd_distance = wasserstein_distance(data, theoretical_data)
+    return {
+        "kolmogorov_smirnov_statistic": ks_stat,
+        "kolmogorov_smirnov_p_value": ks_pval,
+        "energy_distance": energy_result,
+        "wasserstein_distance": wd_distance
+    }
 
 
 # @NOTE(ds): Given `n' means and standard deviations, we plot a histogram of
