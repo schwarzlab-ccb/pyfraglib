@@ -21,7 +21,7 @@ import numpy.typing as npt
 
 from pyfraglib.core import fail
 from scipy.optimize import LinearConstraint, minimize
-from scipy.stats import norm, ks_1samp, energy_distance, wasserstein_distance
+from scipy.stats import norm, ks_1samp, wasserstein_distance, entropy
 from typing import Final
 
 LARGE_DATASET_THRESHOLD: Final[int] = 1_000_000
@@ -183,21 +183,44 @@ def fit_gmm(
     return (result, n, result.x, data_sample)  # type: ignore
 
 
+def jensen_shannon_divergence(
+    p: npt.NDArray[np.float64], q: npt.NDArray[np.float64]
+) -> float:
+    p = np.asarray(p) / np.sum(p)
+    q = np.asarray(q) / np.sum(q)
+    m = 0.5 * (p + q)  # type: ignore
+    return 0.5 * (entropy(p, m) + entropy(q, m))  # type: ignore
+
+
 def goodness_of_fit_stats(
     data: npt.NDArray[np.float64], params: list[float], n: int
 ) -> dict[str, object]:
     def dist(d: npt.NDArray[np.float64]) -> npt.NDArray[np.float64]:
         return mixture_cdf_wrapper(d, params, n)  # type: ignore
 
-    theoretical_data: npt.NDArray[np.float64] = dist(data)
     ks_stat, ks_pval = ks_1samp(data, dist)  # type: ignore
-    energy_result = energy_distance(data, theoretical_data)
-    wd_distance = wasserstein_distance(data, theoretical_data)
+
+    nbins: int = 1000
+    bins = np.linspace(min(data), max(data), nbins)  # type: ignore
+    bin_centers = (bins[:-1] + bins[1:]) / 2  # type: ignore
+
+    hist_empirical, _ = \
+        np.histogram(data, bins=bins, density=True)  # type: ignore
+    pdf_empirical = hist_empirical / np.sum(hist_empirical)  # type: ignore
+    pdf_fit = gaussian_mixture(params, n, bin_centers)  # type: ignore
+
+    wd_distance = wasserstein_distance(
+        bin_centers, bin_centers,  # type: ignore
+        u_weights=pdf_empirical, v_weights=pdf_fit  # type: ignore
+    )
+    js_divergence = \
+        jensen_shannon_divergence(pdf_empirical, pdf_fit)  # type: ignore
+
     return {
         "kolmogorov_smirnov_statistic": ks_stat,
         "kolmogorov_smirnov_p_value": ks_pval,
-        "energy_distance": energy_result,
-        "wasserstein_distance": wd_distance
+        "wasserstein_distance": wd_distance,
+        "jensen_shannon_divergence": js_divergence
     }
 
 
