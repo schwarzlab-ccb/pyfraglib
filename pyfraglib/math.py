@@ -32,7 +32,7 @@ LARGE_DATASET_THRESHOLD: Final[int] = 1_000_000
 # for ensuring that `sum(pi_i) == 1.0', and that `params' holds exactly n*3
 # parameters.
 def gaussian_mixture(
-    params: list[float], n: int, data: list[float],
+    params: list[float], n: int, data: npt.NDArray[np.float64],
 ) -> npt.NDArray[np.float64]:
     assert n > 0, "Cannot mix <= 0 Gaussians."
     assert len(params) == 3*n, "Incorrect number of mixture parameters."
@@ -61,16 +61,20 @@ def mixture_cdf_wrapper(
     return np.array([mixture_cdf(x, params, n) for x in data])  # type: ignore
 
 
-# @NOTE(ds): `params' is as described above.
+# @NOTE(ds): `params' is as described above. It's important to note that we
+# normalize the NLL to avoid numerical instabilities associated with very large
+# values. The normalization factor must be provided upon every iteration, so
+# we must be careful to always use the same float.
 def negative_log_likelihood(
-    params: list[float], n: int, data: list[float],
-) -> npt.NDArray[np.float64]:
+    params: list[float], n: int, data: npt.NDArray[np.float64],
+    norm_const: float
+) -> float:
     # @NOTE(ds): We clip the mixture fractions to avoid numerical instability
     # issues.
     params[2*n:] = np.clip(params[2*n:], 1e-6, 1-1e-6)  # type: ignore
     pdf: npt.NDArray[np.float64] = gaussian_mixture(params, n, data)
     epsilon = 1e-10
-    return -np.sum(np.log(pdf + epsilon))  # type: ignore
+    return -np.sum(np.log(pdf + epsilon)) / norm_const  # type: ignore
 
 
 # @NOTE(ds): We do some basic validation, but don't exhaust possible error
@@ -164,11 +168,14 @@ def fit_gmm(
     lin_constraint: LinearConstraint = LinearConstraint(
         A=[[0]*2*n + [1]*n],  lb=1, ub=1  # type: ignore
     )
+    norm_const: float = negative_log_likelihood(
+        initial_params, n, data_sample, 1.0
+    )
 
     result = minimize(  # type: ignore
         negative_log_likelihood,
         initial_params,
-        args=(n, data_sample),
+        args=(n, data_sample, norm_const),
         bounds=bounds,
         constraints=(lin_constraint, ),
         method="trust-constr",
