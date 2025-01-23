@@ -168,9 +168,9 @@ def fit_gmm(
     lin_constraint: LinearConstraint = LinearConstraint(
         A=[[0]*2*n + [1]*n],  lb=1, ub=1  # type: ignore
     )
-    norm_const: float = negative_log_likelihood(
+    norm_const: float = abs(negative_log_likelihood(
         initial_params, n, data_sample, 1.0
-    )
+    ))
 
     result = minimize(  # type: ignore
         negative_log_likelihood,
