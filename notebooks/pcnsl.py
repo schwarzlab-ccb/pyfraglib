@@ -14,12 +14,18 @@ def _():
     import numpy as np
     import pandas as pd
 
+    from math import isinf
     from sksurv.nonparametric import kaplan_meier_estimator
     from lifelines import KaplanMeierFitter
+    from lifelines.plotting import add_at_risk_counts
+    from lifelines.statistics import logrank_test
     return (
         KaplanMeierFitter,
+        add_at_risk_counts,
+        isinf,
         json,
         kaplan_meier_estimator,
+        logrank_test,
         mo,
         np,
         os,
@@ -124,38 +130,98 @@ def _(mo):
 def _(model_params, np, plt):
     color_map = {"BL": "red", "BLrr": "darkred", "c1": "blue", "c2": "darkblue", "end": "yellow", "CSF": "green"}
     color_code = [color_map[tp] for tp in model_params["time_point_hom"]]
+    handles = [plt.Rectangle((0, 0), 1, 1, color=color_map[label]) for label in color_map]
 
-    _, axis = plt.subplots(figsize=(14,5))
-    axis.bar(x=model_params.index,
+    _, _axis = plt.subplots(figsize=(14,5))
+    _axis.bar(x=model_params.index,
              height=np.log(model_params["objective_value"].astype(float)),
              color=color_code)
-    axis.tick_params(axis="x", rotation=90, labelsize=6)
-    axis.set_title(r"$\log_e(\text{obj-func})$")
-    handles = [plt.Rectangle((0, 0), 1, 1, color=color_map[label]) for label in color_map]
-    axis.legend(handles, color_map.keys(), title="Timepoints")
-    axis
-    return axis, color_code, color_map, handles
+    _axis.tick_params(axis="x", rotation=90, labelsize=6)
+    _axis.set_ylabel(r"$\log_e(\text{obj-func})$")
+    _axis.set_xlabel("Samples")
+    _axis.legend(handles, color_map.keys(), title="Timepoints")
+    _axis
+    return color_code, color_map, handles
 
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(r"""Next, we are plotting the fitted parameters:""")
+    mo.md(r"""Next, we are plotting the goodness-of-fit parameters and the model parameters:""")
     return
 
 
-@app.cell
-def _(clin_info_sheet, clin_info_sheet_column_metadata):
-    for idx, item in enumerate(clin_info_sheet_column_metadata):
-        print(f"{idx}: {item}")
-    clin_info_sheet.iloc[:, 70:]
-    return idx, item
+@app.cell(hide_code=True)
+def _(color_code, color_map, handles, model_params, np, plt):
+    _, _axis = plt.subplots(figsize=(14,5))
+    _axis.bar(x=model_params.index,
+             height=np.log10(model_params["kolmogorov_smirnov_statistic"].astype(float)),
+             color=color_code)
+    _axis.tick_params(axis="x", rotation=90, labelsize=6)
+    _axis.set_ylabel(r"$\log_{10}(\text{KS Test Statistic})$")
+    _axis.set_xlabel("Samples")
+    _axis.legend(handles, color_map.keys(), title="Timepoints")
+    _axis
+    return
 
 
-@app.cell
-def _(KaplanMeierFitter, clin_info_sheet, kaplan_meier_estimator, np, plt):
+@app.cell(hide_code=True)
+def _(color_code, color_map, handles, model_params, plt):
+    _, _axis = plt.subplots(nrows=3, ncols=1, figsize=(14,10))
+
+    for idx in [0, 1, 2]:
+        _axis[idx].bar(x=model_params.index,
+                          height=[x[idx] for x in model_params["estimated_means"]],
+                          color=color_code)
+        _axis[idx].tick_params(axis="x", rotation=90, labelsize=6)
+        _axis[idx].set_ylabel(f"$\mu_{idx+1}$")
+        _axis[idx].set_xlabel("Samples")
+        _axis[idx].legend(handles, color_map.keys(), title="Timepoints")
+        
+    plt.tight_layout()
+    plt.show()
+    return (idx,)
+
+
+@app.cell(hide_code=True)
+def _(color_code, color_map, handles, model_params, plt):
+    _, _axis = plt.subplots(nrows=3, ncols=1, figsize=(16,10))
+
+    for _idx in [0, 1, 2]:
+        _axis[_idx].bar(x=model_params.index,
+                          height=[x[_idx] for x in model_params["estimated_pis"]],
+                          color=color_code)
+        _axis[_idx].tick_params(axis="x", rotation=90, labelsize=6)
+        _axis[_idx].set_ylabel(f"$\pi_{_idx+1}$")
+        _axis[_idx].set_xlabel("Samples")
+        _axis[_idx].legend(handles, color_map.keys(), title="Timepoints")
+        
+    plt.tight_layout()
+    plt.show()
+    return
+
+
+@app.cell(hide_code=True)
+def _(mo):
+    mo.md("""
+    ## Analysis of clinical cohort characteristics
+    Finally, we want to relate the fitted model parameters to patients' clinical data. That is mainly survival and toxicities of chemotherapy. Along the way, we might find additional characteristics that are interesting to predict using our fragmentomics features.
+    """)
+    return
+
+
+@app.cell(hide_code=True)
+def _(
+    KaplanMeierFitter,
+    clin_info_sheet,
+    isinf,
+    kaplan_meier_estimator,
+    np,
+    pd,
+    plt,
+):
     days_diff = clin_info_sheet.loc[:, "last_FU"] - clin_info_sheet.loc[:, "ED_date"]
     days_diff = np.array(days_diff)
-    times = [d.days for d in days_diff]
+    times = pd.Series([d.days for d in days_diff])
     events = clin_info_sheet.loc[:, "survival"] == 1
 
     def km_plot_scikit(events, times):
@@ -168,18 +234,68 @@ def _(KaplanMeierFitter, clin_info_sheet, kaplan_meier_estimator, np, plt):
     def km_plot_lifelines(events, times):
         kmf = KaplanMeierFitter()
         kmf.fit(times, events)
-        from math import isinf
         print("mOS not reached" if isinf(kmf.median_survival_time_)
               else f"mOS {kmf.median_survival_time_} days")
-        
+
         _axis = kmf.plot_survival_function(at_risk_counts=True, show_censors=True)
         _axis.set_ylim((0.0, 1.05))
         _axis.set_xlabel("Time (days)")
         _axis.set_ylabel("Overall survival probability")
         return _axis
 
-    km_plot_lifelines(events, times)
+    # km_plot_lifelines(events, times)
     return days_diff, events, km_plot_lifelines, km_plot_scikit, times
+
+
+@app.cell(hide_code=True)
+def _(
+    KaplanMeierFitter,
+    add_at_risk_counts,
+    clin_info_sheet,
+    events,
+    logrank_test,
+    plt,
+    times,
+):
+    _, _axis = plt.subplots()
+    strata = clin_info_sheet["age"] > 60
+    stratum_true_label = "Age > 60"
+    stratum_false_label = "Age <= 60"
+
+    kmf_train = KaplanMeierFitter()
+    kmf_train.fit(times[strata], events[strata], label=stratum_true_label)
+    kmf_train.plot_survival_function(ax=_axis, show_censors=True)
+
+    kmf_val = KaplanMeierFitter()
+    kmf_val.fit(times[~strata], events[~strata], label=stratum_false_label)
+    kmf_val.plot_survival_function(ax=_axis, show_censors=True)
+
+    logrank = logrank_test(times[strata], times[~strata], events[strata], events[~strata], alpha=.99)
+    print(logrank)
+
+    _axis.set_ylim((0.0, 1.05))
+    _axis.set_xlabel("Time (days)")
+    _axis.set_ylabel("Overall survival probability")
+    add_at_risk_counts(kmf_train, kmf_val, ax=_axis)
+    return (
+        kmf_train,
+        kmf_val,
+        logrank,
+        strata,
+        stratum_false_label,
+        stratum_true_label,
+    )
+
+
+@app.cell(hide_code=True)
+def _(mo):
+    mo.md(
+        """
+        # Todo
+        Build quotient of $\\frac{end}{BL}$ $\pi_3$ values. Correlate with clinical outcome.
+        """
+    )
+    return
 
 
 if __name__ == "__main__":
