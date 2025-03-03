@@ -24,19 +24,29 @@ def _(mo):
         The probability density function of two 1D Gaussians with variances $\sigma_1^2$, $\sigma_2^2$, means $\mu_1$, $\mu_2$, and mixture fraction $\pi$:
 
         \begin{equation}
-            P(x) = \pi \cdot \mathcal{N}(x|\mu_1, \sigma_1^2) + (1-\pi) \cdot \mathcal{N}(x|\mu_2, \sigma_2^2)
+            P(x) = \pi_1 \cdot \mathcal{N}(x|\mu_1, \sigma_1) + \pi_2 \cdot \mathcal{N}(x|\mu_2, \sigma_2) + \pi_3 \cdot \mathcal{N}(x|\mu_3, \sigma_3)
         \end{equation}
 
         As a second piece, we need the negative log-likelihood:
 
         \begin{equation}
-            \text{NLL} = -\sum{}{}{\log{P(x)}}
+            \text{NLL}(\mathcal{X}) = -\sum_{x \in \mathcal{X}}^{}{\log{P(x)}}
         \end{equation}
 
         Using pretty much any optimizer, we can then fit a GMM by minimizing the NLL:
 
         \begin{equation}
-            \argmin_{\sigma_1^2, \sigma_2^2, \pi}{(\text{NLL})}
+            \argmin_{\mu_1, \mu_2, \mu_3, \sigma_1, \sigma_2, \sigma_3, \pi_1, \pi_2, \pi_3}{(\text{NLL})},
+        \end{equation}
+
+        Such that:
+
+        \begin{equation}
+            \sum_{i=1, \pi_i \ge 0}^{3}{pi_i} = 1
+        \end{equation}
+
+        \begin{equation}
+            \text{for } i \in \{1, 2, 3\}: \sigma_i \in (0, 50]; \mu_1 \in [50, 200]; \mu_2 \in [200, 350]; \mu_3 \in [350, 600]
         \end{equation}
         """
     )
@@ -55,7 +65,7 @@ def _(fit_gmm, np, npt, plot_gmm):
     data: npt.NDArray[np.float64] = np.hstack([data1, data2, data3])
 
     _, _n, params, _ = fit_gmm(data, "../configs/gmm_3.json")
-    plot_gmm(data, _n, params, ".", "test")
+    plot_gmm(data, _n, params, "/home/daniel/", "test")
     return (
         data,
         data1,

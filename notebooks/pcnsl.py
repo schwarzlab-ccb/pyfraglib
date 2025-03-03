@@ -1,6 +1,6 @@
 import marimo
 
-__generated_with = "0.10.14"
+__generated_with = "0.11.13"
 app = marimo.App(width="full")
 
 
@@ -12,10 +12,12 @@ def _():
     import marimo as mo
     import matplotlib.pyplot as plt
     import numpy as np
+    import seaborn as sns
     import pandas as pd
 
     from math import isinf
     from sksurv.nonparametric import kaplan_meier_estimator
+    from scipy.stats import mannwhitneyu, ttest_ind
     from lifelines import KaplanMeierFitter
     from lifelines.plotting import add_at_risk_counts
     from lifelines.statistics import logrank_test
@@ -26,11 +28,14 @@ def _():
         json,
         kaplan_meier_estimator,
         logrank_test,
+        mannwhitneyu,
         mo,
         np,
         os,
         pd,
         plt,
+        sns,
+        ttest_ind,
     )
 
 
@@ -272,17 +277,17 @@ def _(
     kmf_val.fit(times[~strata], events[~strata], label=stratum_false_label)
     kmf_val.plot_survival_function(ax=_axis, show_censors=True)
 
-    logrank = logrank_test(times[strata], times[~strata], events[strata], events[~strata], alpha=.99)
-    print(logrank)
+    logrank_pval = logrank_test(times[strata], times[~strata], events[strata], events[~strata], alpha=.99).p_value
 
     _axis.set_ylim((0.0, 1.05))
     _axis.set_xlabel("Time (days)")
     _axis.set_ylabel("Overall survival probability")
+    _axis.set_title(f"log-rank p={logrank_pval:0.2}")
     add_at_risk_counts(kmf_train, kmf_val, ax=_axis)
     return (
         kmf_train,
         kmf_val,
-        logrank,
+        logrank_pval,
         strata,
         stratum_false_label,
         stratum_true_label,
@@ -290,11 +295,88 @@ def _(
 
 
 @app.cell(hide_code=True)
+def _(clin_info_sheet, model_params, pd):
+    model_params.index = [name.split("_")[0] for name in model_params.index]
+    model_clin_combined: pd.DataFrame = model_params.merge(right=clin_info_sheet, left_index=True, right_on="study_ID", how="inner")
+    return (model_clin_combined,)
+
+
+@app.cell(hide_code=True)
+def _(mannwhitneyu, model_clin_combined, pd, plt, sns, ttest_ind):
+    _df = model_clin_combined
+    PEAK: int = 2
+    _data: pd.DataFrame = pd.DataFrame(
+        [
+            ("BL" if tp == "BLrr" else tp,
+             "dead" if surv == 1 else "alive",
+             pis[PEAK-1])
+            for (tp, surv, pis)
+            in zip(_df["time_point_hom"], _df["survival"], _df["estimated_pis"])
+            if tp not in ["CSF"]
+        ],
+        columns=["time_point", "survival", "pi_2"]
+    )
+    _bl = _data[_data["time_point"] == "BL"]["pi_2"]
+    _end = _data[_data["time_point"] == "end"]["pi_2"]
+    mwu_pval = mannwhitneyu(_bl, _end, alternative="two-sided").pvalue
+    tt_pval = ttest_ind(_bl, _end, alternative="two-sided").pvalue
+
+    plt.figure(figsize=(8, 6))
+    sns.violinplot(data=_data, x="time_point", y="pi_2", hue="survival", order=["BL", "c1", "c2", "end"])
+    plt.axhline(y=0.1, color="red", alpha=0.6, linestyle="--", linewidth=2)
+    plt.xlabel("Timepoints")
+    plt.ylabel(f"$\pi_{PEAK}$")
+    plt.title(f"Comparison of GMM $\pi_{PEAK}$ across treatment timepoints in PCNSL cohort"
+              f"\nMann-Whitney-U BL vs. end p={mwu_pval:0.2}")
+    return PEAK, mwu_pval, tt_pval
+
+
+@app.cell(hide_code=True)
+def _(model_clin_combined, pd, plt, sns):
+    _df = model_clin_combined
+    _df = _df[_df["time_point_hom"] == "BL"]
+
+    _data: pd.DataFrame = pd.DataFrame(
+        [("dead" if surv == 1 else "alive", pis[1]) for (surv, pis) in zip(_df["survival"], _df["estimated_pis"])],
+        columns=["survival", "pi_2"]
+    )
+    plt.figure(figsize=(8, 6))
+    sns.violinplot(data=_data, x="survival", y="pi_2")
+    plt.xlabel("Patient survival")
+    plt.ylabel(r"$\pi_2$")
+    plt.title(r"Comparison of GMM $\pi_2$ across BL samples in PCNSL cohort")
+    return
+
+
+@app.cell(hide_code=True)
+def _(model_clin_combined, pd, plt, sns):
+    _df = model_clin_combined
+    _df = _df[_df["time_point_hom"] == "end"]
+
+    _data: pd.DataFrame = pd.DataFrame(
+        [("dead" if surv == 1 else "alive", pis[1]) for (surv, pis) in zip(_df["survival"], _df["estimated_pis"])],
+        columns=["survival", "pi_2"]
+    )
+    plt.figure(figsize=(8, 6))
+    sns.violinplot(data=_data, x="survival", y="pi_2")
+    plt.xlabel("Patient survival")
+    plt.ylabel(r"$\pi_2$")
+    plt.title(r"Comparison of GMM $\pi_2$ across end-of-treatment samples in PCNSL cohort")
+    return
+
+
+@app.cell(hide_code=True)
 def _(mo):
     mo.md(
         """
         # Todo
-        Build quotient of $\\frac{end}{BL}$ $\pi_3$ values. Correlate with clinical outcome.
+        - Build quotient of $\\frac{end}{BL}$ $\pi_3$ values. Correlate with clinical outcome.
+        - Sankey plots of timepoints and metrics
+        - Cutoff for mixture fraction?
+        - repeat mixture fraction analysis with means and standard deviations
+        - write statistics to JSON and plot them
+        - explore WPS and possible ways to use it to predict patient outcome
+        - correlate pi's with toxicity metrics (cummulative dose of methotrexate?)
         """
     )
     return
