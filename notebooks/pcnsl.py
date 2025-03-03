@@ -39,7 +39,7 @@ def _(mo):
     mo.md(
         """
         # `pyfraglib` applied to the PCNSL cohort
-        In this notebook, we will start to investigate the readouts of `pyfraglib` with regards to their clinical applicability.
+        In this notebook, we will investigate the readouts of `pyfraglib` with regards to their clinical applicability.
 
         First, we will analyze the fitted parameters of our Gaussian mixture model in the context
         of the primary central nervous system lymphoma (PCNSL) cohort from AG Borchmann.
@@ -116,7 +116,7 @@ def _(mo):
         The first plot down below shows the final value of the objective function per sample on a $\\log_e$ scale. That's useful because we are not optimizing the negative log-likelihood but
 
         \[
-            argmin_{\\sigma_i,\\mu_i,\\pi_i}{\\frac{\\text{NLL}_{\\sigma_i,\\mu_i,\\pi_i}}{\\text{NLL}_{\\sigma_{ini},\\mu_{ini},\\pi_{ini}}}}
+            argmin_{\\sigma_i,\\mu_i,\\pi_i}{\\frac{\\text{NLL}_{\\sigma_i,\\mu_i,\\pi_i}}{|\\text{NLL}_{\\sigma_{ini},\\mu_{ini},\\pi_{ini}}|}}
         \]
 
         where $x_{ini}$ is the initial guess of the respective model parameter.
@@ -176,7 +176,7 @@ def _(color_code, color_map, handles, model_params, plt):
         _axis[idx].set_ylabel(f"$\mu_{idx+1}$")
         _axis[idx].set_xlabel("Samples")
         _axis[idx].legend(handles, color_map.keys(), title="Timepoints")
-        
+
     plt.tight_layout()
     plt.show()
     return (idx,)
@@ -194,7 +194,7 @@ def _(color_code, color_map, handles, model_params, plt):
         _axis[_idx].set_ylabel(f"$\pi_{_idx+1}$")
         _axis[_idx].set_xlabel("Samples")
         _axis[_idx].legend(handles, color_map.keys(), title="Timepoints")
-        
+
     plt.tight_layout()
     plt.show()
     return
@@ -202,10 +202,12 @@ def _(color_code, color_map, handles, model_params, plt):
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md("""
-    ## Analysis of clinical cohort characteristics
-    Finally, we want to relate the fitted model parameters to patients' clinical data. That is mainly survival and toxicities of chemotherapy. Along the way, we might find additional characteristics that are interesting to predict using our fragmentomics features.
-    """)
+    mo.md(
+        """
+        ## Analysis of clinical cohort characteristics
+        Finally, we want to relate the fitted model parameters to patients' clinical data. That is mainly survival and toxicities of chemotherapy. Along the way, we might find additional characteristics that are interesting to predict using our fragmentomics features.
+        """
+    )
     return
 
 
