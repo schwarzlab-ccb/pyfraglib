@@ -97,8 +97,14 @@ def windowed_protection_score_fast(
     chrom_map_depth: dict[str, npt.NDArray[np.int64]] = \
         create_chromosome_map(genome)
 
-    # @TODO(ds): At this point here, we need to add info about spanning and
-    # ending fragments.
+    # @NOTE(ds): We also want to record the exact number of spanning and ending
+    # fragments per window. As with the WPS, we record those numbers at the
+    # window midpoint.
+    chrom_map_end: dict[str, npt.NDArray[np.int64]] = \
+        create_chromosome_map(genome)
+    chrom_map_span: dict[str, npt.NDArray[np.int64]] = \
+        create_chromosome_map(genome)
+
     for fragment in fragments:
         if fragment.is_bogus:
             continue
@@ -116,6 +122,7 @@ def windowed_protection_score_fast(
         chrom_map_depth[frag_chrom][frag_start:frag_end] += 1  # type: ignore
         if frag_len < win_size:
             chrom_map_wps[frag_chrom][istart:iend] -= 1  # type: ignore
+            chrom_map_end[frag_chrom][istart:iend] += 1  # type: ignore
         else:
             ostart: int = frag_start + win_half
             oend: int = frag_end - win_half  # 1 past end
@@ -124,7 +131,12 @@ def windowed_protection_score_fast(
             chrom_map_wps[frag_chrom][ostart:oend] += 1  # type: ignore
             chrom_map_wps[frag_chrom][oend:iend] -= 1  # type: ignore
 
+            chrom_map_end[frag_chrom][istart:ostart] += 1  # type: ignore
+            chrom_map_span[frag_chrom][ostart:oend] += 1  # type: ignore
+            chrom_map_end[frag_chrom][oend:iend] += 1  # type: ignore
+
     return chromosome_maps_to_df(chrom_map_wps, chrom_map_depth,
+                                 chrom_map_span, chrom_map_end,
                                  regions, genome)
 
 
@@ -241,9 +253,12 @@ def create_chromosome_map(
 def chromosome_maps_to_df(
     chrom_map_wps: dict[str, npt.NDArray[np.int64]],
     chrom_map_depth: dict[str, npt.NDArray[np.int64]],
+    chrom_map_span: dict[str, npt.NDArray[np.int64]],
+    chrom_map_end: dict[str, npt.NDArray[np.int64]],
     regions: pysam.TabixFile, genome: str = "hg19"
 ) -> pd.DataFrame:
-    col_names: list[str] = ["chrom", "pos", "abs_pos", "wps", "depth", "info"]
+    col_names: list[str] = ["chrom", "pos", "abs_pos", "wps", "depth",
+                            "spanning_frags", "ending_frags", "info"]
     output_df: pd.DataFrame = pd.DataFrame(
         None, index=range(precalc_size(regions)),
         columns=col_names
@@ -255,6 +270,8 @@ def chromosome_maps_to_df(
     cum_pos: int = 0
     chromosome_wps: npt.NDArray[np.int64] | None = None
     chromosome_depth: npt.NDArray[np.int64] | None = None
+    chromosome_span: npt.NDArray[np.int64] | None = None
+    chromosome_end: npt.NDArray[np.int64] | None = None
 
     for region in regions.fetch():  # type: ignore
         chrom: str
@@ -265,15 +282,23 @@ def chromosome_maps_to_df(
         chrom, istart, iend, info = region.split()
         chrom = homogenize_contig_name(chrom)
 
-        if not cur_chrom or chromosome_wps is None or chromosome_depth is None:
+        if not cur_chrom or \
+                chromosome_wps is None or \
+                chromosome_depth is None or \
+                chromosome_span is None or \
+                chromosome_end is None:
             cur_chrom = chrom
             chromosome_wps = chrom_map_wps[chrom]
             chromosome_depth = chrom_map_depth[chrom]
+            chromosome_span = chrom_map_span[chrom]
+            chromosome_end = chrom_map_end[chrom]
         elif chrom != cur_chrom:
             cum_pos += get_chromosome_length(cur_chrom, genome)
             cur_chrom = chrom
             chromosome_wps = chrom_map_wps[chrom]
             chromosome_depth = chrom_map_depth[chrom]
+            chromosome_span = chrom_map_span[chrom]
+            chromosome_end = chrom_map_end[chrom]
 
         rlen: int = int(iend) - int(istart)  # region length - 1
         rel_pos: npt.NDArray[np.int64] = np.arange(int(istart), int(iend) + 1)
@@ -286,6 +311,10 @@ def chromosome_maps_to_df(
             chromosome_wps[rel_pos]  # type: ignore
         output_df.loc[it:(it+rlen), "depth"] = \
             chromosome_depth[rel_pos]  # type: ignore
+        output_df.loc[it:(it+rlen), "spanning_frags"] = \
+            chromosome_span[rel_pos]  # type: ignore
+        output_df.loc[it:(it+rlen), "ending_frags"] = \
+            chromosome_end[rel_pos]  # type: ignore
         output_df.loc[it:(it+rlen), "info"] = info
 
         it += rlen + 1
