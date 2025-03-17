@@ -157,10 +157,11 @@ def _(plt, wps_all_samples, wps_all_samples_norm):
 def _(LogisticRegressionCV, X_train, y_train):
     lasso = LogisticRegressionCV(
         penalty="l1", 
-        solver="saga",  # Supports L1 regularization
+        solver="saga",
         cv=5, 
-        scoring="roc_auc",  # Optimize AUC
+        scoring="roc_auc",
         max_iter=5000,
+        tol=1e-4,
         verbose=3,
         n_jobs=10,
     )
@@ -169,13 +170,20 @@ def _(LogisticRegressionCV, X_train, y_train):
 
 
 @app.cell
-def _(X_test, accuracy_score, lasso, np, roc_auc_score, wps_df, y_test):
-    # Todo!
+def _(
+    X_test,
+    accuracy_score,
+    lasso,
+    np,
+    roc_auc_score,
+    wps_all_samples,
+    y_test,
+):
     y_pred = lasso.predict(X_test.T)
     y_prob = lasso.predict_proba(X_test.T)[:, 1]  # Probability of class 1
 
-    accuracy = accuracy_score(y_test, y_pred)
-    auc = roc_auc_score(y_test, y_prob)
+    accuracy = accuracy_score(y_test.iloc[0].astype(int), y_pred)
+    auc = roc_auc_score(y_test.iloc[0].astype(int), y_prob)
     print(f"✅ Accuracy: {accuracy:.3f}")
     print(f"✅ ROC-AUC: {auc:.3f}")
     feature_importance = np.abs(lasso.coef_).flatten()
@@ -183,7 +191,7 @@ def _(X_test, accuracy_score, lasso, np, roc_auc_score, wps_df, y_test):
 
     print("\n🔬 Top 10 Most Important Genomic Sites:")
     for idx in top_sites:
-        site_name = wps_df.index[idx]
+        site_name = wps_all_samples.index[idx]
         print(f"{site_name}: Importance {feature_importance[idx]:.4f}")
     return (
         accuracy,

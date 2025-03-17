@@ -92,11 +92,13 @@ def windowed_protection_score_fast(
 ) -> pd.DataFrame:
     assert win_size > 0
 
-    chromosome_map_wps: dict[str, npt.NDArray[np.int64]] = \
+    chrom_map_wps: dict[str, npt.NDArray[np.int64]] = \
         create_chromosome_map(genome)
-    chromosome_map_depth: dict[str, npt.NDArray[np.int64]] = \
+    chrom_map_depth: dict[str, npt.NDArray[np.int64]] = \
         create_chromosome_map(genome)
 
+    # @TODO(ds): At this point here, we need to add info about spanning and
+    # ending fragments.
     for fragment in fragments:
         if fragment.is_bogus:
             continue
@@ -111,18 +113,18 @@ def windowed_protection_score_fast(
         iend: int = min(frag_end + win_half,
                         get_chromosome_length(frag_chrom, genome))
 
-        chromosome_map_depth[frag_chrom][istart:iend] += 1  # type: ignore
+        chrom_map_depth[frag_chrom][frag_start:frag_end] += 1  # type: ignore
         if frag_len < win_size:
-            chromosome_map_wps[frag_chrom][istart:iend] -= 1  # type: ignore
+            chrom_map_wps[frag_chrom][istart:iend] -= 1  # type: ignore
         else:
             ostart: int = frag_start + win_half
             oend: int = frag_end - win_half  # 1 past end
 
-            chromosome_map_wps[frag_chrom][istart:ostart] -= 1  # type: ignore
-            chromosome_map_wps[frag_chrom][ostart:oend] += 1  # type: ignore
-            chromosome_map_wps[frag_chrom][oend:iend] -= 1  # type: ignore
+            chrom_map_wps[frag_chrom][istart:ostart] -= 1  # type: ignore
+            chrom_map_wps[frag_chrom][ostart:oend] += 1  # type: ignore
+            chrom_map_wps[frag_chrom][oend:iend] -= 1  # type: ignore
 
-    return chromosome_maps_to_df(chromosome_map_wps, chromosome_map_depth,
+    return chromosome_maps_to_df(chrom_map_wps, chrom_map_depth,
                                  regions, genome)
 
 
