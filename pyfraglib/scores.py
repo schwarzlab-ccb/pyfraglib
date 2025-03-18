@@ -330,7 +330,8 @@ def chromosome_maps_to_df(
 def score_line_plot(
     df: pd.DataFrame, name: str, out_dir: str, score: str = "wps",
     exclude_chroms: list[str] = ["Y", "M"], region: tuple[int, int] = (0, 0),
-    genome: str = "hg19", log_transform: bool = False
+    genome: str = "hg19", log_transform: bool = False,
+    plot_spanning_ending_frags: bool = False
 ) -> None:
     if score not in ["wps", "depth", "ratio_end_span", "ratio_span_total"]:
         fail("unknown score `{}' requested".format(score))
@@ -385,18 +386,19 @@ def score_line_plot(
             label=score,
             linewidth=2.5
         )
-        plt.plot(
-            df.loc[condition, "pos"] + cumsum,  # type: ignore
-            df.loc[condition, "spanning_frags"],  # type: ignore
-            color="#beddf1",
-            label="spanning fragments",
-        )
-        plt.plot(
-            df.loc[condition, "pos"] + cumsum,  # type: ignore
-            df.loc[condition, "ending_frags"],  # type: ignore
-            color="#f8c57c",
-            label="ending fragments",
-        )
+        if plot_spanning_ending_frags:
+            plt.plot(
+                df.loc[condition, "pos"] + cumsum,  # type: ignore
+                df.loc[condition, "spanning_frags"],  # type: ignore
+                color="#beddf1",
+                label="spanning fragments",
+            )
+            plt.plot(
+                df.loc[condition, "pos"] + cumsum,  # type: ignore
+                df.loc[condition, "ending_frags"],  # type: ignore
+                color="#f8c57c",
+                label="ending fragments",
+            )
 
         cumsum += length
 
