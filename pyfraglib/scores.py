@@ -330,9 +330,9 @@ def chromosome_maps_to_df(
 def score_line_plot(
     df: pd.DataFrame, name: str, out_dir: str, score: str = "wps",
     exclude_chroms: list[str] = ["Y", "M"], region: tuple[int, int] = (0, 0),
-    genome: str = "hg19"
+    genome: str = "hg19", log_transform: bool = False
 ) -> None:
-    if score not in ["wps", "depth"]:
+    if score not in ["wps", "depth", "ratio"]:
         fail("unknown score `{}' requested".format(score))
 
     outpath: str = os.path.join(out_dir, "{}_{}.png".format(name, score))
@@ -348,10 +348,11 @@ def score_line_plot(
     else:
         fail("unknown genome `{}' requested".format(genome))
 
+    if score == "ratio":
+        df["ratio"] = df["ending_frags"] / df["spanning_frags"]  # type: ignore
+
     fig: matplotlib.figure.Figure = plt.figure()
     plt.title("Sample {}".format(name))
-    plt.xlabel("Chromosomes")
-    plt.ylabel(score.capitalize())
 
     cumsum: int = 0
     chrom_midpoints: list[int] = []
@@ -374,7 +375,21 @@ def score_line_plot(
         plt.plot(
             df.loc[condition, "pos"] + cumsum,  # type: ignore
             df.loc[condition, score],  # type: ignore
-            color="#1f77b4"
+            color="#1f77b4",
+            label=score,
+            linewidth=2.5
+        )
+        plt.plot(
+            df.loc[condition, "pos"] + cumsum,  # type: ignore
+            df.loc[condition, "spanning_frags"],  # type: ignore
+            color="#beddf1",
+            label="spanning fragments",
+        )
+        plt.plot(
+            df.loc[condition, "pos"] + cumsum,  # type: ignore
+            df.loc[condition, "ending_frags"],  # type: ignore
+            color="#f8c57c",
+            label="ending fragments",
         )
 
         cumsum += length
@@ -390,6 +405,14 @@ def score_line_plot(
             for i, label in enumerate(chrom_names)
         ]
         plt.xticks(chrom_midpoints, staggered_chrom_names, rotation=0)
+
+    plt.xlabel("Chromosomes")
+    plt.legend()
+    if log_transform:
+        plt.yscale("log")
+        plt.ylabel("Logarithm of value")
+    else:
+        plt.ylabel(score.capitalize())
 
     plt.tight_layout()
     fig.savefig(outpath, dpi=900)

@@ -7,13 +7,16 @@ app = marimo.App(width="medium")
 @app.cell
 def _():
     import os
+    import matplotlib
 
     import matplotlib.pyplot as plt
     import marimo as mo
     import numpy as np
     import pandas as pd
     import pyfraglib.scores as pfs
-    return mo, np, os, pd, pfs, plt
+
+    matplotlib.style.use("default")
+    return matplotlib, mo, np, os, pd, pfs, plt
 
 
 @app.cell
@@ -31,7 +34,7 @@ def _(os, pd):
 def _(DED005_BL_wps_df, pfs):
     pfs.score_line_plot(DED005_BL_wps_df, name="DED005_BL_MYD88", out_dir="./", region=(38_180_125-100, 38_182_819+100),
                         exclude_chroms=["1", "2"] + [str(i) for i in range(4, 23)] + ["X", "Y", "M"],
-                        score="depth")
+                        score="ratio", log_transform=True)
     return
 
 
@@ -47,7 +50,7 @@ def _(DATA_DIR, os, pd):
 def _(DED006_BL_wps_df, pfs):
     pfs.score_line_plot(DED006_BL_wps_df, name="DED006_BL_MYD88", out_dir="./", region=(38_180_125-100, 38_182_819+100),
                         exclude_chroms=["1", "2"] + [str(i) for i in range(4, 23)] + ["X", "Y", "M"],
-                        score="depth")
+                        score="ratio", log_transform=True)
     return
 
 
@@ -63,7 +66,7 @@ def _(DATA_DIR, os, pd):
 def _(ctrl1_wps_df, pfs):
     pfs.score_line_plot(ctrl1_wps_df, name="ctrl1_MYD88", out_dir="./", region=(38_180_125-100, 38_182_819+100),
                         exclude_chroms=["1", "2"] + [str(i) for i in range(4, 23)] + ["X", "Y", "M"],
-                        score="depth")
+                        score="ratio", log_transform=True)
     return
 
 
@@ -79,7 +82,7 @@ def _(DATA_DIR, os, pd):
 def _(ctrl2_wps_df, pfs):
     pfs.score_line_plot(ctrl2_wps_df, name="ctrl2_MYD88", out_dir="./", region=(38_180_125-100, 38_182_819+100),
                         exclude_chroms=["1", "2"] + [str(i) for i in range(4, 23)] + ["X", "Y", "M"],
-                        score="depth")
+                        score="ratio", log_transform=True)
     return
 
 
