@@ -332,7 +332,7 @@ def score_line_plot(
     exclude_chroms: list[str] = ["Y", "M"], region: tuple[int, int] = (0, 0),
     genome: str = "hg19", log_transform: bool = False
 ) -> None:
-    if score not in ["wps", "depth", "ratio"]:
+    if score not in ["wps", "depth", "ratio_end_span", "ratio_span_total"]:
         fail("unknown score `{}' requested".format(score))
 
     outpath: str = os.path.join(out_dir, "{}_{}.png".format(name, score))
@@ -348,8 +348,14 @@ def score_line_plot(
     else:
         fail("unknown genome `{}' requested".format(genome))
 
-    if score == "ratio":
-        df["ratio"] = df["ending_frags"] / df["spanning_frags"]  # type: ignore
+    if score == "ratio_end_span":
+        df["ratio_end_span"] = \
+            df["ending_frags"] / df["spanning_frags"]  # type: ignore
+
+    if score == "ratio_span_total":
+        df["ratio_span_total"] = \
+            df["spanning_frags"] / (df["ending_frags"] +  # type: ignore
+                                    df["spanning_frags"])  # type: ignore
 
     fig: matplotlib.figure.Figure = plt.figure()
     plt.title("Sample {}".format(name))
