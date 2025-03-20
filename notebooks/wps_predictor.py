@@ -12,12 +12,15 @@ def _():
     import marimo as mo
     import numpy as np
     import pandas as pd
+    import seaborn as sns
 
+    from sklearn.decomposition import PCA
     from sklearn.model_selection import train_test_split, cross_val_score
     from sklearn.linear_model import LogisticRegressionCV
     from sklearn.metrics import accuracy_score, roc_auc_score
     return (
         LogisticRegressionCV,
+        PCA,
         accuracy_score,
         cross_val_score,
         mo,
@@ -26,6 +29,7 @@ def _():
         pd,
         plt,
         roc_auc_score,
+        sns,
         train_test_split,
     )
 
@@ -66,41 +70,34 @@ def _(os, pd):
 
 @app.cell(hide_code=True)
 def _(DATA_DIR, os, pd, sample_sheet):
-    data: pd.DataFrame | None = None
-    index: pd.Series | None = None
+    def load_wps_all_BL_samples() -> pd.DataFrame:
+        data: pd.DataFrame | None = None
+        index: pd.Series | None = None
 
-    for id, timepoint, timepoint_hom in zip(sample_sheet["sample_id"], sample_sheet["time_point"], sample_sheet["time_point_hom"]):
-        if timepoint_hom != "BL":
-            continue
+        for id, timepoint, timepoint_hom in zip(sample_sheet["sample_id"], sample_sheet["time_point"], sample_sheet["time_point_hom"]):
+            if timepoint_hom != "BL":
+                continue
 
-        sample_name = f"{id}_{timepoint}"
-        wps_filepath = os.path.join(DATA_DIR, sample_name, f"wps_{sample_name}.csv")
-        wps_df = pd.read_csv(wps_filepath, low_memory=False)
-        if data is None:
-            data = pd.DataFrame(wps_df["wps"])
-            data.columns = [sample_name]
-            index = wps_df["abs_pos"]
-        else:
-            col_names = list(data.columns)
-            col_names.append(sample_name)
-            data = pd.concat([data, wps_df["wps"]], axis=1)
-            data.columns = col_names
+            sample_name = f"{id}_{timepoint}"
+            wps_filepath = os.path.join(DATA_DIR, sample_name, f"wps_{sample_name}.csv")
+            wps_df = pd.read_csv(wps_filepath, low_memory=False)
+            if data is None:
+                data = pd.DataFrame(wps_df["wps"])
+                data.columns = [sample_name]
+                index = wps_df["abs_pos"]
+            else:
+                col_names = list(data.columns)
+                col_names.append(sample_name)
+                data = pd.concat([data, wps_df["wps"]], axis=1)
+                data.columns = col_names
 
-    # @NOTE(ds): We only have a few uninformative features (~0.08%)
-    data.index = index
-    wps_all_samples = data.loc[(data != 0).any(axis=1)]
-    return (
-        col_names,
-        data,
-        id,
-        index,
-        sample_name,
-        timepoint,
-        timepoint_hom,
-        wps_all_samples,
-        wps_df,
-        wps_filepath,
-    )
+        # @NOTE(ds): We only have a few uninformative features (~0.08%)
+        data.index = index
+        wps_all_samples = data.loc[(data != 0).any(axis=1)]
+        return wps_all_samples
+
+    wps_all_samples = load_wps_all_BL_samples()
+    return load_wps_all_BL_samples, wps_all_samples
 
 
 @app.cell(hide_code=True)
@@ -109,7 +106,7 @@ def _(clin_info_sheet, wps_all_samples):
         t = s.split("_")[0]
         return t
 
-    metadata_df = clin_info_sheet.loc[:, ["study_ID", "survival"]]
+    metadata_df = clin_info_sheet.loc[:, ["study_ID", "relapse"]]  # survival
     wps_study_ids = wps_all_samples.columns.map(lambda s: transform(s))
     wps_all_samples.columns = wps_study_ids
     metadata_df = metadata_df.set_index("study_ID").loc[wps_study_ids]
@@ -125,7 +122,7 @@ def _(metadata_df, np, train_test_split, wps_all_samples):
 
     # train-test split
     patient_ids = metadata_df.index
-    train_patients, test_patients = train_test_split(patient_ids, stratify=metadata_df["survival"],
+    train_patients, test_patients = train_test_split(patient_ids, stratify=metadata_df["relapse"],
                                                      test_size=0.2, random_state=42)
     X_train = wps_all_samples_norm[train_patients]
     X_test = wps_all_samples_norm[test_patients]
@@ -156,14 +153,14 @@ def _(plt, wps_all_samples, wps_all_samples_norm):
 @app.cell
 def _(LogisticRegressionCV, X_train, y_train):
     lasso = LogisticRegressionCV(
-        penalty="l1", 
+        penalty="l1",
         solver="saga",
-        cv=5, 
+        cv=5,
         scoring="roc_auc",
-        max_iter=5000,
-        tol=1e-4,
+        max_iter=6000,
+        tol=3e-4,  # 1e-4
         verbose=3,
-        n_jobs=10,
+        n_jobs=-1,
     )
     lasso.fit(X_train.T, y_train.iloc[0].astype(int))
     return (lasso,)
@@ -203,6 +200,27 @@ def _(
         y_pred,
         y_prob,
     )
+
+
+@app.cell
+def _(PCA, pd, wps_all_samples_norm):
+    pca = PCA(n_components=2)
+    wps_all_samples_norm_pca = pca.fit_transform(wps_all_samples_norm.T)
+    pca_df = pd.DataFrame(wps_all_samples_norm_pca, columns=["PC1", "PC2"])
+    pca_df["Patient"] = wps_all_samples_norm.columns
+    return pca, pca_df, wps_all_samples_norm_pca
+
+
+@app.cell
+def _(pca, pca_df, plt, sns):
+    plt.figure(figsize=(8, 6))
+    sns.scatterplot(data=pca_df, x="PC1", y="PC2", hue="Patient", palette="tab10", s=100)
+    plt.xlabel(f"PC1 ({pca.explained_variance_ratio_[0]:.2%} variance)")
+    plt.ylabel(f"PC2 ({pca.explained_variance_ratio_[1]:.2%} variance)")
+    plt.title("PCA of Genomic Sites WPS Across Patients")
+    plt.legend(bbox_to_anchor=(1.05, 1), loc="upper left")
+    plt.show()
+    return
 
 
 if __name__ == "__main__":

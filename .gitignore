@@ -18,3 +18,5 @@ tags
 notebooks/*.png
 .nextflow
 *.log*
+*.md
+*.pdf
