@@ -126,7 +126,7 @@ process pyfraglib_lengths {
 }
 
 process pyfraglib_scores {
-    label "parallel"
+    label "huge_mem"
     tag "${sample_id}"
     errorStrategy "ignore"
 
