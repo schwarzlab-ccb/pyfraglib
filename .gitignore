@@ -16,6 +16,7 @@ job.sh
 tags
 .ipynb_checkpoints/
 notebooks/*.png
+notebooks/*/
 .nextflow
 *.log*
 *.md
