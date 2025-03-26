@@ -415,12 +415,14 @@ def score_line_plot(
         plt.xticks(chrom_midpoints, staggered_chrom_names, rotation=0)
 
     plt.xlabel("Chromosomes")
-    plt.legend()
     if log_transform:
         plt.yscale("log")
         plt.ylabel("Logarithm of value")
     else:
         plt.ylabel(score.capitalize())
+
+    if len(chrom_names) == 1:
+        plt.legend()
 
     plt.tight_layout()
     fig.savefig(outpath, dpi=900)
