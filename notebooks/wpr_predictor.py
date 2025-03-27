@@ -155,9 +155,9 @@ def _(PCA, StandardScaler, pl, timepoint_annos, wpr_all_samples):
     def do_pca(wpr_df, timepoint_annos):
         samplename_annos = wpr_df.columns
     
-        scaler = StandardScaler()
+        scaler = StandardScaler(with_mean=True, with_std=True)
         wpr_df = wpr_df.transpose()
-        wpr_array_norm = scaler.fit_transform(wpr_df.to_numpy())
+        wpr_array_norm = scaler.fit_transform(wpr_df.to_numpy().T).T
         wpr_df_norm = pl.DataFrame(wpr_array_norm, schema=wpr_df.schema)
 
         pca = PCA(n_components=3)
@@ -196,6 +196,37 @@ def _(pca_df, px):
                         symbol="Timepoint", opacity=0.8)
     fig.update_layout(scene=dict(xaxis_title="PC1", yaxis_title="PC2", zaxis_title="PC3"))
     return (fig,)
+
+
+@app.cell
+def _(pca, sns):
+    # @NOTE(ds): Here, we inspect the loadings for principle component 1. They
+    # represent how strongly the respective original feature contributes to
+    # that particular component. Absolute value represents importance, sign
+    # represents direction.
+    component_num = 3
+    sns.histplot(pca.components_[component_num-1, :])
+    return (component_num,)
+
+
+@app.cell
+def _(component_num, np, pca, pd, timepoint_annos, wpr_all_samples):
+    mean_df = wpr_all_samples.mean().to_numpy().flatten()
+    min_indices = np.argsort(pca.components_[component_num-1])[0:100]
+    min_loadings = wpr_all_samples[min_indices, :].mean().to_numpy().flatten()
+    max_indices = np.argsort(pca.components_[component_num-1])[::-1][0:100]
+    max_loadings = wpr_all_samples[max_indices, :].mean().to_numpy().flatten()
+    df = pd.DataFrame({"timepoints": timepoint_annos,
+                       "means": mean_df,
+                       "min_loadings": min_loadings,
+                       "max_loadings": max_loadings})
+    return df, max_indices, max_loadings, mean_df, min_indices, min_loadings
+
+
+@app.cell
+def _(df, sns):
+    sns.kdeplot(df, x="max_loadings", hue="timepoints")
+    return
 
 
 if __name__ == "__main__":
