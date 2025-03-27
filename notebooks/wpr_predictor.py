@@ -11,23 +11,29 @@ def _():
     import matplotlib.pyplot as plt
     import marimo as mo
     import numpy as np
+    import pandas as pd
     import polars as pl
+    import plotly.express as px
     import seaborn as sns
 
     from sklearn.decomposition import PCA
     from sklearn.model_selection import train_test_split, cross_val_score
     from sklearn.linear_model import LogisticRegressionCV
     from sklearn.metrics import accuracy_score, roc_auc_score
+    from sklearn.preprocessing import StandardScaler
     return (
         LogisticRegressionCV,
         PCA,
+        StandardScaler,
         accuracy_score,
         cross_val_score,
         mo,
         np,
         os,
+        pd,
         pl,
         plt,
+        px,
         roc_auc_score,
         sns,
         train_test_split,
@@ -78,12 +84,12 @@ def _(DATA_DIR, os, pl, sample_sheet):
             list(zip([f"ctrl{i}" for i in range(1, 11)], [""]*10, [""]*10))
         all_samples += \
             list(zip(sample_sheet["sample_id"], sample_sheet["time_point"], sample_sheet["time_point_hom"]))
-    
+
         for id, timepoint, timepoint_hom in all_samples:
             sample_name: str = f"{id}"
             if timepoint != "":
                 sample_name = f"{sample_name}_{timepoint}"
-            
+
             wps_filepath = os.path.join(DATA_DIR, sample_name, f"wps_{sample_name}.csv")
 
             try:
@@ -104,9 +110,21 @@ def _(DATA_DIR, os, pl, sample_sheet):
         abs_pos: pl.Series = wpr_all_samples.drop_in_place("abs_pos")
         return (abs_pos, wpr_all_samples)
 
-    abs_pos, wpr_all_samples = load_wpr_all_samples()
-    # assert len(wpr_all_samples.columns) == 164, "too few samples loaded"
-    return abs_pos, load_wpr_all_samples, wpr_all_samples
+    if False:
+        abs_pos, wpr_all_samples = load_wpr_all_samples()
+        wpr_all_samples_abs_pos = wpr_all_samples.with_columns(
+            pl.Series("abs_pos", abs_pos)
+        )
+        wpr_all_samples_abs_pos.write_csv("./cache/wpr_all_samples.csv")
+    else:
+        wpr_all_samples = pl.read_csv("./cache/wpr_all_samples.csv")
+        abs_pos = wpr_all_samples.drop_in_place("abs_pos")
+    return (
+        abs_pos,
+        load_wpr_all_samples,
+        wpr_all_samples,
+        wpr_all_samples_abs_pos,
+    )
 
 
 @app.cell(hide_code=True)
@@ -132,19 +150,26 @@ def _(wpr_all_samples):
     return get_timepoint, timepoint_annos
 
 
-@app.cell(hide_code=True)
-def _(PCA, wpr_all_samples):
-    pca = PCA(n_components=3)
-    wpr_all_samples_pca = pca.fit_transform(wpr_all_samples.transpose())
-    return pca, wpr_all_samples_pca
-
-
 @app.cell
-def _(pl, timepoint_annos, wpr_all_samples, wpr_all_samples_pca):
-    pca_df = pl.DataFrame(wpr_all_samples_pca, schema=["PC1", "PC2", "PC3"])
-    pca_df = pca_df.with_columns(pl.Series("Patient", wpr_all_samples.columns),
-                                 pl.Series("Timepoint", timepoint_annos))
-    return (pca_df,)
+def _(PCA, StandardScaler, pl, timepoint_annos, wpr_all_samples):
+    def do_pca(wpr_df, timepoint_annos):
+        samplename_annos = wpr_df.columns
+    
+        scaler = StandardScaler()
+        wpr_df = wpr_df.transpose()
+        wpr_array_norm = scaler.fit_transform(wpr_df.to_numpy())
+        wpr_df_norm = pl.DataFrame(wpr_array_norm, schema=wpr_df.schema)
+
+        pca = PCA(n_components=3)
+        wpr_pca = pca.fit_transform(wpr_df_norm)
+    
+        pca_df = pl.DataFrame(wpr_pca, schema=["PC1", "PC2", "PC3"])
+        pca_df = pca_df.with_columns(pl.Series("Patient", samplename_annos),
+                                     pl.Series("Timepoint", timepoint_annos))
+        return pca_df, pca
+    
+    pca_df, pca = do_pca(wpr_all_samples, timepoint_annos)
+    return do_pca, pca, pca_df
 
 
 @app.cell
@@ -160,25 +185,17 @@ def _(pca, pca_df, plt, sns):
 
 
 @app.cell
-def _(pca_df):
-    import plotly.express as px
+def _(pca_df, sns):
+    sns.kdeplot(data=pca_df, x="PC1", hue="Timepoint", palette="tab10", alpha=0.3, fill=True)
+    return
 
-    fig = px.scatter_3d(pca_df, x='PC1', y='PC2', z='PC3', 
-                        color='Timepoint',  # Color by Group
-                        color_continuous_scale='viridis',  # If numeric
-                        symbol='Timepoint',  # Different markers for categories
-                        opacity=0.8)
 
-    fig.update_layout(
-        scene=dict(
-            xaxis_title='PC1',
-            yaxis_title='PC2',
-            zaxis_title='PC3'
-        )
-    )
-
-    fig.show()
-    return fig, px
+@app.cell
+def _(pca_df, px):
+    fig = px.scatter_3d(pca_df, x="PC1", y="PC2", z="PC3",  color="Timepoint", color_continuous_scale="viridis",
+                        symbol="Timepoint", opacity=0.8)
+    fig.update_layout(scene=dict(xaxis_title="PC1", yaxis_title="PC2", zaxis_title="PC3"))
+    return (fig,)
 
 
 if __name__ == "__main__":
