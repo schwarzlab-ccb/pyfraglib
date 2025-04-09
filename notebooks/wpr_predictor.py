@@ -17,19 +17,24 @@ def _():
     import seaborn as sns
 
     from sklearn.decomposition import PCA
-    from sklearn.model_selection import train_test_split, cross_val_score
+    from sklearn.model_selection import train_test_split, cross_val_score, StratifiedKFold
     from sklearn.linear_model import LogisticRegressionCV
-    from sklearn.metrics import accuracy_score, roc_auc_score
+    from sklearn.manifold import MDS
+    from sklearn.metrics import accuracy_score, roc_auc_score, pairwise_distances, classification_report
     from sklearn.preprocessing import StandardScaler
     return (
         LogisticRegressionCV,
+        MDS,
         PCA,
         StandardScaler,
+        StratifiedKFold,
         accuracy_score,
+        classification_report,
         cross_val_score,
         mo,
         np,
         os,
+        pairwise_distances,
         pd,
         pl,
         plt,
@@ -150,32 +155,60 @@ def _(wpr_all_samples):
     return get_timepoint, timepoint_annos
 
 
-@app.cell
-def _(PCA, StandardScaler, pl, timepoint_annos, wpr_all_samples):
+@app.cell(hide_code=True)
+def _(clin_info_sheet, timepoint_annos, wpr_all_samples):
+    # @NOTE(ds): Coding is as follows - relapse 0=no, 1=yes, survival 0=alive, 1=dead
+    metadata_df = clin_info_sheet.loc[:, ["study_ID", "relapse", "survival"]]
+    metadata_parallel = []
+    for sample, timepoint in zip(wpr_all_samples.columns, timepoint_annos):
+        if timepoint == "ctrl":
+            metadata_parallel.append((timepoint, 0, 0))
+        else:
+            base = sample.split("_")[0]
+            row = metadata_df[metadata_df["study_ID"] == base]
+            metadata_parallel.append((timepoint, row["relapse"].iloc[0], row["survival"].iloc[0]))
+    return base, metadata_df, metadata_parallel, row, sample, timepoint
+
+
+@app.cell(hide_code=True)
+def _(
+    PCA,
+    StandardScaler,
+    metadata_parallel,
+    pl,
+    timepoint_annos,
+    wpr_all_samples,
+):
     def do_pca(wpr_df, timepoint_annos):
         samplename_annos = wpr_df.columns
-    
+
         scaler = StandardScaler(with_mean=True, with_std=True)
         wpr_df = wpr_df.transpose()
+
+        # @NOTE(ds): Double transpose because we want to scale across a patient, not across a site.
         wpr_array_norm = scaler.fit_transform(wpr_df.to_numpy().T).T
+        # wpr_array_norm = scaler.fit_transform(wpr_df.to_numpy())
         wpr_df_norm = pl.DataFrame(wpr_array_norm, schema=wpr_df.schema)
 
         pca = PCA(n_components=3)
         wpr_pca = pca.fit_transform(wpr_df_norm)
-    
+
         pca_df = pl.DataFrame(wpr_pca, schema=["PC1", "PC2", "PC3"])
         pca_df = pca_df.with_columns(pl.Series("Patient", samplename_annos),
-                                     pl.Series("Timepoint", timepoint_annos))
+                                     pl.Series("Timepoint", timepoint_annos),
+                                     pl.Series("Survival", list(map(lambda x: "dead" if x[2] == 1 else "alive", metadata_parallel))),
+                                     pl.Series("Relapse", list(map(lambda x: "yes" if x[1] == 1 else "no", metadata_parallel))))
         return pca_df, pca
-    
+
     pca_df, pca = do_pca(wpr_all_samples, timepoint_annos)
     return do_pca, pca, pca_df
 
 
-@app.cell
+@app.cell(hide_code=True)
 def _(pca, pca_df, plt, sns):
     plt.figure(figsize=(22, 6))
-    sns.scatterplot(data=pca_df, x="PC1", y="PC2", hue="Timepoint", palette="tab10", s=100, alpha=0.5)
+    # sns.scatterplot(data=pca_df, x="PC1", y="PC2", hue="Timepoint", style="Timepoint", palette="tab10", s=140, alpha=0.5)
+    sns.scatterplot(data=pca_df, x="PC1", y="PC2", hue="Timepoint", palette="tab10", s=180, alpha=0.5)
     plt.xlabel(f"PC1 ({pca.explained_variance_ratio_[0]:.2%} variance)")
     plt.ylabel(f"PC2 ({pca.explained_variance_ratio_[1]:.2%} variance)")
     plt.title("PCA of Genomic Sites WPS Across Patients")
@@ -184,21 +217,21 @@ def _(pca, pca_df, plt, sns):
     return
 
 
-@app.cell
+@app.cell(hide_code=True)
 def _(pca_df, sns):
     sns.kdeplot(data=pca_df, x="PC1", hue="Timepoint", palette="tab10", alpha=0.3, fill=True)
     return
 
 
-@app.cell
+@app.cell(hide_code=True)
 def _(pca_df, px):
-    fig = px.scatter_3d(pca_df, x="PC1", y="PC2", z="PC3",  color="Timepoint", color_continuous_scale="viridis",
-                        symbol="Timepoint", opacity=0.8)
+    fig = px.scatter_3d(pca_df, x="PC1", y="PC2", z="PC3", color="Timepoint", color_continuous_scale="viridis",
+                        symbol="Survival", opacity=0.8)
     fig.update_layout(scene=dict(xaxis_title="PC1", yaxis_title="PC2", zaxis_title="PC3"))
     return (fig,)
 
 
-@app.cell
+@app.cell(hide_code=True)
 def _(pca, sns):
     # @NOTE(ds): Here, we inspect the loadings for principle component 1. They
     # represent how strongly the respective original feature contributes to
@@ -209,7 +242,7 @@ def _(pca, sns):
     return (component_num,)
 
 
-@app.cell
+@app.cell(hide_code=True)
 def _(component_num, np, pca, pd, timepoint_annos, wpr_all_samples):
     mean_df = wpr_all_samples.mean().to_numpy().flatten()
     min_indices = np.argsort(pca.components_[component_num-1])[0:100]
@@ -223,10 +256,115 @@ def _(component_num, np, pca, pd, timepoint_annos, wpr_all_samples):
     return df, max_indices, max_loadings, mean_df, min_indices, min_loadings
 
 
-@app.cell
+@app.cell(hide_code=True)
 def _(df, sns):
     sns.kdeplot(df, x="max_loadings", hue="timepoints")
     return
+
+
+@app.cell(hide_code=True)
+def _(
+    MDS,
+    StandardScaler,
+    metadata_parallel,
+    pairwise_distances,
+    pl,
+    timepoint_annos,
+    wpr_all_samples,
+):
+    def do_mds(wpr_df, timepoint_annos) -> pl.DataFrame():
+        samplename_annos = wpr_df.columns
+        scaler = StandardScaler(with_mean=True, with_std=True)
+    
+        # @NOTE(ds): Input matrix must again be patients x features.
+        wpr_df = wpr_df.transpose()
+
+        # @NOTE(ds): Double transpose because we want to scale across a patient, not across a site.
+        # > wpr_array_norm = scaler.fit_transform(wpr_df.to_numpy())
+        wpr_array_norm = scaler.fit_transform(wpr_df.to_numpy().T).T
+        wpr_df_norm = pl.DataFrame(wpr_array_norm, schema=wpr_df.schema)
+        dist_matrix = pairwise_distances(wpr_df_norm, metric="euclidean")  # correlation, euclidean, cosine
+    
+        mds = MDS(n_components=2, dissimilarity="precomputed", random_state=42, metric=True)
+        mds_fit = mds.fit_transform(dist_matrix)
+    
+        mds_df = pl.DataFrame(mds_fit, schema=["MDS1", "MDS2"])
+        mds_df = mds_df.with_columns(pl.Series("Patient", samplename_annos),
+                                     pl.Series("Timepoint", timepoint_annos),
+                                     pl.Series("Survival", list(map(lambda x: "dead" if x[2] == 1 else "alive", metadata_parallel))),
+                                     pl.Series("Relapse", list(map(lambda x: "yes" if x[1] == 1 else "no", metadata_parallel))))
+        return mds_df
+
+
+    mds_df = do_mds(wpr_all_samples, timepoint_annos) 
+    return do_mds, mds_df
+
+
+@app.cell(hide_code=True)
+def _(mds_df, sns):
+    sns.scatterplot(x="MDS1", y="MDS2", hue="Timepoint", style="Survival", data=mds_df)
+    return
+
+
+@app.cell(hide_code=True)
+def _(mo):
+    mo.md(
+        r"""
+        # Regression
+        Can we make any meaningful predictions using the windowed protection ratio?
+        """
+    )
+    return
+
+
+@app.cell
+def _(
+    LogisticRegressionCV,
+    StandardScaler,
+    StratifiedKFold,
+    classification_report,
+    metadata_parallel,
+    pl,
+    wpr_all_samples,
+):
+    def do_regression(wpr_df, y):
+        scaler = StandardScaler(with_mean=True, with_std=True)
+        wpr_df = wpr_df.transpose()
+
+        # @NOTE(ds): Double transpose because we want to scale across a patient, not across a site.
+        # > wpr_array_norm = scaler.fit_transform(wpr_df.to_numpy())
+        wpr_array_norm = scaler.fit_transform(wpr_df.to_numpy().T).T
+        wpr_df_norm = pl.DataFrame(wpr_array_norm, schema=wpr_df.schema)
+    
+        clf = LogisticRegressionCV(
+            Cs=10,                         # Grid of inverse regularization strengths
+            cv=StratifiedKFold(5),         # Better than plain KFold for class imbalance
+            penalty="l2",                  # L2 regularization
+            solver="saga",                 # Supports multinomial + large-scale + L1/L2
+            multi_class="multinomial",     # Use softmax, not one-vs-rest
+            scoring="accuracy",
+            max_iter=5000,
+            n_jobs=-1,
+            refit=True,
+            verbose=10
+        )
+
+        clf.fit(wpr_df_norm, y)
+        y_pred = clf.predict(wpr_df_norm)
+        print(classification_report(y, y_pred))
+        return clf
+
+
+    clf_fit = do_regression(wpr_all_samples, list(map(lambda x: x[0], metadata_parallel)))
+    return clf_fit, do_regression
+
+
+@app.cell
+def _(clf, np):
+    # @NOTE(ds): Inspect feature importance.
+    coefs = clf.coef_
+    top_features = np.argsort(np.abs(coefs), axis=1)[:, -10:]  # top 10 per class
+    return coefs, top_features
 
 
 if __name__ == "__main__":
