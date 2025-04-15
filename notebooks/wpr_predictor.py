@@ -17,12 +17,15 @@ def _():
     import seaborn as sns
 
     from sklearn.decomposition import PCA
-    from sklearn.model_selection import train_test_split, cross_val_score, StratifiedKFold
+    from sklearn.model_selection import train_test_split, cross_val_score, cross_val_predict, StratifiedKFold
     from sklearn.linear_model import LogisticRegressionCV
     from sklearn.manifold import MDS
-    from sklearn.metrics import accuracy_score, roc_auc_score, pairwise_distances, classification_report
+    from sklearn.metrics import accuracy_score, roc_auc_score, pairwise_distances, \
+                                classification_report, confusion_matrix, ConfusionMatrixDisplay, \
+                                roc_curve, roc_auc_score
     from sklearn.preprocessing import StandardScaler
     return (
+        ConfusionMatrixDisplay,
         LogisticRegressionCV,
         MDS,
         PCA,
@@ -30,6 +33,8 @@ def _():
         StratifiedKFold,
         accuracy_score,
         classification_report,
+        confusion_matrix,
+        cross_val_predict,
         cross_val_score,
         mo,
         np,
@@ -40,6 +45,7 @@ def _():
         plt,
         px,
         roc_auc_score,
+        roc_curve,
         sns,
         train_test_split,
     )
@@ -275,7 +281,7 @@ def _(
     def do_mds(wpr_df, timepoint_annos) -> pl.DataFrame():
         samplename_annos = wpr_df.columns
         scaler = StandardScaler(with_mean=True, with_std=True)
-    
+
         # @NOTE(ds): Input matrix must again be patients x features.
         wpr_df = wpr_df.transpose()
 
@@ -284,10 +290,10 @@ def _(
         wpr_array_norm = scaler.fit_transform(wpr_df.to_numpy().T).T
         wpr_df_norm = pl.DataFrame(wpr_array_norm, schema=wpr_df.schema)
         dist_matrix = pairwise_distances(wpr_df_norm, metric="euclidean")  # correlation, euclidean, cosine
-    
+
         mds = MDS(n_components=2, dissimilarity="precomputed", random_state=42, metric=True)
         mds_fit = mds.fit_transform(dist_matrix)
-    
+
         mds_df = pl.DataFrame(mds_fit, schema=["MDS1", "MDS2"])
         mds_df = mds_df.with_columns(pl.Series("Patient", samplename_annos),
                                      pl.Series("Timepoint", timepoint_annos),
@@ -296,7 +302,7 @@ def _(
         return mds_df
 
 
-    mds_df = do_mds(wpr_all_samples, timepoint_annos) 
+    mds_df = do_mds(wpr_all_samples, timepoint_annos)
     return do_mds, mds_df
 
 
@@ -323,9 +329,8 @@ def _(
     StandardScaler,
     StratifiedKFold,
     classification_report,
-    metadata_parallel,
+    cross_val_predict,
     pl,
-    wpr_all_samples,
 ):
     def do_regression(wpr_df, y):
         scaler = StandardScaler(with_mean=True, with_std=True)
@@ -335,35 +340,84 @@ def _(
         # > wpr_array_norm = scaler.fit_transform(wpr_df.to_numpy())
         wpr_array_norm = scaler.fit_transform(wpr_df.to_numpy().T).T
         wpr_df_norm = pl.DataFrame(wpr_array_norm, schema=wpr_df.schema)
-    
+
+        cv = StratifiedKFold(10, shuffle=True)  # Better than plain KFold for class imbalance
         clf = LogisticRegressionCV(
-            Cs=10,                         # Grid of inverse regularization strengths
-            cv=StratifiedKFold(5),         # Better than plain KFold for class imbalance
-            penalty="l2",                  # L2 regularization
-            solver="saga",                 # Supports multinomial + large-scale + L1/L2
-            multi_class="multinomial",     # Use softmax, not one-vs-rest
-            scoring="accuracy",
+            Cs=10,  # Grid of inverse regularization strengths
+            cv=cv,
+            penalty="elasticnet",
+            l1_ratios=[0.1, 0.5, 0.9],
+            solver="saga",
+            scoring="roc_auc",  # "accuracy" didn't perform so well
             max_iter=5000,
-            n_jobs=-1,
-            refit=True,
-            verbose=10
+            tol=1e5,
+            verbose=10,
+            n_jobs=14,  # up to 15 should be okay
+            refit=True
         )
 
+        print("fitting model...")
         clf.fit(wpr_df_norm, y)
+
+        print("predicting based on model...")
         y_pred = clf.predict(wpr_df_norm)
         print(classification_report(y, y_pred))
-        return clf
 
+        # Get cross-validated predictions of probability for class 1.
+        y_proba = cross_val_predict(
+            clf, wpr_df_norm, y, cv=cv,
+            method="predict_proba",
+            n_jobs=12
+        )[:, 1]
 
-    clf_fit = do_regression(wpr_all_samples, list(map(lambda x: x[0], metadata_parallel)))
-    return clf_fit, do_regression
+        return clf, y_pred, y_proba
+    return (do_regression,)
 
 
 @app.cell
-def _(clf, np):
+def _(do_regression, metadata_parallel, wpr_all_samples):
+    # @NOTE(ds): tuple ordering is: (timepoint, relapse, survival)
+    #
+    # y = list(map(lambda x: "control" if x[0].startswith("ctrl") else "tumor",
+    #              metadata_parallel))
+    #
+    y = list(map(lambda x: "relapse" if x[1] == 1 else "no relapse",
+                 metadata_parallel))
+    clf_fit, y_pred, y_proba = do_regression(wpr_all_samples, y)
+    return clf_fit, y, y_pred, y_proba
+
+
+@app.cell
+def _(ConfusionMatrixDisplay, clf_fit, confusion_matrix, plt, y, y_pred):
+    cm = confusion_matrix(y, y_pred)
+    disp = ConfusionMatrixDisplay(cm, display_labels=clf_fit.classes_)
+    disp.plot()
+    plt.show()
+    return cm, disp
+
+
+@app.cell
+def _(plt, roc_auc_score, roc_curve, y, y_proba):
+    fpr, tpr, thresholds = roc_curve(y, y_proba)
+    auc = roc_auc_score(y, y_proba)
+    plt.plot(fpr, tpr, label=f'ROC curve (AUC = {auc:.2f})', color='darkorange', lw=2)
+    plt.plot([0, 1], [0, 1], color='navy', linestyle='--', lw=2)
+    plt.xlabel('False Positive Rate')
+    plt.ylabel('True Positive Rate')
+    plt.title('Receiver Operating Characteristic (ROC)')
+    plt.legend(loc='lower right')
+    plt.grid(True, linestyle='--', alpha=0.6)
+    plt.tight_layout()
+    plt.show()
+    return auc, fpr, thresholds, tpr
+
+
+@app.cell
+def _(abs_pos, clf_fit, np):
     # @NOTE(ds): Inspect feature importance.
-    coefs = clf.coef_
+    coefs = clf_fit.coef_
     top_features = np.argsort(np.abs(coefs), axis=1)[:, -10:]  # top 10 per class
+    print(abs_pos[top_features.flatten()])
     return coefs, top_features
 
 
