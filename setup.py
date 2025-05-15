@@ -53,7 +53,11 @@ setup(
         "mypy==1.13.0", "flake8==7.1.1"
     ]),
     package_data={"pyfraglib": ["py.typed"]},
-    scripts=["scripts/pyfrag.py", "scripts/txt_to_vcf.py"],
+    scripts=[
+        "scripts/pyfrag.py",
+        "scripts/txt_to_vcf.py",
+        "scripts/download_tss_annos.py"
+    ],
 
     keywords=["cfDNA", "fragmentomics"],
     classifiers=[

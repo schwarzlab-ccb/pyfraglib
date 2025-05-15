@@ -64,7 +64,7 @@ def _(mo):
 
 @app.cell(hide_code=True)
 def _(os, pd):
-    DATA_DIR = "/mnt/ramses/scratch/dschuet7/nf_out/"
+    DATA_DIR = "/mnt/ramses/projects/uk-lymphoma-cfdna/PCNSL/frag_out_26032025/"
     INFO_DIR = "/mnt/ramses/projects/uk-lymphoma-cfdna/PCNSL/"
     sample_sheet = pd.read_csv(os.path.join(INFO_DIR, "sample_sheet.csv"))
     clin_info_sheet = pd.read_excel(os.path.join(INFO_DIR, "clinical_annotations.xlsx"))
@@ -305,30 +305,65 @@ def _(clin_info_sheet, model_params, pd):
 def _(mannwhitneyu, model_clin_combined, pd, plt, sns, ttest_ind):
     _df = model_clin_combined
     PEAK: int = 2
-    _data: pd.DataFrame = pd.DataFrame(
+    plot_data: pd.DataFrame = pd.DataFrame(
         [
             ("BL" if tp == "BLrr" else tp,
              "dead" if surv == 1 else "alive",
-             pis[PEAK-1])
-            for (tp, surv, pis)
-            in zip(_df["time_point_hom"], _df["survival"], _df["estimated_pis"])
-            if tp not in ["CSF"]
+             "relapse" if rel == 1 else "no relapse",
+             pis[PEAK-1],
+             sample_id,
+             "yes" if csf_protein else "no",
+             "yes" if ldh_elevated else "no",
+             "yes" if multiple_lesions else "no",
+             "low" if cfdna_conc < 13.68 else "high",
+             "low" if ctdna_conc < 1.63 else "high")
+            for (tp, surv, rel, pis, sample_id, csf_protein, ldh_elevated, multiple_lesions, cfdna_conc, ctdna_conc)
+            in zip(_df["time_point_hom"], _df["survival"], _df["relapse"], _df["estimated_pis"], _df["study_ID"],
+                   _df["CSF_protein"], _df["LDH_elevated"], _df["multiple_lesions"], _df["cfDNA"], _df["ctDNA"])
+            if tp not in ["CSF", "c2"]
         ],
-        columns=["time_point", "survival", "pi_2"]
+        columns=["time_point", "survival", "relapse", "pi_2", "sample_id", "csf_protein", "ldh_elevated",
+                 "multiple_lesions", "cfDNA_concentration", "ctDNA_concentration"]
     )
-    _bl = _data[_data["time_point"] == "BL"]["pi_2"]
-    _end = _data[_data["time_point"] == "end"]["pi_2"]
+    _bl = plot_data[plot_data["time_point"] == "BL"]["pi_2"]
+    _end = plot_data[plot_data["time_point"] == "end"]["pi_2"]
     mwu_pval = mannwhitneyu(_bl, _end, alternative="two-sided").pvalue
     tt_pval = ttest_ind(_bl, _end, alternative="two-sided").pvalue
 
     plt.figure(figsize=(8, 6))
-    sns.violinplot(data=_data, x="time_point", y="pi_2", hue="survival", order=["BL", "c1", "c2", "end"])
+    sns.violinplot(data=plot_data, x="time_point", y="pi_2", hue="ctDNA_concentration", order=["BL", "c1", "end"])
     plt.axhline(y=0.1, color="red", alpha=0.6, linestyle="--", linewidth=2)
     plt.xlabel("Timepoints")
     plt.ylabel(f"$\pi_{PEAK}$")
     plt.title(f"Comparison of GMM $\pi_{PEAK}$ across treatment timepoints in PCNSL cohort"
               f"\nMann-Whitney-U BL vs. end p={mwu_pval:0.2}")
-    return PEAK, mwu_pval, tt_pval
+    return PEAK, mwu_pval, plot_data, tt_pval
+
+
+@app.cell
+def _(PEAK, pd, plot_data, sns):
+    plot_data["time_point"] = pd.Categorical(plot_data["time_point"],
+                                             categories=["BL", "c1", "end"],
+                                             ordered=True)
+    #sns.lineplot(data=plot_data, x="time_point", y="pi_2", units="sample_id", estimator=None,
+    #             hue="survival", marker="o")
+    _plot = sns.relplot(
+        data=plot_data,
+        x="time_point",
+        y="pi_2",
+        units="sample_id",
+        hue="relapse",
+        style="relapse",
+        col="ctDNA_concentration",
+        kind="line",
+        estimator=None,
+        linewidth=2,
+        alpha=0.6,
+        facet_kws={"sharey": True},
+    )
+    _plot.set_xlabels("Timepoints")
+    _plot.set_ylabels(f"$\pi_{PEAK}$")
+    return
 
 
 @app.cell(hide_code=True)
