@@ -1,6 +1,6 @@
 import marimo
 
-__generated_with = "0.11.13"
+__generated_with = "0.12.9"
 app = marimo.App(width="full")
 
 
@@ -53,8 +53,8 @@ def _():
 
 @app.cell(hide_code=True)
 def _(os, pd):
-    DATA_DIR = "/mnt/ramses/scratch/dschuet7/nf_out/"
-    INFO_DIR = "/mnt/ramses/projects/uk-lymphoma-cfdna/PCNSL/"
+    DATA_DIR = "/scratch/dschuet7/nf_out/"
+    INFO_DIR = "/projects/uk-lymphoma-cfdna/PCNSL/"
     sample_sheet = pd.read_csv(os.path.join(INFO_DIR, "sample_sheet.csv"))
     clin_info_sheet = pd.read_excel(os.path.join(INFO_DIR, "clinical_annotations.xlsx"))
 
@@ -323,7 +323,7 @@ def _(mo):
     return
 
 
-@app.cell
+@app.cell(hide_code=True)
 def _(
     LogisticRegressionCV,
     StandardScaler,
@@ -342,33 +342,36 @@ def _(
         wpr_df_norm = pl.DataFrame(wpr_array_norm, schema=wpr_df.schema)
 
         cv = StratifiedKFold(10, shuffle=True)  # Better than plain KFold for class imbalance
+        n_jobs = 24
         clf = LogisticRegressionCV(
-            Cs=10,  # Grid of inverse regularization strengths
+            Cs=15,  # Grid of inverse regularization strengths
             cv=cv,
-            penalty="elasticnet",
-            l1_ratios=[0.1, 0.5, 0.9],
+            # penalty="elasticnet",
+            penalty="l1",
+            # l1_ratios=[0.1, 0.3, 0.5, 0.7, 0.9],
             solver="saga",
             scoring="roc_auc",  # "accuracy" didn't perform so well
             max_iter=5000,
-            tol=1e5,
+            tol=1e6,
             verbose=10,
-            n_jobs=14,  # up to 15 should be okay
+            n_jobs=n_jobs,
             refit=True
         )
 
+        # Fit & get cross-validated predictions of probability for class 1.
         print("fitting model...")
         clf.fit(wpr_df_norm, y)
+
+        print("cross-val predicting based on model...")
+        y_proba = cross_val_predict(
+            clf, wpr_df_norm, y, cv=cv,
+            method="predict_proba",
+            verbose=10, n_jobs=1
+        )[:, 1]
 
         print("predicting based on model...")
         y_pred = clf.predict(wpr_df_norm)
         print(classification_report(y, y_pred))
-
-        # Get cross-validated predictions of probability for class 1.
-        y_proba = cross_val_predict(
-            clf, wpr_df_norm, y, cv=cv,
-            method="predict_proba",
-            n_jobs=12
-        )[:, 1]
 
         return clf, y_pred, y_proba
     return (do_regression,)
@@ -381,7 +384,9 @@ def _(do_regression, metadata_parallel, wpr_all_samples):
     # y = list(map(lambda x: "control" if x[0].startswith("ctrl") else "tumor",
     #              metadata_parallel))
     #
-    y = list(map(lambda x: "relapse" if x[1] == 1 else "no relapse",
+    # y = list(map(lambda x: "relapse" if x[1] == 1 else "no relapse",
+    #              metadata_parallel))
+    y = list(map(lambda x: "dead" if x[2] == 1 else "alive",
                  metadata_parallel))
     clf_fit, y_pred, y_proba = do_regression(wpr_all_samples, y)
     return clf_fit, y, y_pred, y_proba
@@ -398,7 +403,7 @@ def _(ConfusionMatrixDisplay, clf_fit, confusion_matrix, plt, y, y_pred):
 
 @app.cell
 def _(plt, roc_auc_score, roc_curve, y, y_proba):
-    fpr, tpr, thresholds = roc_curve(y, y_proba)
+    fpr, tpr, thresholds = roc_curve(y, y_proba, pos_label="dead")
     auc = roc_auc_score(y, y_proba)
     plt.plot(fpr, tpr, label=f'ROC curve (AUC = {auc:.2f})', color='darkorange', lw=2)
     plt.plot([0, 1], [0, 1], color='navy', linestyle='--', lw=2)
