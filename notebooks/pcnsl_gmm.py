@@ -1,6 +1,6 @@
 import marimo
 
-__generated_with = "0.11.13"
+__generated_with = "0.12.9"
 app = marimo.App(width="full")
 
 
@@ -18,12 +18,21 @@ def _():
     from math import isinf
     from sksurv.nonparametric import kaplan_meier_estimator
     from scipy.stats import mannwhitneyu, ttest_ind
+    from sklearn.model_selection import train_test_split
+    from sklearn.linear_model import LogisticRegression, LogisticRegressionCV
+    from sklearn.ensemble import RandomForestClassifier
+    from sklearn.metrics import classification_report, confusion_matrix
     from lifelines import KaplanMeierFitter
     from lifelines.plotting import add_at_risk_counts
     from lifelines.statistics import logrank_test
     return (
         KaplanMeierFitter,
+        LogisticRegression,
+        LogisticRegressionCV,
+        RandomForestClassifier,
         add_at_risk_counts,
+        classification_report,
+        confusion_matrix,
         isinf,
         json,
         kaplan_meier_estimator,
@@ -35,6 +44,7 @@ def _():
         pd,
         plt,
         sns,
+        train_test_split,
         ttest_ind,
     )
 
@@ -64,8 +74,8 @@ def _(mo):
 
 @app.cell(hide_code=True)
 def _(os, pd):
-    DATA_DIR = "/mnt/ramses/projects/uk-lymphoma-cfdna/PCNSL/frag_out_26032025/"
-    INFO_DIR = "/mnt/ramses/projects/uk-lymphoma-cfdna/PCNSL/"
+    DATA_DIR = "/projects/uk-lymphoma-cfdna/PCNSL/frag_out_26032025/"
+    INFO_DIR = "/projects/uk-lymphoma-cfdna/PCNSL/"
     sample_sheet = pd.read_csv(os.path.join(INFO_DIR, "sample_sheet.csv"))
     clin_info_sheet = pd.read_excel(os.path.join(INFO_DIR, "clinical_annotations.xlsx"))
 
@@ -73,11 +83,25 @@ def _(os, pd):
     clin_info_sheet.columns = clin_info_sheet.iloc[0]
     clin_info_sheet = clin_info_sheet[1:].reset_index(drop=True)
     clin_info_sheet = clin_info_sheet.iloc[:, 1:]
+
+    # @NOTE(ds): We need to copy 3 rows of the dataframe where we have patients that have DED _and_
+    # DRR samples. One of them is even inconsistently named DEDxxxrr. Yuck.
+    row_DED006 = clin_info_sheet.loc[clin_info_sheet["study_ID"] == "DED006DRR049"]
+    row_DED006.loc[:, "study_ID"] = "DED006"
+    row_DED131 = clin_info_sheet.loc[clin_info_sheet["study_ID"] == "DED131"]
+    row_DED131.loc[:, "study_ID"] = "DED131rr"
+    row_DED140DRR098 = clin_info_sheet.loc[clin_info_sheet["study_ID"] == "DED140"]
+    row_DED140DRR098.loc[:, "study_ID"] = "DED140DRR098"
+
+    clin_info_sheet = pd.concat([clin_info_sheet, row_DED006, row_DED131, row_DED140DRR098], ignore_index=True)
     return (
         DATA_DIR,
         INFO_DIR,
         clin_info_sheet,
         clin_info_sheet_column_metadata,
+        row_DED006,
+        row_DED131,
+        row_DED140DRR098,
         sample_sheet,
     )
 
@@ -85,8 +109,14 @@ def _(os, pd):
 @app.cell(hide_code=True)
 def _(DATA_DIR, json, os, pd, sample_sheet):
     data: dict[str, object] = {}
-    for id, timepoint, timepoint_hom in zip(sample_sheet["sample_id"], sample_sheet["time_point"], sample_sheet["time_point_hom"]):
-        sample_name = f"{id}_{timepoint}"
+    samples_to_load: list[tuple[str, str, str]] = \
+        list(zip(sample_sheet["sample_id"], sample_sheet["time_point"], sample_sheet["time_point_hom"])) + \
+        [(f"ctrl{i}", "ctrl", "ctrl") for i in range(1, 11)]
+    for id, timepoint, timepoint_hom in samples_to_load:
+        if timepoint == "ctrl":
+            sample_name = id
+        else:
+            sample_name = f"{id}_{timepoint}"
         model_params_filepath = os.path.join(DATA_DIR, sample_name, f"{sample_name}_gmm_frags_len.json")
         with open(model_params_filepath, "r") as f:
             json_data = json.load(f)
@@ -106,6 +136,7 @@ def _(DATA_DIR, json, os, pd, sample_sheet):
         model_params,
         model_params_filepath,
         sample_name,
+        samples_to_load,
         timepoint,
         timepoint_hom,
     )
@@ -133,7 +164,7 @@ def _(mo):
 
 @app.cell(hide_code=True)
 def _(model_params, np, plt):
-    color_map = {"BL": "red", "BLrr": "darkred", "c1": "blue", "c2": "darkblue", "end": "yellow", "CSF": "green"}
+    color_map = {"BL": "red", "BLrr": "darkred", "c1": "blue", "c2": "darkblue", "end": "yellow", "CSF": "green", "ctrl": "gray"}
     color_code = [color_map[tp] for tp in model_params["time_point_hom"]]
     handles = [plt.Rectangle((0, 0), 1, 1, color=color_map[label]) for label in color_map]
 
@@ -297,64 +328,94 @@ def _(
 @app.cell(hide_code=True)
 def _(clin_info_sheet, model_params, pd):
     model_params.index = [name.split("_")[0] for name in model_params.index]
-    model_clin_combined: pd.DataFrame = model_params.merge(right=clin_info_sheet, left_index=True, right_on="study_ID", how="inner")
+    model_clin_combined: pd.DataFrame = model_params.merge(right=clin_info_sheet, left_index=True, right_on="study_ID", how="left")
     return (model_clin_combined,)
 
 
 @app.cell(hide_code=True)
-def _(mannwhitneyu, model_clin_combined, pd, plt, sns, ttest_ind):
+def _(mannwhitneyu, model_clin_combined, np, pd, plt, sns, ttest_ind):
+    def make_category(code: int, pcat: str, ncat: str) -> str:
+        if code is None or np.isnan(code):
+            return "control"
+        elif code == 1:
+            return pcat
+        else:
+            return ncat
+
+
+    def binarize(
+        val: float | None, threshold: float, label_less: str = "low", label_greater_than: str = "high"
+    ) -> str:
+        if val is None or np.isnan(val):
+            return "control"
+        elif val < threshold:
+            return label_less
+        else:
+            return label_greater_than
+
+
     _df = model_clin_combined
     PEAK: int = 2
     plot_data: pd.DataFrame = pd.DataFrame(
         [
             ("BL" if tp == "BLrr" else tp,
-             "dead" if surv == 1 else "alive",
-             "relapse" if rel == 1 else "no relapse",
-             pis[PEAK-1],
+             make_category(surv, "dead", "alive"),
+             make_category(rel, "relapse", "no relapse"),
+             pis[0], pis[1], pis[2],
+             means[0], means[1], means[2],
+             stds[0], stds[1], stds[2],
              sample_id,
-             "yes" if csf_protein else "no",
-             "yes" if ldh_elevated else "no",
-             "yes" if multiple_lesions else "no",
-             "low" if cfdna_conc < 13.68 else "high",
-             "low" if ctdna_conc < 1.63 else "high")
-            for (tp, surv, rel, pis, sample_id, csf_protein, ldh_elevated, multiple_lesions, cfdna_conc, ctdna_conc)
-            in zip(_df["time_point_hom"], _df["survival"], _df["relapse"], _df["estimated_pis"], _df["study_ID"],
-                   _df["CSF_protein"], _df["LDH_elevated"], _df["multiple_lesions"], _df["cfDNA"], _df["ctDNA"])
+             make_category(csf_protein, "yes", "no"),
+             make_category(ldh_elevated, "yes", "no"),
+             make_category(multiple_lesions, "yes", "no"),
+             binarize(cfdna_conc, 13.68),  # median
+             binarize(ctdna_conc, 1.63),  # median
+             binarize(no_muts, 1, "none", ">= 1"),
+             mean_depth, mopc, prd)
+            for (tp, surv, rel, pis, means, stds, sample_id, csf_protein, ldh_elevated, multiple_lesions,
+                 cfdna_conc, ctdna_conc, no_muts, mean_depth, mopc, prd)
+            in zip(_df["time_point_hom"], _df["survival"], _df["relapse"], _df["estimated_pis"], _df["estimated_means"], 
+                   _df["estimated_stds"], _df["study_ID"],
+                   _df["CSF_protein"], _df["LDH_elevated"], _df["multiple_lesions"], _df["cfDNA"], _df["ctDNA"],
+                   _df["no_muts_plasma"], _df["mean_depths_plasma"], _df["mopc_total"], _df["log_PRD_post"])
             if tp not in ["CSF", "c2"]
         ],
-        columns=["time_point", "survival", "relapse", "pi_2", "sample_id", "csf_protein", "ldh_elevated",
-                 "multiple_lesions", "cfDNA_concentration", "ctDNA_concentration"]
+        columns=[
+            "time_point", "survival", "relapse", "pi_1", "pi_2", "pi_3", "mean_1", "mean_2", "mean_3",
+            "std_1", "std_2", "std_3", "sample_id", "csf_protein", "ldh_elevated",
+            "multiple_lesions", "cfDNA_concentration", "ctDNA_concentration", "no_muts_plasma", "mean_depth",
+            "mopc_total", "log_PRD_post"
+        ]
     )
+    plot_data["time_point"] = pd.Categorical(
+        plot_data["time_point"], categories=["BL", "c1", "end", "ctrl"], ordered=True
+    )
+
     _bl = plot_data[plot_data["time_point"] == "BL"]["pi_2"]
     _end = plot_data[plot_data["time_point"] == "end"]["pi_2"]
     mwu_pval = mannwhitneyu(_bl, _end, alternative="two-sided").pvalue
     tt_pval = ttest_ind(_bl, _end, alternative="two-sided").pvalue
 
     plt.figure(figsize=(8, 6))
-    sns.violinplot(data=plot_data, x="time_point", y="pi_2", hue="ctDNA_concentration", order=["BL", "c1", "end"])
+    sns.stripplot(data=plot_data, x="time_point", y="pi_2", hue="no_muts_plasma", order=["BL", "c1", "end", "ctrl"], dodge=True)
     plt.axhline(y=0.1, color="red", alpha=0.6, linestyle="--", linewidth=2)
     plt.xlabel("Timepoints")
     plt.ylabel(f"$\pi_{PEAK}$")
     plt.title(f"Comparison of GMM $\pi_{PEAK}$ across treatment timepoints in PCNSL cohort"
               f"\nMann-Whitney-U BL vs. end p={mwu_pval:0.2}")
-    return PEAK, mwu_pval, plot_data, tt_pval
+    return PEAK, binarize, make_category, mwu_pval, plot_data, tt_pval
 
 
-@app.cell
-def _(PEAK, pd, plot_data, sns):
-    plot_data["time_point"] = pd.Categorical(plot_data["time_point"],
-                                             categories=["BL", "c1", "end"],
-                                             ordered=True)
-    #sns.lineplot(data=plot_data, x="time_point", y="pi_2", units="sample_id", estimator=None,
-    #             hue="survival", marker="o")
+@app.cell(hide_code=True)
+def _(PEAK, plot_data, sns):
     _plot = sns.relplot(
-        data=plot_data,
+        data=plot_data[plot_data["time_point"] != "ctrl"],
         x="time_point",
         y="pi_2",
         units="sample_id",
         hue="relapse",
         style="relapse",
-        col="ctDNA_concentration",
+        col="no_muts_plasma",
         kind="line",
         estimator=None,
         linewidth=2,
@@ -364,6 +425,86 @@ def _(PEAK, pd, plot_data, sns):
     _plot.set_xlabels("Timepoints")
     _plot.set_ylabels(f"$\pi_{PEAK}$")
     return
+
+
+@app.cell(hide_code=True)
+def _(mo):
+    mo.md(
+        """
+        ## Logistic regression of relapse / survival
+        """
+    )
+    return
+
+
+@app.cell
+def _(
+    LogisticRegressionCV,
+    classification_report,
+    confusion_matrix,
+    plot_data,
+):
+    outcome = plot_data[plot_data["time_point"] == "BL"]["survival"]
+    features = plot_data[plot_data["time_point"] == "BL"][["mean_1", "mean_2", "mean_3", "pi_1", "pi_2", "pi_3", "std_1", "std_2", "std_3",
+                                                           "no_muts_plasma", "mopc_total"]]
+    features["no_muts_plasma"] = features["no_muts_plasma"].map({"none": 0, ">= 1": 1})
+
+    model = LogisticRegressionCV(
+        penalty="elasticnet",
+        l1_ratios=[0.1, 0.3, 0.5, 0.7, 0.9],
+        cv=10,
+        Cs=20,
+        max_iter=10000,
+        scoring="f1",
+        solver="saga",
+        class_weight="balanced"
+    )
+    model.fit(features, outcome)
+    y_pred = model.predict(features)
+    print("Confusion matrix:\n", confusion_matrix(outcome, y_pred))
+    print("\nClassification report:\n", classification_report(outcome, y_pred))
+    return features, model, outcome, y_pred
+
+
+@app.cell(hide_code=True)
+def _(mo):
+    mo.md(
+        """
+        ## Random forest classifier of relapse / survival
+        """
+    )
+    return
+
+
+@app.cell
+def _(
+    RandomForestClassifier,
+    classification_report,
+    confusion_matrix,
+    features,
+    outcome,
+    train_test_split,
+):
+    X_train, X_test, y_train, y_test = train_test_split(
+        features, outcome,
+        test_size=0.2,
+        stratify=outcome,
+        random_state=42
+    )
+
+    rf = RandomForestClassifier(
+        n_estimators=1000,
+        max_depth=None,
+        class_weight="balanced",
+        random_state=42,
+        n_jobs=-1
+    )
+
+    rf.fit(X_train, y_train)
+    _y_pred = rf.predict(X_test)
+    print(confusion_matrix(y_test, _y_pred))
+    print(classification_report(y_test, _y_pred))
+    return X_test, X_train, rf, y_test, y_train
 
 
 @app.cell(hide_code=True)
@@ -408,9 +549,6 @@ def _(mo):
         - Build quotient of $\\frac{end}{BL}$ $\pi_3$ values. Correlate with clinical outcome.
         - Sankey plots of timepoints and metrics
         - Cutoff for mixture fraction?
-        - repeat mixture fraction analysis with means and standard deviations
-        - write statistics to JSON and plot them
-        - explore WPS and possible ways to use it to predict patient outcome
         - correlate pi's with toxicity metrics (cummulative dose of methotrexate?)
         """
     )
