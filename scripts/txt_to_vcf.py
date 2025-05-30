@@ -22,7 +22,8 @@ import pyfraglib
 import pysam
 
 from typing import Final, NoReturn
-from pyfraglib.core import hg19_chromosomes
+from pyfraglib.core import hg19_chromosomes, hg38_chromosomes, \
+                           homogenize_contig_name
 
 version_string: Final[str] = "txt_to_vcf v{} (running on Python v{})" \
     .format(pyfraglib.__version__, sys.version.split(" ")[0])
@@ -48,18 +49,25 @@ def create_argparser() -> argparse.ArgumentParser:
         "-o", "--outfile", type=str, dest="outfile", required=True,
         help="The name of the VCF output file.")
     argparser.add_argument(
+        "-g", "--ref-genome", type=str, dest="ref_genome", required=True,
+        help="Indicate the ref genome you are using (must be hg19 or hg38).")
+    argparser.add_argument(
         "-v", "--verbose", action="store_true", dest="is_verbose",
         default=False, help="Set log level so that debugging info is printed.")
 
     return argparser
 
 
-def convert(infile: str, outfile: str, logger: logging.Logger) -> None:
+def convert(
+    infile: str, outfile: str, ref_genome: str, logger: logging.Logger
+) -> None:
     vcf_header: pysam.VariantHeader = pysam.VariantHeader()
     vcf_header.add_meta("fileformat", "VCFv4.2")
     vcf_header.add_meta("source", "pyfraglib")
 
-    for chrom, length, _, _ in hg19_chromosomes:
+    genome: list[tuple[str, int, str, str]] = \
+        hg19_chromosomes if ref_genome == "hg19" else hg38_chromosomes
+    for chrom, length, _, _ in genome:
         vcf_header.contigs.add(chrom, length=length)
 
     vcf_file: pysam.VariantFile = \
@@ -114,7 +122,7 @@ def convert(infile: str, outfile: str, logger: logging.Logger) -> None:
             else:
                 new_record: pysam.VariantRecord = vcf_file.new_record()
 
-                new_record.chrom = fields[0]
+                new_record.chrom = homogenize_contig_name(fields[0])
                 new_record.pos = int(fields[1])  # indexing!
                 new_record.rlen = int(fields[2]) - new_record.pos + 1
                 new_record.ref = fields[3]
@@ -150,10 +158,11 @@ if __name__ == "__main__":
 
     infile: Final[str] = args.infile
     outfile: Final[str] = args.outfile
+    ref_genome: Final[str] = args.ref_genome
 
     if not os.path.isfile(infile):
         fail("file `{}' does not exist".format(infile), logger)
     elif os.path.isfile(outfile):
         fail("file `{}' already exists".format(outfile), logger)
 
-    convert(infile, outfile, logger)
+    convert(infile, outfile, ref_genome, logger)
