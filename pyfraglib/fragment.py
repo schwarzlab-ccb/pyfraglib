@@ -23,7 +23,8 @@ from dataclasses import dataclass
 from functools import partial
 from intervaltree import IntervalTree, Interval  # type: ignore
 from multiprocessing import Pool
-from pyfraglib.core import fail, PyfragManager, detect_cpus
+from pyfraglib.core import fail, PyfragManager, detect_cpus, \
+                           homogenize_to_chrom_naming_convention
 from typing import Callable, Final, Generator, Optional, Never, cast
 
 INSERT_SIZE_UPPER_BOUND: Final = 900
@@ -348,9 +349,16 @@ class Fragment:
             # 0- and 1-based indexing. We try to be consistent and always use
             # the methods that are 0-based.
             read: pysam.AlignedSegment
-            genomic_position: pysam.IteratorRow = bam_file.fetch(
-                contig=variant.contig, start=variant.start, stop=variant.stop
+            contig: str = homogenize_to_chrom_naming_convention(
+                variant.contig, bam_file.header.to_dict()  # type: ignore
             )
+
+            try:
+                genomic_position: pysam.IteratorRow = bam_file.fetch(
+                    contig=contig, start=variant.start, stop=variant.stop
+                )
+            except ValueError as e:
+                fail(f"failed to fetch {variant} from bam file: {e}")
 
             for read in genomic_position:
                 read_positions: list[int] = \

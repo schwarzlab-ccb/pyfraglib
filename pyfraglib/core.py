@@ -128,6 +128,24 @@ def homogenize_contig_name(contig: str) -> str:
     return contig
 
 
+# @NOTE(ds): Takes a BAM file header and a contig name and returns the contig
+# name according to the headers naming convention. If the header is invalid,
+# we return `contig` unaltered.
+def homogenize_to_chrom_naming_convention(
+    contig: str, header: dict[str, object]
+) -> str:
+    try:
+        header_contig: str = header["SQ"][0]["SN"]  # type: ignore
+        if header_contig.startswith("chr") and not contig.startswith("chr"):
+            return f"chr{contig}"
+        elif header_contig.startswith("chr") and contig.startswith("chr"):
+            return contig
+        else:
+            return homogenize_contig_name(contig)
+    except Exception:
+        return contig
+
+
 # @NOTE(ds): The input list needs to be normalized to proportions!
 def shannon_entropy(proportions: list[float]) -> float:
     prop_sum: float = 0.0

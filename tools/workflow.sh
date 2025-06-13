@@ -22,9 +22,9 @@ if [[ "$1" == "--install" || "$2" == "--install" ]]; then
     echo "Successfully installed latest \`pyfraglib' locally."
 fi
 
-pyfrag.py -o frag_out/ extract -f data/ctrl1_0.01.bam &&
-pyfrag.py -o plot_out/ stats -f frag_out/ctrl1_0.01.frag &&
-pyfrag.py -o plot_out/ lengths -f frag_out/ctrl1_0.01.frag -c \
+pyfrag.py -o frag_out/ extract -f data/DED005_BL_0.01.bam --with-vcf &&
+pyfrag.py -o plot_out/ stats -f frag_out/DED005_BL_0.01.frag &&
+pyfrag.py -o plot_out/ lengths -f frag_out/DED005_BL_0.01.frag -c \
     configs/gmm_3.json &&
-pyfrag.py -o scores_out/ scores -f frag_out/ctrl1_0.01.frag -b \
+pyfrag.py -o scores_out/ scores -f frag_out/DED005_BL_0.01.frag -b \
     data/ref/loci_covered_by_panel.bed.gz
