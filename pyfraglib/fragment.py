@@ -211,8 +211,9 @@ class Fragment:
     def get_end_motifs(self, kmer_len: int) -> tuple[str, str]:
         logger: logging.Logger = logging.getLogger("pyfraglib")
         if (kmer_len < 0) or (kmer_len > MAX_KMER_LEN):
-            logger.warn("invalid kmer length {}, defaulting to {}".format(
-                kmer_len, DEFAULT_KMER_LEN))
+            logger.warning(
+                f"invalid kmer length {kmer_len}, using {DEFAULT_KMER_LEN}"
+            )
             kmer_len = DEFAULT_KMER_LEN
         kmer5p: str = self.end5p[0:kmer_len]
         kmer3p: str = self.end3p[-kmer_len:]

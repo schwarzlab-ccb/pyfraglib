@@ -162,8 +162,10 @@ def fit_gmm(
         a=data, size=subsample_size, replace=False
     )
     if subsample_size > LARGE_DATASET_THRESHOLD:
-        logger.warn(f"fitting a GMM to {subsample_size} fragments might take "
-                    f"a long time - consider downsampling")
+        logger.warning(
+            f"fitting a GMM to {subsample_size} fragments might take "
+            "a long time - consider downsampling"
+        )
 
     lin_constraint: LinearConstraint = LinearConstraint(
         A=[[0]*2*n + [1]*n],  lb=1, ub=1  # type: ignore
