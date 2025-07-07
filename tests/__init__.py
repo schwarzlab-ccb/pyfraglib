@@ -1,4 +1,3 @@
-#!/bin/sh
 # This file is part of `pyfraglib`, a software suite to calculate fragmentomics
 # features from cfDNA and perform downstream analyses.
 #
@@ -12,11 +11,3 @@
 # FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License for
 # more details. You should have received a copy of the GNU General Public
 # License along with this program. If not, see <https://www.gnu.org/licenses/>.
-python3 -m mypy scripts/ &&
-python3 -m mypy pyfraglib/ &&
-python3 -m mypy tests/ &&
-python3 -m flake8 scripts/ &&
-python3 -m flake8 pyfraglib/ &&
-python3 -m flake8 tests/ &&
-python3 -m pip install . &&
-python3 tests/test_runner.py
