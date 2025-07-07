@@ -53,13 +53,20 @@ def motif_diversity(
 
     ends_5p, ends_3p, num_frags = fragments.count_endmotifs(kmer_len=4)
 
-    total_5p: int = sum(ends_5p.values())
-    proportions_5p: list[float] = [val / total_5p for val in ends_5p.values()]
-    index_5p: float = index_func(proportions_5p)
+    # @NOTE(ds): Filter out zero counts to avoid log(0) issues in diversity
+    # score calculations.
+    valid_5p_counts: list[int] = [val for val in ends_5p.values() if val > 0]
+    valid_3p_counts: list[int] = [val for val in ends_3p.values() if val > 0]
 
-    total_3p: int = sum(ends_3p.values())
-    proportions_3p: list[float] = [val / total_3p for val in ends_3p.values()]
-    index_3p: float = index_func(proportions_3p)
+    total_5p: int = sum(valid_5p_counts)
+    proportions_5p: list[float] = \
+        [val / total_5p for val in valid_5p_counts] if total_5p > 0 else []
+    index_5p: float = index_func(proportions_5p) if proportions_5p else 0.0
+
+    total_3p: int = sum(valid_3p_counts)
+    proportions_3p: list[float] = \
+        [val / total_3p for val in valid_3p_counts] if total_3p > 0 else []
+    index_3p: float = index_func(proportions_3p) if proportions_3p else 0.0
 
     return (index_5p, index_3p)
 
