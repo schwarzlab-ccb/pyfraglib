@@ -28,13 +28,14 @@ from pyfraglib.core import shannon_entropy, simpson_index, fail, \
                            get_chromosome_length, hg19_chromosomes, \
                            hg38_chromosomes, homogenize_contig_name
 from pyfraglib.fragment import FragmentList, IntervalTable
+from pyfraglib import get_logger
 
 
 # NOTE(ds): Return the MDS for 5' and 3' fragments.
 def motif_diversity(
     fragments: FragmentList, name: str, index: str = "shannon"
 ) -> tuple[float, float]:
-    logger: logging.Logger = logging.getLogger("pyfraglib")
+    logger: logging.Logger = get_logger()
 
     index_func: typing.Callable[[list[float]], float]
     if index == "shannon":
@@ -174,7 +175,7 @@ def windowed_protection_score_slow(
         info: str
 
         chrom, istart, iend, info = region.split()
-        logging.getLogger("pyfraglib").debug(f"WPS at {info}")
+        get_logger().debug(f"WPS at {info}")
 
         # @NOTE(ds): To calculate our scores over the same windows as we do
         # with the fast algorithm, we need to slightly adjust the windows.
@@ -213,7 +214,7 @@ def windowed_protection_score_slow(
             it += 1
 
     regions.reset()
-    logging.getLogger("pyfraglib").debug(f"calculated WPS for {it} positions")
+    get_logger().debug(f"calculated WPS for {it} positions")
     return wps_df
 
 
@@ -339,7 +340,7 @@ def score_line_plot(
         fail(f"unknown score `{score}' requested")
 
     outpath: str = os.path.join(out_dir, f"{name}_{score}.png")
-    logging.getLogger("pyfraglib").info(
+    get_logger().info(
         f"saving score plot for {name} to `{outpath}'"
     )
 

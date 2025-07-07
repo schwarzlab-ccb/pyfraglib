@@ -20,6 +20,7 @@ import numpy as np
 import numpy.typing as npt
 
 from pyfraglib.core import fail
+from pyfraglib import get_logger
 from scipy.optimize import LinearConstraint, minimize
 from scipy.stats import norm, ks_1samp, wasserstein_distance, entropy
 from typing import Final
@@ -150,7 +151,7 @@ def hessian(
 def fit_gmm(
     data: npt.NDArray[np.float64], config_filepath: str
 ) -> tuple[object, int, list[float], npt.NDArray[np.float64]]:
-    logger: logging.Logger = logging.getLogger("pyfraglib")
+    logger: logging.Logger = get_logger()
 
     initial_params: list[float]
     bounds: list[tuple[float, float]]

@@ -13,20 +13,20 @@
 # License along with this program. If not, see <https://www.gnu.org/licenses/>.
 import logging
 
-from pyfraglib.core import fail, PyfragManager
+from pyfraglib.core import get_logger, fail, PyfragManager
 from pyfraglib.math import fit_gmm, plot_gmm
 from pyfraglib.fragment import Fragment, FragmentList, FragmentCollection
 from pyfraglib.fragfile import FragFile
 from pyfraglib.stats import fragments_per_chromosome_barplot
 from pyfraglib.lengths import fragment_length_plot
 
-__version__ = "0.4.2"
+__version__ = "0.4.3"
 __repo_url__ = "https://bitbucket.org/schwarzlab/project-lymphoma-cfdna/"
-__all__ = ["Fragment", "FragmentList", "FragmentCollection", "fail",
-           "FragFile",
-           "fragments_per_chromosome_barplot",
-           "fragment_length_plot",
-           "fit_gmm", "plot_gmm"]
+__all__ = [
+    "Fragment", "FragmentList", "FragmentCollection", "fail",
+    "get_logger", "FragFile", "fragments_per_chromosome_barplot",
+    "fragment_length_plot", "fit_gmm", "plot_gmm"
+]
 
 
 # @NOTE(ds): This filter changes the level of every record to `level' and only
@@ -70,4 +70,5 @@ log_filter: FixedLogLevelFilter = FixedLogLevelFilter(logging.DEBUG)
 py_warnings_logger.addFilter(log_filter)
 
 PyfragManager.register(  # type: ignore
-    "FragmentCollection", FragmentCollection)
+    "FragmentCollection", FragmentCollection
+)

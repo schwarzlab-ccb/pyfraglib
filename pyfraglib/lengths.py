@@ -21,14 +21,14 @@ import numpy.typing as npt
 import seaborn as sns
 
 from typing import Final
-from pyfraglib import FragmentList, fail
+from pyfraglib import FragmentList, fail, get_logger
 from pyfraglib.math import fit_gmm, plot_gmm, goodness_of_fit_stats
 
 
 def fragment_length_plot(
     fragments: FragmentList, out_dir: str, name: str
 ) -> None:
-    logger: logging.Logger = logging.getLogger("pyfraglib")
+    logger: logging.Logger = get_logger()
     logger.info(
         "creating fragment length plots in `{}'".format(out_dir)
     )
@@ -64,7 +64,7 @@ def fragment_length_plot(
 
 def fragment_length_gmm(fragments: FragmentList, config_filepath: str,
                         out_dir: str, name: str) -> None:
-    logger: logging.Logger = logging.getLogger("pyfraglib")
+    logger: logging.Logger = get_logger()
     logger.info(
         "fitting GMM based on config file `{}', writing results to `{}'"
         .format(config_filepath, out_dir)

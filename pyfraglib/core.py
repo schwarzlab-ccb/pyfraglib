@@ -21,6 +21,8 @@ import numpy as np
 from multiprocessing.managers import BaseManager
 from typing import NoReturn, Final
 
+LOGGER_NAME: Final[str] = "pyfraglib"
+
 # @NOTE(ds): From ``https://www.ncbi.nlm.nih.gov/grc/human/data?asm=GRCh37''.
 hg19_chromosomes: Final[list[tuple[str, int, str, str]]] = [
     ("1",  249250621, "CM000663.1", "NC_000001.10"),
@@ -80,9 +82,14 @@ hg38_chromosomes: Final[list[tuple[str, int, str, str]]] = [
 ]
 
 
+def get_logger() -> logging.Logger:
+    """Get the standard pyfraglib logger."""
+    return logging.getLogger(LOGGER_NAME)
+
+
 # `fail' terminates the program even if called from a subprocess.
 def fail(msg: str) -> NoReturn:
-    logger: logging.Logger = logging.getLogger("pyfraglib")
+    logger: logging.Logger = get_logger()
     logger.fatal(msg)
 
     # @NOTE(ds): We signal to a potential parent.
@@ -93,7 +100,7 @@ def fail(msg: str) -> NoReturn:
 
 class PyfraglibException(Exception):
     def __init__(self, msg: str) -> None:
-        logger: logging.Logger = logging.getLogger("pyfraglib")
+        logger: logging.Logger = get_logger()
         logger.fatal(msg)
 
 
@@ -168,7 +175,7 @@ def simpson_index(proportions: list[float]) -> float:
 
 
 def detect_cpus() -> int:
-    logger: logging.Logger = logging.getLogger("pyfraglib")
+    logger: logging.Logger = get_logger()
     num_cores: Final[int] = int(os.environ.get("SLURM_CPUS_PER_TASK", 1))
 
     logger.info("{} core(s) detected".format(num_cores))

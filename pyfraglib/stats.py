@@ -22,12 +22,13 @@ import matplotlib.pyplot as plt
 from collections import defaultdict
 from pyfraglib.core import fail
 from pyfraglib.fragment import FragmentList
+from pyfraglib import get_logger
 
 
 def fragments_per_chromosome_barplot(
     fragments: FragmentList, out_dir: str, name: str
 ) -> None:
-    logger: logging.Logger = logging.getLogger("pyfraglib")
+    logger: logging.Logger = get_logger()
     logger.info(
         "creating fragment-per-chromosome histograms in `{}'".format(out_dir)
     )
@@ -69,7 +70,7 @@ def fragments_per_chromosome_barplot(
 def end_motifs_barplot(
     fragments: FragmentList, out_dir: str, name: str, kmer_len: int
 ) -> None:
-    logger: logging.Logger = logging.getLogger("pyfraglib")
+    logger: logging.Logger = get_logger()
     logger.info(
         "creating end motif barplots in `{}'".format(out_dir)
     )

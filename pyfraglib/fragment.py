@@ -24,7 +24,8 @@ from functools import partial
 from intervaltree import IntervalTree, Interval  # type: ignore
 from multiprocessing import Pool
 from pyfraglib.core import fail, PyfragManager, detect_cpus, \
-                           homogenize_to_chrom_naming_convention
+                           homogenize_to_chrom_naming_convention, \
+                           get_logger
 from typing import Callable, Final, Generator, Optional, Never, cast
 
 INSERT_SIZE_UPPER_BOUND: Final = 900
@@ -209,7 +210,7 @@ class Fragment:
     # @NOTE(ds): In the returned tuple, the first member is 5' and the
     # second member 3'.
     def get_end_motifs(self, kmer_len: int) -> tuple[str, str]:
-        logger: logging.Logger = logging.getLogger("pyfraglib")
+        logger: logging.Logger = get_logger()
         if (kmer_len < 0) or (kmer_len > MAX_KMER_LEN):
             logger.warning(
                 f"invalid kmer length {kmer_len}, using {DEFAULT_KMER_LEN}"
@@ -226,7 +227,7 @@ class Fragment:
     @staticmethod
     def from_bam(filepath: str, vcfpath: Optional[str],
                  is_nanopore: bool = False) -> "FragmentList":
-        logger: logging.Logger = logging.getLogger("pyfraglib")
+        logger: logging.Logger = get_logger()
 
         bam_file: pysam.AlignmentFile = pysam.AlignmentFile(filepath)
         if not bam_file.has_index():
@@ -331,7 +332,7 @@ class Fragment:
     def build_mutated_reads_set(
         bam_file: pysam.AlignmentFile, vcf_file: pysam.VariantFile
     ) -> set[pysam.AlignedSegment]:
-        logger: logging.Logger = logging.getLogger("pyfraglib")
+        logger: logging.Logger = get_logger()
         mutated_reads: set[pysam.AlignedSegment] = set()
 
         num_unknown_variants: int = 0
@@ -474,7 +475,7 @@ def task0(filepath: str, vcfpath: str | None,
 
 def task1(filepath: str, vcfpath: str | None,
           out_dir: str, is_nanopore: bool) -> None:
-    logger: logging.Logger = logging.getLogger("pyfraglib")
+    logger: logging.Logger = get_logger()
 
     frags: FragmentList = Fragment.from_bam(filepath, vcfpath, is_nanopore)
     filename: str = os.path.basename(filepath)
