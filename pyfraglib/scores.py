@@ -42,11 +42,9 @@ def motif_diversity(
     elif index == "simpson":
         index_func = simpson_index
     else:
-        fail("motif_diversity(): unknown index function `{}'".format(index))
+        fail(f"motif_diversity(): unknown index function `{index}'")
 
-    logger.info(
-        "calculating motif diversity score ({}) for {} ".format(index, name)
-    )
+    logger.info(f"calculating motif diversity score ({index}) for {name}")
 
     ends_5p: defaultdict[str, int] = defaultdict(int)
     ends_3p: defaultdict[str, int] = defaultdict(int)
@@ -176,7 +174,7 @@ def windowed_protection_score_slow(
         info: str
 
         chrom, istart, iend, info = region.split()
-        logging.getLogger("pyfraglib").debug("WPS at {}".format(info))
+        logging.getLogger("pyfraglib").debug(f"WPS at {info}")
 
         # @NOTE(ds): To calculate our scores over the same windows as we do
         # with the fast algorithm, we need to slightly adjust the windows.
@@ -215,10 +213,7 @@ def windowed_protection_score_slow(
             it += 1
 
     regions.reset()
-
-    logging.getLogger("pyfraglib").debug(
-        "calculated WPS for {} positions".format(it)
-    )
+    logging.getLogger("pyfraglib").debug(f"calculated WPS for {it} positions")
     return wps_df
 
 
@@ -246,7 +241,7 @@ def create_chromosome_map(
     elif genome == "hg38":
         chromosomes = hg38_chromosomes
     else:
-        fail("unknown genome `{}' requested".format(genome))
+        fail(f"unknown genome `{genome}' requested")
 
     for name, length, _, _ in chromosomes:
         chrom_map[name] = np.zeros(length, dtype=np.int64)
@@ -341,11 +336,11 @@ def score_line_plot(
     plot_spanning_ending_frags: bool = False
 ) -> None:
     if score not in ["wps", "depth", "ratio_end_span", "ratio_span_total"]:
-        fail("unknown score `{}' requested".format(score))
+        fail(f"unknown score `{score}' requested")
 
-    outpath: str = os.path.join(out_dir, "{}_{}.png".format(name, score))
+    outpath: str = os.path.join(out_dir, f"{name}_{score}.png")
     logging.getLogger("pyfraglib").info(
-        "saving score plot for {} to `{}'".format(name, outpath)
+        f"saving score plot for {name} to `{outpath}'"
     )
 
     chromosomes: list[tuple[str, int, str, str]]
@@ -354,19 +349,26 @@ def score_line_plot(
     elif genome == "hg38":
         chromosomes = hg38_chromosomes
     else:
-        fail("unknown genome `{}' requested".format(genome))
+        fail(f"unknown genome `{genome}' requested")
 
     if score == "ratio_end_span":
-        df["ratio_end_span"] = \
-            df["ending_frags"] / df["spanning_frags"]  # type: ignore
+        # Avoid division by zero: set ratio to 0 when spanning_frags is 0.
+        denominator = df["spanning_frags"].replace(0, 1)  # type: ignore
+        df["ratio_end_span"] = df["ending_frags"] / denominator  # type: ignore
+        df.loc[df["spanning_frags"] == 0, "ratio_end_span"] = (  # type: ignore
+            0.0
+        )
 
     if score == "ratio_span_total":
+        # Avoid division by zero: set ratio to 0 when total is 0.
+        total_frags = df["ending_frags"] + df["spanning_frags"]  # type: ignore
+        denominator = total_frags.replace(0, 1)  # type: ignore
         df["ratio_span_total"] = \
-            df["spanning_frags"] / (df["ending_frags"] +  # type: ignore
-                                    df["spanning_frags"])  # type: ignore
+            df["spanning_frags"] / denominator  # type: ignore
+        df.loc[total_frags == 0, "ratio_span_total"] = 0.0  # type: ignore
 
     fig: matplotlib.figure.Figure = plt.figure()
-    plt.title("Sample {}".format(name))
+    plt.title(f"Sample {name}")
 
     cumsum: int = 0
     chrom_midpoints: list[int] = []
