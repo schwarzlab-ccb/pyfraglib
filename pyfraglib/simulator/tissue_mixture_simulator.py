@@ -17,9 +17,10 @@ import numpy as np
 
 from dataclasses import dataclass
 from typing import Final
+from pyfraglib.core import fail
 from pyfraglib.fragment import FragmentList
-from pyfraglib.simulator import FragmentSimulator
-from pyfraglib.simulator.fragment_simulator import NucleaseProfile
+from pyfraglib.simulator.fragment_simulator import FragmentSimulator, \
+                                                   NucleaseProfile
 
 LOGGER_NAME: Final[str] = "pyfraglib.simulator.mixture"
 
@@ -126,10 +127,10 @@ class TissueMixtureSimulator(FragmentSimulator):
             Mixed FragmentList with tissue annotations
         """
         if abs(sum(tissue_fractions) - 1.0) > 0.001:
-            raise ValueError("Tissue fractions must sum to 1.0")
+            fail("Tissue fractions must sum to 1.0")
 
         if len(tissue_types) != len(tissue_fractions):
-            raise ValueError("Tissue number must match number of fractions")
+            fail("Tissue number must match number of fractions")
 
         sim_info: dict[str, object] = dict(zip(tissue_types, tissue_fractions))
         self.logger.info(f"Simulating mixture: {sim_info}")
@@ -137,7 +138,7 @@ class TissueMixtureSimulator(FragmentSimulator):
         all_fragments = FragmentList()
         for tissue, fraction in zip(tissue_types, tissue_fractions):
             if tissue not in self.tissue_profiles:
-                raise ValueError(f"Unknown tissue type: {tissue}")
+                fail(f"Unknown tissue type: {tissue}")
 
             profile = self.tissue_profiles[tissue]
             num_frags: int = int(total_fragments * fraction)
@@ -153,10 +154,8 @@ class TissueMixtureSimulator(FragmentSimulator):
                     profile,
                     nuclease_profile
                 )
-
                 for fragment in tissue_fragments:
-                    fragment._tissue_origin = tissue  # type: ignore
-                all_fragments.extend(tissue_fragments)  # type: ignore
+                    all_fragments.append(fragment)
 
         if add_noise:
             all_fragments = self._add_biological_noise(all_fragments)
@@ -185,21 +184,20 @@ class TissueMixtureSimulator(FragmentSimulator):
         tissue: TissueProfile, nuclease_profile: NucleaseProfile
     ) -> FragmentList:
         """Generate fragments with tissue-specific characteristics."""
-        old_mono_mean = self.mono_nuc_mean  # type: ignore
-        old_mono_std = self.mono_nuc_std  # type: ignore
-
-        self.mono_nuc_mean = tissue.fragment_size_distribution["mean"]
-        self.mono_nuc_std = tissue.fragment_size_distribution["std"]
-
+        fragment_size_params = {
+            "mean": tissue.fragment_size_distribution["mean"],
+            "std": tissue.fragment_size_distribution["std"],
+            "short_fraction": tissue.fragment_size_distribution[
+                "short_fraction"
+            ]
+        }
         fragments = self.simulate_fragments(
             chrom, start, end,
             num_fragments,
             tissue_type=tissue.name,
-            nuclease_profile=nuclease_profile
+            nuclease_profile=nuclease_profile,
+            fragment_size_params=fragment_size_params
         )
-
-        self.mono_nuc_mean = old_mono_mean
-        self.mono_nuc_std = old_mono_std
 
         return fragments
 
@@ -246,7 +244,7 @@ class TissueMixtureSimulator(FragmentSimulator):
             Dictionary mapping time points to FragmentLists
         """
         if len(tumor_fractions) != len(time_points):
-            raise ValueError("Tumor fractions must match time points")
+            fail("Tumor fractions must match time points")
 
         results = {}
         for tp, tf in zip(time_points, tumor_fractions):
@@ -285,8 +283,8 @@ class TissueMixtureSimulator(FragmentSimulator):
 
         modified_fragments = FragmentList()
         for fragment in fragments:
-            if (hasattr(fragment, "_tissue_origin") and  # type: ignore
-                    fragment._tissue_origin == "tumor"):  # type: ignore
+            # @NOTE(ds): We apply cancer signatures to all fragments.
+            if np.random.random() < tumor_fraction:
                 new_length = int(fragment.length + sig["size_shift"]
                                  * np.random.random())
                 new_length = max(50, new_length)

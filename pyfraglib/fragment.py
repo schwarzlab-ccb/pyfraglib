@@ -397,22 +397,24 @@ class Fragment:
 
         return mutated_reads
 
-    # `from_bams' builds ontop of `from_bam' by retrieving fragment information
-    # from multiple BAM files and storing them in a dictionary. Again, we do
-    # not ensure that `filepaths' contains just BAM file paths. Dict keys are
-    # just the file names (without the .bam extension and without any directory
-    # prefixes). To be a little more sophisticated, we do not return a naked
-    # dict but a thin wrapper object.
-    # This function comes with a lot of memory overhead! It is not advisable to
-    # use it for larger collections of BAM files. The overhead is because
-    # individual BAM files are processed and the results are accumulated in
-    # memory. Unfortunately, the in-memory representation of `Fragment's is
-    # quite large.
     @staticmethod
     def from_bams(
         filepaths: list[str], vcfpaths: Optional[list[str]],
         is_nanopore: bool = False
     ) -> "FragmentCollection":
+        """
+        `from_bams' builds ontop of `from_bam' by retrieving fragment
+        information from multiple BAM files and storing them in a dictionary.
+        Again, we do not ensure that `filepaths' contains just BAM file paths.
+        Dict keys are just the file names (without the .bam extension and
+        without any directory prefixes). To be a little more sophisticated, we
+        do not return a naked dict but a thin wrapper object.
+        This function comes with a lot of memory overhead! It is not advisable
+        to use it for larger collections of BAM files. The overhead is because
+        individual BAM files are processed and the results are accumulated in
+        memory. Unfortunately, the in-memory representation of `Fragment's is
+        quite large.
+        """
         # @NOTE(ds): Unfortunately, we have to do a lot of dynamic typing.
         # Thus, mypy complains on multiple occasions.
         with PyfragManager() as mngr:
@@ -436,16 +438,18 @@ class Fragment:
                 shared_collection._getvalue()  # type: ignore
             )
 
-    # @NOTE(ds): As opposed to `from_bams', `bams_to_frags' works on multiple
-    # BAM files in parallel, writing them out to FRAG files _without_
-    # collecting all data in memory. That's much more efficient. Also, the
-    # caller can specify that the input BAM files contain unpair Nanopore
-    # reads.
     @staticmethod
     def bams_to_frags(
         filepaths: list[str], vcfpaths: Optional[list[str]], out_dir: str,
         is_nanopore: bool = False
     ) -> None:
+        """
+        As opposed to `from_bams', `bams_to_frags' works on multiple
+        BAM files in parallel, writing them out to FRAG files _without_
+        collecting all data in memory. That's much more efficient. Also, the
+        caller can specify that the input BAM files contain unpair Nanopore
+        reads.
+        """
         # @NOTE(ds): We use the same multiprocessing idioms as in `from_bams'.
         input_data: list[tuple[str, str | None]] = []
 
@@ -458,6 +462,50 @@ class Fragment:
                 task1, out_dir=out_dir, is_nanopore=is_nanopore
             )
             pool.starmap(partial_task, input_data)
+
+    @classmethod
+    def create_simulated(
+        cls, start_pos: int, end_pos: int, chrom: str, length: int,
+        end5p: str, end3p: str, is_forward: bool = True,
+        is_mutated: bool | None = None
+    ) -> "Fragment":
+        """
+        Create a simulated Fragment without requiring pysam objects.
+
+        This method is intended for use by the simulation module to create
+        fragments with known properties without going through BAM file
+        processing.
+
+        Args:
+            start_pos: Start position (0-based)
+            end_pos: End position (0-based, exclusive)
+            chrom: Chromosome name
+            length: Fragment length
+            end5p: 5' end motif
+            end3p: 3' end motif
+            is_forward: Strand orientation
+            is_mutated: Mutation status (None if unknown)
+
+        Returns:
+            Fragment: A properly initialized Fragment object
+        """
+        fragment: Fragment = cls.__new__(cls)
+        fragment.start_pos = start_pos
+        fragment.end_pos = end_pos
+        fragment.chrom = chrom
+        fragment.length = length
+        fragment.end5p = end5p
+        fragment.end3p = end3p
+        fragment.is_forward = is_forward
+        fragment.is_mutated = is_mutated
+
+        fragment.is_bogus = (
+            "N" in end5p or "N" in end3p or
+            chrom not in VALID_CHROMOSOME_NAMES or
+            length <= 0 or length >= INSERT_SIZE_UPPER_BOUND
+        )
+
+        return fragment
 
 
 # @NOTE(ds): Constraints of multiprocessing and pickle force us to define these

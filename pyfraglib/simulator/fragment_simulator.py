@@ -218,7 +218,8 @@ class FragmentSimulator:
     def _generate_fragment_sizes(
         self,
         num_fragments: int,
-        size_distribution: str = "normal"
+        size_distribution: str = "normal",
+        fragment_size_params: dict[str, float] | None = None
     ) -> npt.NDArray[np.int64]:
         """
         Generate fragment sizes based on biological distributions.
@@ -226,35 +227,45 @@ class FragmentSimulator:
         Args:
             num_fragments: Number of fragments to generate
             size_distribution: Type of dist ("normal", "cancer", "fetal")
+            fragment_size_params: Optional dict of means and stds to use
 
         Returns:
             Array of fragment sizes
         """
+        if fragment_size_params:
+            mono_mean = fragment_size_params["mean"]
+            mono_std = fragment_size_params["std"]
+            mono_fraction = 1.0 - fragment_size_params.get(
+                "short_fraction", 0.25
+            )
+        else:
+            mono_mean = self.MONO_NUC_MEAN
+            mono_std = self.MONO_NUC_STD
+            mono_fraction = 0.75
+
         sizes: npt.NDArray[np.float64]
         if size_distribution == "normal":
-            mono_fraction: float = 0.75
             num_mono: int = int(num_fragments * mono_fraction)
             num_di: int = num_fragments - num_mono
 
             mono_sizes: npt.NDArray[np.float64] = np.random.normal(
-                self.MONO_NUC_MEAN, self.MONO_NUC_STD, num_mono
+                mono_mean, mono_std, num_mono
             )
             di_sizes: npt.NDArray[np.float64] = np.random.normal(
-                self.DI_NUC_MEAN, self.DI_NUC_STD, num_di
+                mono_mean * 2, mono_std * 1.5, num_di
             )
-
             sizes = np.concatenate([mono_sizes, di_sizes])  # type: ignore
 
         elif size_distribution == "cancer":
             mean_shift: int = -20
             mono_sizes = np.random.normal(
-                self.MONO_NUC_MEAN + mean_shift,
-                self.MONO_NUC_STD * 1.2,
+                mono_mean + mean_shift,
+                mono_std * 1.2,
                 int(num_fragments * 0.85)
             )
             di_sizes = np.random.normal(
-                self.DI_NUC_MEAN + mean_shift,
-                self.DI_NUC_STD * 1.3,
+                mono_mean * 2 + mean_shift,
+                mono_std * 1.3,
                 int(num_fragments * 0.15)
             )
             sizes = np.concatenate([mono_sizes, di_sizes])  # type: ignore
@@ -262,13 +273,13 @@ class FragmentSimulator:
         elif size_distribution == "fetal":
             mean_shift = -25
             mono_sizes = np.random.normal(
-                self.MONO_NUC_MEAN + mean_shift,
-                self.MONO_NUC_STD * 0.8,
+                mono_mean + mean_shift,
+                mono_std * 0.8,
                 int(num_fragments * 0.9)
             )
             di_sizes = np.random.normal(
-                self.DI_NUC_MEAN + mean_shift,
-                self.DI_NUC_STD,
+                mono_mean * 2 + mean_shift,
+                mono_std,
                 int(num_fragments * 0.1)
             )
             sizes = np.concatenate([mono_sizes, di_sizes])  # type: ignore
@@ -346,9 +357,17 @@ class FragmentSimulator:
         if nuclease_profile is None:
             nuclease_profile = NucleaseProfile()
 
-        size_dist: str = "normal" if tissue_type == "healthy" else tissue_type
+        tissue_to_size_dist: dict[str, str] = {
+            "healthy": "normal",
+            "hematopoietic": "normal",
+            "liver": "normal",
+            "placenta": "fetal",
+            "tumor": "cancer",
+            "fetal": "fetal"
+        }
+        size_dist: str = tissue_to_size_dist.get(tissue_type, "normal")
         sizes: npt.NDArray[np.int64] = self._generate_fragment_sizes(
-            num_fragments, size_dist
+            num_fragments, size_dist, fragment_size_params
         )
 
         max_size: int = int(sizes.max())  # type: ignore
@@ -374,20 +393,22 @@ class FragmentSimulator:
                 "CGAT" * 10, nuclease_profile
             )
 
-            fragment: Fragment = Fragment.__new__(Fragment)
-            fragment.start_pos = int(pos)
-            fragment.end_pos = int(pos + size)
-            fragment.chrom = chrom
-            fragment.length = int(size)
-            fragment.end5p = end5p
-            fragment.end3p = end3p
-            fragment.is_forward = bool(
-                np.random.choice([True, False])  # type: ignore
+            fragment: Fragment = Fragment.create_simulated(
+                start_pos=int(pos),
+                end_pos=int(pos + size),
+                chrom=chrom,
+                length=int(size),
+                end5p=end5p,
+                end3p=end3p,
+                is_forward=bool(
+                    np.random.choice([True, False])  # type: ignore
+                ),
+                is_mutated=False
             )
-            fragment.is_bogus = False
-            fragment.is_mutated = False
 
             fragment_list.append(fragment)
 
-        self.logger.info(f"Generated {fragment_list.length()} fragments.")
+        self.logger.info(
+            f"Generated {fragment_list.length()} fragments."
+        )
         return fragment_list
