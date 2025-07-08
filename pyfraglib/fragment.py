@@ -21,7 +21,7 @@ import tqdm
 from collections import defaultdict
 from dataclasses import dataclass
 from functools import partial
-from intervaltree import IntervalTree, Interval  # type: ignore
+from intervaltree import IntervalTree, Interval
 from multiprocessing import Pool
 from pyfraglib.core import fail, PyfragManager, detect_cpus, \
                            homogenize_to_chrom_naming_convention, \

@@ -11,27 +11,9 @@
 # FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License for
 # more details. You should have received a copy of the GNU General Public
 # License along with this program. If not, see <https://www.gnu.org/licenses/>.
-[build-system]
-requires = ["setuptools", "setuptools-scm"]
-build-backend = "setuptools.build_meta"
+from pyfraglib.simulator.fragment_simulator import FragmentSimulator
+from pyfraglib.simulator.tissue_mixture_simulator import TissueMixtureSimulator
 
-[tool.mypy]
-strict = true
-disallow_any_unimported = true
-disallow_any_expr = true
-disallow_any_explicit = true
-disallow_untyped_calls = true
-disallow_untyped_defs = true
-disallow_incomplete_defs = true
-check_untyped_defs = true
-warn_no_return = true
-warn_return_any = true
-warn_unreachable = true
-strict_equality = true
-strict_concatenate = true
-show_error_context = true
-pretty = true
-
-[[tool.mypy.overrides]]
-module = "intervaltree.*"
-ignore_missing_imports = true
+__all__ = [
+    "FragmentSimulator", "TissueMixtureSimulator"
+]

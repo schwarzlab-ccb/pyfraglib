@@ -42,6 +42,7 @@ easier (no need to clone the repo then).
 it can be used as follows:
 
 ```bash
+pyfrag.py version # show currently installed version
 pyfrag.py --help # show available subcommands and flags
 ```
 
@@ -74,6 +75,10 @@ a scheduler (via the `ramses` profile).
 | Maximum nucleosome protection            | Snyder et al., 2016                 | not planned   |
 | 2k- & NDR-TSS coverage metrics           | Ulz et al., Nature Genetics 2016    | not planned   |
 | Promoter fragmentation entropy           |                                     | not planned   |
+
+## Citation
+
+As long as `pyfraglib` is not published, please cite this repository if you use it in your scientific work.
 
 ## License
 `pyfraglib` is licensed under the GPL-v3 as indicated in the source files.

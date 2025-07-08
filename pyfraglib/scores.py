@@ -23,7 +23,7 @@ import numpy as np
 import numpy.typing as npt
 
 from collections import defaultdict
-from intervaltree import Interval  # type: ignore
+from intervaltree import Interval
 from pyfraglib.core import shannon_entropy, simpson_index, fail, \
                            get_chromosome_length, hg19_chromosomes, \
                            hg38_chromosomes, homogenize_contig_name
