@@ -1,7 +1,7 @@
 {
   "simulation_mode": "tissue_mixture",
   "output_name": "tissue_mixture_sample",
-  "fasta_path": "/path/to/reference/genome.fasta",
+  "fasta_path": "data/ref/Homo_sapiens.GRCh37.dna.primary_assembly.fa",
   "tissue_types": ["hematopoietic", "liver", "placenta"],
   "tissue_fractions": [0.7, 0.2, 0.1],
   "total_fragments": 10000,

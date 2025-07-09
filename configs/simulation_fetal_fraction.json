@@ -1,7 +1,7 @@
 {
   "simulation_mode": "fetal_fraction",
   "output_name": "fetal_fraction_sample",
-  "fasta_path": "/path/to/reference/genome.fasta",
+  "fasta_path": "data/ref/Homo_sapiens.GRCh37.dna.primary_assembly.fa",
   "fetal_fraction": 0.08,
   "total_fragments": 15000,
   "gestational_age": 22,

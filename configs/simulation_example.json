@@ -1,6 +1,6 @@
 {
   "output_name": "simulated_sample",
-  "fasta_path": "/path/to/reference/genome.fasta",
+  "fasta_path": "./data/ref/Homo_sapiens.GRCh37.dna.primary_assembly.fa",
   "tissue_type": "healthy",
   "regions": [
     {
