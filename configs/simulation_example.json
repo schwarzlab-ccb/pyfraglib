@@ -1,0 +1,29 @@
+{
+  "output_name": "simulated_sample",
+  "fasta_path": "/path/to/reference/genome.fasta",
+  "tissue_type": "healthy",
+  "regions": [
+    {
+      "chromosome": "1",
+      "start": 1000000,
+      "end": 2000000,
+      "num_fragments": 5000
+    },
+    {
+      "chromosome": "2",
+      "start": 500000,
+      "end": 1500000,
+      "num_fragments": 3000
+    }
+  ],
+  "fragment_params": {
+    "mean": 167,
+    "std": 10,
+    "short_fraction": 0.25
+  },
+  "nuclease_params": {
+    "dnase1_activity": 1.0,
+    "dnase1l3_activity": 1.2,
+    "dffb_activity": 0.8
+  }
+}

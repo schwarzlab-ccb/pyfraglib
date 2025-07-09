@@ -1,0 +1,27 @@
+{
+  "simulation_mode": "cancer_progression",
+  "output_name": "cancer_progression",
+  "fasta_path": "/path/to/reference/genome.fasta",
+  "normal_profile": "hematopoietic",
+  "tumor_fractions": [0.0, 0.05, 0.15, 0.30, 0.50],
+  "time_points": ["baseline", "3months", "6months", "12months", "18months"],
+  "fragments_per_timepoint": 8000,
+  "cancer_type": "lung",
+  "regions": [
+    {
+      "chromosome": "chr1",
+      "start": 10000000,
+      "end": 15000000
+    },
+    {
+      "chromosome": "chr7",
+      "start": 55000000,
+      "end": 55500000
+    },
+    {
+      "chromosome": "chr17",
+      "start": 41000000,
+      "end": 41500000
+    }
+  ]
+}
