@@ -44,7 +44,7 @@ setup(
     long_description=open("README.md").read(),
     long_description_content_type="text/markdown",
     license="GPL-v3",
-    packages=["pyfraglib"],
+    packages=["pyfraglib", "pyfraglib.simulator"],
     install_requires=cast(list[str], [
         "pysam==0.22.1", "matplotlib==3.9.0", "numpy<1.27", "seaborn==0.13.2",
         "matplotlib-stubs==0.2.0", "types-seaborn==0.13.2.20240820",

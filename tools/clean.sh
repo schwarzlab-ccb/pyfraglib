@@ -17,6 +17,7 @@
 rm -rf .mypy_cache/
 rm -rf build/
 rm -rf dist/
+rm -rf sim_out/
 rm -rf pyfrag_out/
 rm -rf frag_out/
 rm -rf plot_out/

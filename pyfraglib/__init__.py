@@ -19,7 +19,8 @@ from pyfraglib.fragment import Fragment, FragmentList, FragmentCollection
 from pyfraglib.fragfile import FragFile
 from pyfraglib.stats import fragments_per_chromosome_barplot
 from pyfraglib.lengths import fragment_length_plot
-from pyfraglib.simulator import FragmentSimulator, TissueMixtureSimulator
+from pyfraglib.simulator import FragmentSimulator, TissueMixtureSimulator, \
+                                NucleaseProfile
 
 __version__ = "0.5.0"
 __repo_url__ = "https://bitbucket.org/schwarzlab/project-lymphoma-cfdna/"
@@ -27,7 +28,7 @@ __all__ = [
     "Fragment", "FragmentList", "FragmentCollection", "fail",
     "get_logger", "FragFile", "fragments_per_chromosome_barplot",
     "fragment_length_plot", "fit_gmm", "plot_gmm",
-    "FragmentSimulator", "TissueMixtureSimulator"
+    "FragmentSimulator", "TissueMixtureSimulator", "NucleaseProfile"
 ]
 
 
