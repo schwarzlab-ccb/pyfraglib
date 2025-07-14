@@ -1,18 +1,47 @@
 #!/usr/bin/env python3
-#
-# This file is part of `pyfraglib`, a software suite to calculate fragmentomics
-# features from cfDNA and perform downstream analyses.
-#
-# Copyright (C) 2024 Daniel Schütte, daniel.schuette@iccb-cologne.org
-#
-# This program is free software: you can redistribute it and/or modify it under
-# the terms of the GNU General Public License as published by the Free Software
-# Foundation, either version 3 of the License, or (at your option) any later
-# version. This program is distributed in the hope that it will be useful, but
-# WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
-# FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License for
-# more details. You should have received a copy of the GNU General Public
-# License along with this program. If not, see <https://www.gnu.org/licenses/>.
+"""
+TXT to VCF Converter
+
+This script converts custom tab-delimited SNV files to standard VCF format.
+It processes files with genomic variant information and creates properly
+formatted VCF files compatible with standard bioinformatics tools.
+
+Input format:
+    Tab-delimited file with required columns:
+    - Chr: Chromosome name
+    - Start: Start position (1-based)
+    - End: End position (1-based)
+    - Ref: Reference allele
+    - Alt: Alternative allele
+
+    Additional columns are preserved as INFO fields in the VCF output.
+    The second line may contain column descriptions that will be used
+    as INFO field names.
+
+Output format:
+    Standard VCF 4.2 format with:
+    - Proper VCF header with contigs for specified reference genome
+    - All additional fields stored as INFO annotations
+    - FILTER field set to PASS for all variants
+
+Usage:
+    python txt_to_vcf.py -f input.txt -o output.vcf -g hg19
+
+Supported reference genomes:
+    - hg19: Human genome build 19 (GRCh37)
+    - hg38: Human genome build 38 (GRCh38)
+
+Copyright (C) 2025 Daniel Schütte, daniel.schuette@iccb-cologne.org
+
+This program is free software: you can redistribute it and/or modify it under
+the terms of the GNU General Public License as published by the Free Software
+Foundation, either version 3 of the License, or (at your option) any later
+version. This program is distributed in the hope that it will be useful, but
+WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License for
+more details. You should have received a copy of the GNU General Public
+License along with this program. If not, see <https://www.gnu.org/licenses/>.
+"""
 import argparse
 import logging
 import os
@@ -29,14 +58,32 @@ version_string: Final[str] = "txt_to_vcf v{} (running on Python v{})" \
     .format(pyfraglib.__version__, sys.version.split(" ")[0])
 
 
-# @NOTE(ds): We re-define fail to be more specific with the logger that we
-# use. Otherwise, we could have just used pyfraglib's `fail'.
 def fail(msg: str, logger: logging.Logger) -> NoReturn:
+    """
+    Log a fatal error message and exit the program.
+
+    Args:
+        msg: Error message to log
+        logger: Logger instance to use for logging
+
+    Raises:
+        SystemExit: Always exits with code 1
+    """
     logger.fatal(msg)
     sys.exit(1)
 
 
 def create_argparser() -> argparse.ArgumentParser:
+    """
+    Create and configure the argument parser for the TXT to VCF converter.
+
+    Returns:
+        Configured ArgumentParser instance with required options:
+        - infile: Input TXT file path
+        - outfile: Output VCF file path
+        - ref_genome: Reference genome (hg19 or hg38)
+        - verbose: Enable debug logging
+    """
     argparser: argparse.ArgumentParser = argparse.ArgumentParser(
         prog="txt_to_vcf", description="Convert our custom SNV file format to "
         "VCF format.",
@@ -61,6 +108,33 @@ def create_argparser() -> argparse.ArgumentParser:
 def convert(
     infile: str, outfile: str, ref_genome: str, logger: logging.Logger
 ) -> None:
+    """
+    Convert custom TXT format to standard VCF format.
+
+    Processes a tab-delimited file with genomic variants and creates a
+    properly formatted VCF file. Handles column mapping, INFO field
+    creation, and contig definitions based on reference genome.
+
+    Args:
+        infile: Path to input TXT file
+        outfile: Path to output VCF file
+        ref_genome: Reference genome version ('hg19' or 'hg38')
+        logger: Logger instance for status messages
+
+    File format requirements:
+        - Line 1: Header with column names (Chr, Start, End, Ref, Alt required)
+        - Line 2: Optional column descriptions (used as INFO field names)
+        - Line 3+: Variant data rows
+
+    Raises:
+        SystemExit: If required columns are missing or file format is invalid
+
+    Note:
+        - Chromosome names are normalized using homogenize_contig_name
+        - All variants are marked as PASS in the FILTER field
+        - Additional columns become INFO fields with String type
+        - Invalid characters in field names are replaced with placeholders
+    """
     vcf_header: pysam.VariantHeader = pysam.VariantHeader()
     vcf_header.add_meta("fileformat", "VCFv4.2")
     vcf_header.add_meta("source", "pyfraglib")
@@ -144,6 +218,22 @@ def convert(
 
 
 if __name__ == "__main__":
+    """
+    Main execution block for TXT to VCF converter.
+
+    Processes command line arguments, validates input/output files,
+    and performs the conversion from custom TXT format to standard VCF.
+
+    Workflow:
+    1. Parse command line arguments
+    2. Validate input file exists and output file doesn't exist
+    3. Call convert function to perform the conversion
+    4. Log completion status
+
+    Exit codes:
+    - 0: Success
+    - 1: Error (file not found, invalid format, etc.)
+    """
     logger: logging.Logger = logging.getLogger("txt_to_vcf")
     argparser: argparse.ArgumentParser = create_argparser()
     args: argparse.Namespace = argparser.parse_args()
@@ -164,5 +254,11 @@ if __name__ == "__main__":
         fail("file `{}' does not exist".format(infile), logger)
     elif os.path.isfile(outfile):
         fail("file `{}' already exists".format(outfile), logger)
+    elif ref_genome not in ["hg19", "hg38"]:
+        fail("reference genome must be 'hg19' or 'hg38', got '{}'".format(
+            ref_genome), logger)
 
+    logger.info("Converting {} to VCF format using {} reference".format(
+        infile, ref_genome))
     convert(infile, outfile, ref_genome, logger)
+    logger.info("Conversion completed successfully: {}".format(outfile))

@@ -1,30 +1,55 @@
 #!/usr/bin/env python3
-#
-# This file is part of `pyfraglib`, a software suite to calculate fragmentomics
-# features from cfDNA and perform downstream analyses.
-#
-# Copyright (C) 2024 Daniel Schütte, daniel.schuette@iccb-cologne.org
-#
-# This program is free software: you can redistribute it and/or modify it under
-# the terms of the GNU General Public License as published by the Free Software
-# Foundation, either version 3 of the License, or (at your option) any later
-# version. This program is distributed in the hope that it will be useful, but
-# WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
-# FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License for
-# more details. You should have received a copy of the GNU General Public
-# License along with this program. If not, see <https://www.gnu.org/licenses/>.
+"""
+PyFragLib Command Line Interface
+
+This module provides a command-line interface for the PyFragLib software suite,
+which calculates fragmentomics features from cfDNA and performs downstream
+analyses.
+
+The CLI supports multiple subcommands for different analysis workflows:
+- extract: Extract fragments from BAM files
+- stats: Generate descriptive statistics from fragment files
+- lengths: Analyze fragment length distributions with Gaussian mixture models
+- scores: Calculate fragmentomics scores (WPS, motif diversity)
+- simulate: Generate synthetic cfDNA fragments based on biological parameters
+
+Each subcommand has specific options and requirements. Use
+`pyfrag.py <subcommand> -h`
+for detailed help on individual subcommands.
+
+Examples:
+    Extract fragments from a BAM file:
+        pyfrag.py extract --bam-file sample.bam --out-dir output/
+
+    Generate statistics from fragment files:
+        pyfrag.py stats --frag-file sample.frag --out-dir results/
+
+    Simulate cfDNA fragments:
+        pyfrag.py simulate --config simulation.json --out-dir sim_output/
+
+Copyright (C) 2025 Daniel Schütte, daniel.schuette@iccb-cologne.org
+
+This program is free software: you can redistribute it and/or modify it under
+the terms of the GNU General Public License as published by the Free Software
+Foundation, either version 3 of the License, or (at your option) any later
+version. This program is distributed in the hope that it will be useful, but
+WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License for
+more details. You should have received a copy of the GNU General Public
+License along with this program. If not, see <https://www.gnu.org/licenses/>.
+"""
 import argparse
+import json
 import logging
 import os
 import signal
 import sys
 import pysam
+import pyfraglib
 
 import pandas as pd
 
 from typing import Final, NoReturn, Optional
-
-import pyfraglib
 from pyfraglib import Fragment, FragmentList
 from pyfraglib.core import CodeUnreachableError
 from pyfraglib.fragfile import FragFile
@@ -33,20 +58,39 @@ from pyfraglib.stats import fragments_per_chromosome_barplot, \
                             end_motifs_barplot, log_stats
 from pyfraglib.scores import motif_diversity, windowed_protection_score, \
                              score_line_plot
+from pyfraglib.simulator import FragmentSimulator, NucleaseProfile, \
+                                    TissueMixtureSimulator
 
 version_string: Final[str] = "pyfraglib v{} (running on Python v{})" \
     .format(pyfraglib.__version__, sys.version.split(" ")[0])
 
 
-# @NOTE(ds): We re-define fail to be more specific with the logger that we
-# use. Otherwise, we could have just used pyfraglib's `fail'. Also, we
-# probably do not need to signal a parent process.
 def fail(msg: str, logger: logging.Logger) -> NoReturn:
+    """
+    Log a fatal error message and exit the program.
+
+    Args:
+        msg: Error message to log
+        logger: Logger instance to use for logging
+
+    Raises:
+        SystemExit: Always exits with code 1
+    """
     logger.fatal(msg)
     sys.exit(1)
 
 
 def signal_handler(sig: int, frame: object) -> NoReturn:
+    """
+    Handle interrupt signals (e.g., Ctrl+C) gracefully.
+
+    Args:
+        sig: Signal number
+        frame: Current stack frame
+
+    Raises:
+        SystemExit: Always exits with code 1
+    """
     logger: logging.Logger = logging.getLogger("pyfrag")
     fail("an error occurred", logger)
 
@@ -56,6 +100,15 @@ def signal_handler(sig: int, frame: object) -> NoReturn:
 # argparse's subparsers). Subcommands have a bunch of additional, but
 # individual options which determine their behavior only.
 def create_argparser() -> argparse.ArgumentParser:
+    """
+    Create and configure the argument parser for the CLI.
+
+    Sets up the main argument parser with global options and subparsers for
+    each subcommand (extract, stats, lengths, scores, simulate, version).
+
+    Returns:
+        Configured ArgumentParser instance with all subcommands
+    """
     argparser: argparse.ArgumentParser = argparse.ArgumentParser(
         prog="pyfrag", description="Use a subset of `pyfraglib's "
         "capabilities from the command line.",
@@ -151,6 +204,14 @@ def create_argparser() -> argparse.ArgumentParser:
         default=False, help="If set, hg38 will be assumed for the analyses. "
         "If unset (default), hg19 is assumed.")
 
+    argparser_simulate: argparse.ArgumentParser = subparsers.add_parser(
+        "simulate", help="Simulate synthetic cfDNA fragments based on "
+        "biological parameters. Results are written to a `.frag' file.")
+    argparser_simulate.add_argument(
+        "-c", "--config", type=str, dest="config_file", required=True,
+        help="JSON configuration file containing simulation parameters. "
+        "See documentation for configuration format.")
+
     return argparser
 
 
@@ -160,6 +221,25 @@ def create_argparser() -> argparse.ArgumentParser:
 # `pyfraglib' but changed things around to be able to handle large directories
 # of even larger BAM files.
 def extract(out_dir: str, args: argparse.Namespace) -> None:
+    """
+    Extract fragment information from BAM files.
+
+    Processes BAM files to extract cfDNA fragments and saves them in the
+    .frag format. Supports both single-file and batch processing modes.
+    Can handle paired-end and single-end (Nanopore) sequencing data.
+
+    Args:
+        out_dir: Output directory for .frag files
+        args: Command line arguments containing BAM file paths and options
+
+    Raises:
+        SystemExit: If invalid arguments or file not found
+
+    Note:
+        Batch processing of multiple BAM files is no longer recommended. The
+        preferred way to handle large datasets is using the Nextflow pipeline
+        included with PyFragLib.
+    """
     bam_file: Final[str] = args.bam_file
     bam_dir: Final[str] = args.bam_dir
     is_nanopore: Final[bool] = args.is_nanopore
@@ -206,6 +286,21 @@ def extract(out_dir: str, args: argparse.Namespace) -> None:
 
 # @NOTE(ds): `stats' and `lengths' follow very similar patterns.
 def stats(out_dir: str, args: argparse.Namespace) -> None:
+    """
+    Generate descriptive statistics from fragment files.
+
+    Analyzes .frag files to produce various statistics and visualizations:
+    - Fragment count per chromosome
+    - End motif distributions
+    - Summary statistics logged to console
+
+    Args:
+        out_dir: Output directory for statistics files and plots
+        args: Command line arguments containing fragment file paths
+
+    Raises:
+        SystemExit: If invalid arguments or file not found
+    """
     frag_file: Final[str] = args.frag_file
     frag_dir: Final[str] = args.frag_dir
 
@@ -232,6 +327,20 @@ def stats(out_dir: str, args: argparse.Namespace) -> None:
 
 
 def lengths(out_dir: str, args: argparse.Namespace) -> None:
+    """
+    Analyze fragment length distributions.
+
+    Processes fragment files to analyze length distributions using:
+    - Fragment length histograms and plots
+    - Gaussian mixture model fitting based on configuration
+
+    Args:
+        out_dir: Output directory for length analysis results
+        args: Command line arguments containing fragment files and config
+
+    Raises:
+        SystemExit: If invalid arguments or missing config file
+    """
     frag_file: Final[str] = args.frag_file
     frag_dir: Final[str] = args.frag_dir
     config_file: Final[str] = args.config_file
@@ -264,6 +373,21 @@ def lengths(out_dir: str, args: argparse.Namespace) -> None:
 # otherwise we have to store all fragment files as a collection which requires
 # loads of memory.
 def scores(out_dir: str, args: argparse.Namespace) -> None:
+    """
+    Calculate fragmentomics scores from fragment files.
+
+    Computes various fragmentomics metrics including:
+    - Windowed Protection Score (WPS)
+    - Motif diversity scores (Shannon entropy, Simpson index)
+    - Score visualization plots
+
+    Args:
+        out_dir: Output directory for score results and plots
+        args: Command line arguments containing fragment files and BED regions
+
+    Raises:
+        SystemExit: If invalid arguments or missing required files
+    """
     frag_file: Final[str] = args.frag_file
     frag_dir: Final[str] = args.frag_dir
     bed_file: Final[str] = args.bed_file
@@ -319,8 +443,350 @@ def scores(out_dir: str, args: argparse.Namespace) -> None:
     glbl_motif_diversity_scores.to_csv(glbl_mds_outpath, index=False)
 
 
+def simulate(out_dir: str, args: argparse.Namespace) -> None:
+    """
+    Simulate synthetic cfDNA fragments based on configuration file.
+
+    Supports multiple simulation modes:
+    - Basic simulation: single tissue type with specified parameters
+    - Tissue mixture: multiple tissues with specified fractions
+    - Cancer progression: tumor fraction changes over time
+    - Fetal fraction: maternal plasma with fetal DNA component
+
+    Args:
+        out_dir: Output directory for .frag file(s)
+        args: Command line arguments containing config_file
+    """
+    config_file: Final[str] = args.config_file
+    if not os.path.exists(config_file):
+        fail("config file `{}' does not exist".format(config_file), logger)
+
+    logger.info("loading configuration from `{}'".format(config_file))
+    with open(config_file, "r") as f:
+        config: dict[str, object] = json.load(f)
+
+    try:
+        output_name: str = config["output_name"]  # type: ignore
+        fasta_path: str = config["fasta_path"]  # type: ignore
+        simulation_mode: str = config.get(
+            "simulation_mode", "basic"
+        )  # type: ignore
+
+        if not os.path.exists(fasta_path):
+            fail(
+                "FASTA file `{}' does not exist".format(fasta_path), logger
+            )
+
+        if simulation_mode == "basic":
+            simulate_basic(config, output_name, fasta_path, out_dir)
+        elif simulation_mode == "tissue_mixture":
+            simulate_tissue_mixture(config, output_name, fasta_path, out_dir)
+        elif simulation_mode == "cancer_progression":
+            simulate_cancer_progression(
+                config, output_name, fasta_path, out_dir
+            )
+        elif simulation_mode == "fetal_fraction":
+            simulate_fetal_fraction(config, output_name, fasta_path, out_dir)
+        else:
+            fail(
+                "unknown simulation mode: {}".format(simulation_mode), logger
+            )
+
+    except KeyError as e:
+        fail(
+            "missing required configuration parameter: {}".format(e), logger
+        )
+
+
+def simulate_basic(
+    config: dict[str, object], output_name: str, fasta_path: str, out_dir: str
+) -> None:
+    """Basic single-tissue simulation."""
+    try:
+        regions: list[dict[str, object]] = config["regions"]  # type: ignore
+        fragment_params: dict[str, object] = config.get(
+            "fragment_params", {}
+        )  # type: ignore
+        nuclease_params: dict[str, object] = config.get(
+            "nuclease_params", {}
+        )  # type: ignore
+        nuclease_profile: NucleaseProfile = NucleaseProfile(
+            dnase1_activity=nuclease_params.get(
+                "dnase1_activity", 1.0
+            ),  # type: ignore
+            dnase1l3_activity=nuclease_params.get(
+                "dnase1l3_activity", 1.0
+            ),  # type: ignore
+            dffb_activity=nuclease_params.get(
+                "dffb_activity", 1.0
+            )  # type: ignore
+        )
+        tissue_type: str = config.get(
+            "tissue_type", "healthy"
+        )  # type: ignore
+
+    except KeyError as e:
+        fail(
+            "missing required parameter for basic simulation: {}".format(e),
+            logger
+        )
+
+    logger.info(
+        "initializing basic simulator with FASTA: {}".format(fasta_path)
+    )
+    simulator: FragmentSimulator = FragmentSimulator(fasta_path=fasta_path)
+    all_fragments: FragmentList = FragmentList()
+
+    for region in regions:
+        try:
+            chrom: str = str(region["chromosome"])
+            start: int = int(region["start"])  # type: ignore
+            end: int = int(region["end"])  # type: ignore
+            num_fragments: int = int(region["num_fragments"])  # type: ignore
+
+            logger.info(
+                "simulating {} fragments from {}:{}-{}".format(
+                    num_fragments, chrom, start, end
+                )
+            )
+
+            fragment_size_params: dict[str, float] | None = None
+            if fragment_params:
+                fragment_size_params = {}
+                for k, v in fragment_params.items():
+                    if isinstance(v, (int, float, str)):
+                        fragment_size_params[k] = float(v)
+
+            fragment_list: FragmentList = simulator.simulate_fragments(
+                chrom=chrom, start=start, end=end,
+                num_fragments=num_fragments,
+                tissue_type=tissue_type, nuclease_profile=nuclease_profile,
+                fragment_size_params=fragment_size_params
+            )
+
+            for fragment in fragment_list:
+                all_fragments.append(fragment)
+
+        except KeyError as e:
+            fail("missing required region parameter: {}".format(e), logger)
+
+    logger.info(
+        "saving {} simulated fragments to {}.frag".format(
+            all_fragments.length(), output_name
+        )
+    )
+    all_fragments.to_frag_file(output_name, out_dir)
+
+
+def simulate_tissue_mixture(
+    config: dict[str, object], output_name: str, fasta_path: str, out_dir: str
+) -> None:
+    """Tissue mixture simulation."""
+    try:
+        tissue_types: list[str] = config["tissue_types"]  # type: ignore
+        tissue_fractions: list[float] = config[
+            "tissue_fractions"
+        ]  # type: ignore
+        total_fragments: int = config["total_fragments"]  # type: ignore
+        regions: list[dict[str, object]] = config["regions"]  # type: ignore
+        add_noise: bool = config.get("add_noise", True)  # type: ignore
+
+        genomic_regions: list[tuple[str, int, int]] = []
+        for region in regions:
+            chrom_val = region["chromosome"]
+            start_val = region["start"]
+            end_val = region["end"]
+            if (
+                isinstance(chrom_val, str) and
+                isinstance(start_val, int) and
+                isinstance(end_val, int)
+            ):
+                genomic_regions.append((chrom_val, start_val, end_val))
+
+    except KeyError as e:
+        fail(
+            "missing required parameter for tissue mixture: {}".format(e),
+            logger
+        )
+
+    logger.info(
+        "initializing tissue mixture simulator with FASTA: {}".format(
+            fasta_path
+        )
+    )
+    simulator: TissueMixtureSimulator = TissueMixtureSimulator(
+        fasta_path=fasta_path
+    )
+
+    logger.info(
+        "simulating tissue mixture: {} with fractions {}".format(
+            tissue_types, tissue_fractions
+        )
+    )
+
+    fragments: FragmentList = simulator.simulate_tissue_mixture(
+        tissue_types=tissue_types,
+        tissue_fractions=tissue_fractions,
+        total_fragments=total_fragments,
+        genomic_regions=genomic_regions,
+        add_noise=add_noise
+    )
+
+    logger.info(
+        "saving {} simulated fragments to {}.frag".format(
+            fragments.length(), output_name
+        )
+    )
+    fragments.to_frag_file(output_name, out_dir)
+
+
+def simulate_cancer_progression(
+    config: dict[str, object], output_name: str, fasta_path: str, out_dir: str
+) -> None:
+    """Cancer progression simulation with multiple time points."""
+    try:
+        normal_profile: str = config["normal_profile"]  # type: ignore
+        tumor_fractions: list[float] = \
+            config["tumor_fractions"]  # type: ignore
+        time_points: list[str] = config["time_points"]  # type: ignore
+        fragments_per_timepoint: int = config[
+            "fragments_per_timepoint"
+        ]  # type: ignore
+        regions: list[dict[str, object]] = config["regions"]  # type: ignore
+        cancer_type: str = config.get("cancer_type", "generic")  # type: ignore
+
+        genomic_regions: list[tuple[str, int, int]] = []
+        for region in regions:
+            chrom_val = region["chromosome"]
+            start_val = region["start"]
+            end_val = region["end"]
+            if (
+                isinstance(chrom_val, str) and
+                isinstance(start_val, int) and
+                isinstance(end_val, int)
+            ):
+                genomic_regions.append((chrom_val, start_val, end_val))
+
+    except KeyError as e:
+        fail(
+            "missing required parameter for cancer progression: {}".format(e),
+            logger
+        )
+
+    logger.info(
+        "initializing cancer progression simulator with FASTA: {}".format(
+            fasta_path
+        )
+    )
+    simulator: TissueMixtureSimulator = TissueMixtureSimulator(
+        fasta_path=fasta_path
+    )
+
+    logger.info(
+        "simulating cancer progression: {} timepoints".format(
+            len(time_points)
+        )
+    )
+
+    results: dict[str, FragmentList] = (
+        simulator.simulate_cancer_progression(
+            normal_profile=normal_profile,
+            tumor_fractions=tumor_fractions,
+            time_points=time_points,
+            fragments_per_timepoint=fragments_per_timepoint,
+            genomic_regions=genomic_regions,
+            cancer_type=cancer_type
+        )
+    )
+
+    # @NOTE(ds): We save each time point as a separate .frag file.
+    for timepoint, fragments in results.items():
+        timepoint_name = "{}_{}".format(output_name, timepoint)
+        logger.info(
+            "saving {} fragments for timepoint {} to {}.frag".format(
+                fragments.length(), timepoint, timepoint_name
+            )
+        )
+        fragments.to_frag_file(timepoint_name, out_dir)
+
+
+def simulate_fetal_fraction(
+    config: dict[str, object], output_name: str, fasta_path: str, out_dir: str
+) -> None:
+    """Fetal fraction simulation for NIPT applications."""
+    try:
+        fetal_fraction: float = config["fetal_fraction"]  # type: ignore
+        total_fragments: int = config["total_fragments"]  # type: ignore
+        regions: list[dict[str, object]] = config["regions"]  # type: ignore
+        gestational_age: int = config.get(
+            "gestational_age", 20
+        )  # type: ignore
+
+        genomic_regions: list[tuple[str, int, int]] = []
+        for region in regions:
+            chrom_val = region["chromosome"]
+            start_val = region["start"]
+            end_val = region["end"]
+            if (
+                isinstance(chrom_val, str) and
+                isinstance(start_val, int) and
+                isinstance(end_val, int)
+            ):
+                genomic_regions.append((chrom_val, start_val, end_val))
+
+    except KeyError as e:
+        fail(
+            "missing required parameter for fetal fraction: {}".format(e),
+            logger
+        )
+
+    logger.info(
+        "initializing fetal fraction simulator with FASTA: {}".format(
+            fasta_path
+        )
+    )
+    simulator: TissueMixtureSimulator = TissueMixtureSimulator(
+        fasta_path=fasta_path
+    )
+
+    logger.info(
+        "simulating fetal fraction: {:.1%} at {} weeks gestation".format(
+            fetal_fraction, gestational_age
+        )
+    )
+
+    fragments: FragmentList = simulator.simulate_fetal_fraction(
+        fetal_fraction=fetal_fraction,
+        total_fragments=total_fragments,
+        genomic_regions=genomic_regions,
+        gestational_age=gestational_age
+    )
+
+    logger.info(
+        "saving {} simulated fragments to {}.frag".format(
+            fragments.length(), output_name
+        )
+    )
+    fragments.to_frag_file(output_name, out_dir)
+
+
 def switch_on_subcommand(subcmd: str, args: argparse.Namespace,
                          logger: logging.Logger) -> None:
+    """
+    Dispatch to appropriate subcommand handler.
+
+    Routes execution to the correct function based on the subcommand.
+    Handles output directory creation and logging setup.
+
+    Args:
+        subcmd: Subcommand name (extract, stats, lengths, scores, simulate,
+            version)
+        args: Parsed command line arguments
+        logger: Logger instance for output
+
+    Raises:
+        CodeUnreachableError: If unknown subcommand is provided
+    """
     if subcmd == "version":
         logger.info(version_string)
         exit(0)
@@ -339,12 +805,24 @@ def switch_on_subcommand(subcmd: str, args: argparse.Namespace,
         lengths(out_dir, args)
     elif subcmd == "scores":
         scores(out_dir, args)
+    elif subcmd == "simulate":
+        simulate(out_dir, args)
     else:
         raise CodeUnreachableError("unkown subcommand `{}'".format(subcmd))
     logger.info("done with `{}'".format(subcmd))
 
 
 def search_dir(directory: str, exts: list[str]) -> list[str]:
+    """
+    Search for files with specific extensions in a directory.
+
+    Args:
+        directory: Directory path to search
+        exts: List of file extensions to match (e.g., ['.bam', '.BAM'])
+
+    Returns:
+        List of full paths to matching files
+    """
     results: list[str] = []
     potential_file: os.DirEntry[str]
 
@@ -363,6 +841,20 @@ def search_dir(directory: str, exts: list[str]) -> list[str]:
 def get_frag_files(
     directory: Optional[str], file: Optional[str]
 ) -> list[str]:
+    """
+    Get list of fragment files from directory or single file.
+
+    Args:
+        directory: Directory containing .frag files (optional)
+        file: Single .frag file path (optional)
+
+    Returns:
+        List of .frag file paths
+
+    Raises:
+        CodeUnreachableError: If neither directory nor file provided
+        SystemExit: If directory/file doesn't exist
+    """
     frag_files: list[str] = []
     if directory:
         if not os.path.isdir(directory):
@@ -378,10 +870,19 @@ def get_frag_files(
     return frag_files
 
 
-# @NOTE(ds): Given a full path, extract only the name of file without its
-# extension. If the last component of the path is _not_ a file but a directory,
-# the behavior of this function is unspecified.
 def filename_only(path: str) -> str:
+    """
+    Extract filename without extension from full path.
+
+    Args:
+        path: Full file path
+
+    Returns:
+        Filename without extension
+
+    Note:
+        Behavior is unspecified if path points to a directory
+    """
     name: str
     basename: str = os.path.basename(path)
     name, _ = os.path.splitext(basename)
