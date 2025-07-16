@@ -37,10 +37,16 @@ MUTATED_READS_ONLY_TEST_BAM_BAI: Final[str] = \
 MUTATED_READS_ONLY_TEST_VCF: Final[str] = \
     "/home/daniel/lab/code/pyfraglib/data/full/DED005_BL_full.vcf"
 UNMUTATED_READS_ONLY_TEST_BAM: Final[str] = \
-    "/home/daniel/lab/code/pyfraglib/data/DED005_unmutated_only.bam"
+    "/home/daniel/lab/code/pyfraglib/data/DED005_unmutated_only_0.01.bam"
 UNMUTATED_READS_ONLY_TEST_BAM_BAI: Final[str] = \
-    "/home/daniel/lab/code/pyfraglib/data/DED005_unmutated_only.bam.bai"
+    "/home/daniel/lab/code/pyfraglib/data/DED005_unmutated_only_0.01.bam.bai"
 UNMUTATED_READS_ONLY_TEST_VCF: Final[str] = \
+    MUTATED_READS_ONLY_TEST_VCF
+MIXED_MUTATED_READS_TEST_BAM: Final[str] = \
+    "/home/daniel/lab/code/pyfraglib/data/DED005_BL_0.01.bam"
+MIXED_MUTATED_READS_TEST_BAM_BAI: Final[str] = \
+    "/home/daniel/lab/code/pyfraglib/data/DED005_BL_0.01.bam.bai"
+MIXED_MUTATED_READS_TEST_VCF: Final[str] = \
     MUTATED_READS_ONLY_TEST_VCF
 
 
@@ -734,6 +740,68 @@ class TestVCFIntegration(unittest.TestCase):
             f"Expected all fragments to be non-mutated, "
             f"but only {non_mutation_rate:.2%} "
             f"({non_mutated_count}/{total_fragments}) were non-mutated"
+        )
+        self.assertEqual(
+            known_rate, 1.0,
+            f"Expected all fragments to have known "
+            f"mutation status, but only {known_rate:.2%} "
+            f"({known_fragments}/{total_fragments}) were known"
+        )
+
+    @unittest.skipUnless(  # type: ignore
+        os.path.exists(MIXED_MUTATED_READS_TEST_BAM) and
+        os.path.exists(MIXED_MUTATED_READS_TEST_BAM_BAI) and
+        os.path.exists(MIXED_MUTATED_READS_TEST_VCF),
+        "Integration test files not found"
+    )
+    def test_mixed_mutated_bam_integration(self) -> None:
+        """
+        Test that fragments in BAM with mutationally mixed reads are correctly
+        annotated. Compare to the mutated-/unmutated-reads-only tests for more
+        information.
+        """
+        fragments = Fragment.from_bam(
+            MIXED_MUTATED_READS_TEST_BAM, MIXED_MUTATED_READS_TEST_VCF
+        )
+        self.assertGreater(
+            fragments.length(), 0, "No fragments loaded from BAM file"
+        )
+
+        total_fragments: int = fragments.length()
+        mutated_fragments: int = fragments.count_mutated_fragments()
+        mutated_count: int = 0
+        non_mutated_count: int = 0
+        unknown_count: int = 0
+
+        for fragment in fragments:
+            if fragment.is_mutated is True:
+                mutated_count += 1
+            elif fragment.is_mutated is False:
+                non_mutated_count += 1
+            else:  # fragment.is_mutated is None
+                unknown_count += 1
+
+        self.assertEqual(
+            mutated_count, mutated_fragments,
+            "count_mutated_fragments() should match manual count"
+        )
+
+        mutation_rate = mutated_fragments / total_fragments
+        non_mutation_rate = non_mutated_count / total_fragments
+        known_fragments = mutated_count + non_mutated_count
+        known_rate = known_fragments / total_fragments
+
+        self.assertNotEqual(
+            mutation_rate, 0.0,
+            f"Expected some fragments to be mutated, "
+            f"but none were ({mutation_rate:.2%}, "
+            f"{mutated_fragments}/{total_fragments})"
+        )
+        self.assertNotEqual(
+            non_mutation_rate, 1.0,
+            f"Expected not all fragments to be non-mutated, "
+            f"but all were ({non_mutation_rate:.2%}, "
+            f"({non_mutated_count}/{total_fragments})"
         )
         self.assertEqual(
             known_rate, 1.0,
