@@ -1,5 +1,5 @@
-# This file is part of `pyfraglib`, a software suite to calculate fragmentomics
-# features from cfDNA and perform downstream analyses.
+# This file is part of ``pyfraglib``, a software suite to calculate
+# fragmentomics features from cfDNA and perform downstream analyses.
 #
 # Copyright (C) 2024 Daniel Schütte, daniel.schuette@iccb-cologne.org
 #
@@ -23,7 +23,7 @@ from typing import NoReturn, Final
 
 LOGGER_NAME: Final[str] = "pyfraglib"
 
-# @NOTE(ds): From ``https://www.ncbi.nlm.nih.gov/grc/human/data?asm=GRCh37''.
+# @NOTE(ds): From ``https://www.ncbi.nlm.nih.gov/grc/human/data?asm=GRCh37``.
 hg19_chromosomes: Final[list[tuple[str, int, str, str]]] = [
     ("1",  249250621, "CM000663.1", "NC_000001.10"),
     ("2",  243199373, "CM000664.1", "NC_000002.11"),
@@ -52,7 +52,7 @@ hg19_chromosomes: Final[list[tuple[str, int, str, str]]] = [
     ("M",  16569,     "J01415.2",   "NC_012920.1")
 ]
 
-# @NOTE(ds): From ``https://www.ncbi.nlm.nih.gov/grc/human/data?asm=GRCh38''.
+# @NOTE(ds): From ``https://www.ncbi.nlm.nih.gov/grc/human/data?asm=GRCh38``.
 hg38_chromosomes: Final[list[tuple[str, int, str, str]]] = [
     ("1",  248956422, "CM000663.2", "NC_000001.11"),
     ("2",  242193529, "CM000664.2", "NC_000002.12"),
@@ -87,8 +87,8 @@ def get_logger() -> logging.Logger:
     return logging.getLogger(LOGGER_NAME)
 
 
-# `fail' terminates the program even if called from a subprocess.
 def fail(msg: str) -> NoReturn:
+    """Terminate the program even if called from a subprocess."""
     logger: logging.Logger = get_logger()
     logger.fatal(msg)
 
@@ -99,12 +99,14 @@ def fail(msg: str) -> NoReturn:
 
 
 class PyfraglibException(Exception):
+    """A base class for custom pyfraglib exceptions."""
     def __init__(self, msg: str) -> None:
         logger: logging.Logger = get_logger()
         logger.fatal(msg)
 
 
 class CodeUnreachableError(PyfraglibException):
+    """An exception thrown whenever code should be unreachable."""
     def __init__(self, msg: str) -> None:
         super().__init__(msg)
 
@@ -120,13 +122,13 @@ def get_chromosome_length(chrom: str, genome: str = "hg19") -> int:
     elif genome == "hg38":
         chromosomes = hg38_chromosomes
     else:
-        fail("unknown genome `{}' requested".format(genome))
+        fail("unknown genome '{}' requested".format(genome))
 
     chrom = homogenize_contig_name(chrom)
     for name, length, _, _ in chromosomes:
         if chrom == name:
             return length
-    fail("unknown chromosome `{}'".format(chrom))
+    fail("unknown chromosome '{}'".format(chrom))
 
 
 def homogenize_contig_name(contig: str) -> str:
@@ -135,12 +137,14 @@ def homogenize_contig_name(contig: str) -> str:
     return contig
 
 
-# @NOTE(ds): Takes a BAM file header and a contig name and returns the contig
-# name according to the headers naming convention. If the header is invalid,
-# we return `contig` unaltered.
 def homogenize_to_chrom_naming_convention(
     contig: str, header: dict[str, object]
 ) -> str:
+    """
+    Take a BAM file header and a contig name and returns the contig name
+    according to the headers naming convention. If the header is invalid,
+    return ``contig`` unaltered.
+    """
     try:
         header_contig: str = header["SQ"][0]["SN"]  # type: ignore
         if header_contig.startswith("chr") and not contig.startswith("chr"):

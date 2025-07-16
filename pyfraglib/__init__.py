@@ -1,5 +1,5 @@
-# This file is part of `pyfraglib`, a software suite to calculate fragmentomics
-# features from cfDNA and perform downstream analyses.
+# This file is part of ``pyfraglib``, a software suite to calculate
+# fragmentomics features from cfDNA and perform downstream analyses.
 #
 # Copyright (C) 2025 Daniel Schütte, daniel.schuette@iccb-cologne.org
 #
@@ -32,10 +32,12 @@ __all__ = [
 ]
 
 
-# @NOTE(ds): This filter changes the level of every record to `level' and only
-# logs the record if that new level is more severe than the log level of
-# the logger that emitted the record.
 class FixedLogLevelFilter(logging.Filter):
+    """
+    This filter changes the level of every record to ``level`` and only logs
+    the record if that new level is more severe than the log level of the
+    logger that emitted the record.
+    """
     def __init__(self, level: int):
         super().__init__()
         self.level: int = level
@@ -56,8 +58,8 @@ logging.basicConfig(
 )
 logging.captureWarnings(True)
 
-# @NOTE(ds): The `matplotlib' logging messages are just annoying. We turn them
-# off completely.
+# @NOTE(ds): The ``matplotlib`` logging messages are just annoying. We turn
+# them off completely.
 logging.getLogger("matplotlib.font_manager").setLevel(logging.ERROR)
 logging.getLogger("matplotlib.pyplot").setLevel(logging.ERROR)
 logging.getLogger("PIL.PngImagePlugin").setLevel(logging.ERROR)
@@ -66,7 +68,7 @@ logging.getLogger("PIL.PngImagePlugin").setLevel(logging.ERROR)
 # debugging.
 logging.getLogger("asyncio").setLevel(logging.DEBUG)
 
-# @NOTE(ds): `py.warnings' logs everything as a WARNING. We don't want that
+# @NOTE(ds): ``py.warnings`` logs everything as a WARNING. We don't want that
 # so we apply a filter to log everything as DEBUG.
 py_warnings_logger: logging.Logger = logging.getLogger("py.warnings")
 log_filter: FixedLogLevelFilter = FixedLogLevelFilter(logging.DEBUG)
