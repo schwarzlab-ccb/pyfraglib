@@ -59,7 +59,7 @@ class Fragment:
     # @NOTE(ds): With `mate' set to `None', we are assuming single-ended data.
     def __init__(
         self, read: pysam.AlignedSegment, mate: Optional[pysam.AlignedSegment],
-        mutated_reads: Optional[set[pysam.AlignedSegment]]
+        mutated_reads: Optional[set[str]]
     ) -> None:
         if not mate:
             self.init_single_ended(read, mutated_reads)
@@ -68,7 +68,7 @@ class Fragment:
 
     def init_paired_ended(
         self, read: pysam.AlignedSegment, mate: pysam.AlignedSegment,
-        mutated_reads: Optional[set[pysam.AlignedSegment]]
+        mutated_reads: Optional[set[str]]
     ) -> None:
         # @NOTE(ds): We do all genomic calculations for paired-end reads in one
         # big function. All variables above are filled in after this call.
@@ -77,13 +77,14 @@ class Fragment:
         if not mutated_reads:
             self.is_mutated = None
         else:
-            self.is_mutated = read in mutated_reads or mate in mutated_reads
+            self.is_mutated = (read.query_name in mutated_reads or
+                               mate.query_name in mutated_reads)
 
         self.is_bogus = self.determine_bogus(read, mate)  # must be called last
 
     def init_single_ended(
         self, read: pysam.AlignedSegment,
-        mutated_reads: Optional[set[pysam.AlignedSegment]]
+        mutated_reads: Optional[set[str]]
     ) -> None:
         assert read.reference_end
         assert read.reference_name
@@ -92,7 +93,8 @@ class Fragment:
         self.end_pos = read.reference_end
         self.chrom = read.reference_name
         self.length = self.end_pos - self.start_pos
-        self.is_mutated = read in mutated_reads if mutated_reads else None
+        self.is_mutated = (read.query_name in mutated_reads
+                           if mutated_reads else None)
         self.is_forward = read.is_forward
 
         default: str = 'N' * MAX_KMER_LEN
@@ -233,7 +235,7 @@ class Fragment:
         if not bam_file.has_index():
             fail("please create an index for BAM file `{}'".format(filepath))
 
-        mut_reads: Optional[set[pysam.AlignedSegment]] = None
+        mut_reads: Optional[set[str]] = None
         if vcfpath:
             vcf_file: pysam.VariantFile = pysam.VariantFile(vcfpath)
             mut_reads = Fragment.build_mutated_reads_set(bam_file, vcf_file)
@@ -331,9 +333,9 @@ class Fragment:
     @staticmethod
     def build_mutated_reads_set(
         bam_file: pysam.AlignmentFile, vcf_file: pysam.VariantFile
-    ) -> set[pysam.AlignedSegment]:
+    ) -> set[str]:
         logger: logging.Logger = get_logger()
-        mutated_reads: set[pysam.AlignedSegment] = set()
+        mutated_reads: set[str] = set()
 
         num_unknown_variants: int = 0
         num_singles: int = 0
@@ -377,7 +379,8 @@ class Fragment:
                         if not is_duplex(read):
                             num_singles += 1
                         num_mutated_reads += 1
-                        mutated_reads.add(read)
+                        if read.query_name:
+                            mutated_reads.add(read.query_name)
                     elif read_base != variant.ref:
                         # NOTE(ds): Read has a base that's neither a ref nor
                         # an alt allele. We _do not_ include this read in the
