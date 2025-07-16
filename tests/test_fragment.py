@@ -16,6 +16,7 @@ import tempfile
 import os
 
 from unittest.mock import Mock
+from typing import Final
 from pyfraglib.fragment import Fragment, FragmentList, FragmentCollection, \
                                IntervalTable, is_duplex, \
                                VALID_CHROMOSOME_NAMES, \
@@ -25,6 +26,22 @@ from tests.test_fixtures import MockAlignedSegment, create_mock_fragment, \
                                 create_test_fragment_list, \
                                 create_mock_variant_record, \
                                 create_temp_frag_file, cleanup_temp_file
+
+# @NOTE(ds): These files won't be available for anyone but the main developer.
+# If the test runner does not find them, the respective integration test is
+# ignored.
+MUTATED_READS_ONLY_TEST_BAM: Final[str] = \
+    "/home/daniel/lab/code/pyfraglib/data/DED005_mutated_only.bam"
+MUTATED_READS_ONLY_TEST_BAM_BAI: Final[str] = \
+    "/home/daniel/lab/code/pyfraglib/data/DED005_mutated_only.bam.bai"
+MUTATED_READS_ONLY_TEST_VCF: Final[str] = \
+    "/home/daniel/lab/code/pyfraglib/data/full/DED005_BL_full.vcf"
+UNMUTATED_READS_ONLY_TEST_BAM: Final[str] = \
+    "/home/daniel/lab/code/pyfraglib/data/DED005_unmutated_only.bam"
+UNMUTATED_READS_ONLY_TEST_BAM_BAI: Final[str] = \
+    "/home/daniel/lab/code/pyfraglib/data/DED005_unmutated_only.bam.bai"
+UNMUTATED_READS_ONLY_TEST_VCF: Final[str] = \
+    MUTATED_READS_ONLY_TEST_VCF
 
 
 class TestFragment(unittest.TestCase):
@@ -116,7 +133,7 @@ class TestFragment(unittest.TestCase):
     def test_fragment_mutated_annotation(self) -> None:
         """Test fragment mutation annotation."""
         read = MockAlignedSegment()
-        mutated_reads: set[MockAlignedSegment] = {read}
+        mutated_reads: set[str] = {read.query_name}
 
         fragment: Fragment = Fragment(
             read, None, mutated_reads  # type: ignore
@@ -395,8 +412,8 @@ class TestVCFParsing(unittest.TestCase):
         result = Fragment.build_mutated_reads_set(bam_file, vcf_file)
 
         self.assertEqual(len(result), 1)
-        self.assertIn(mutated_read, result)
-        self.assertNotIn(normal_read, result)
+        self.assertIn(mutated_read.query_name, result)
+        self.assertNotIn(normal_read.query_name, result)
 
     def test_build_mutated_reads_set_non_snv_filtered(self) -> None:
         """Test that non-SNV variants are filtered out."""
@@ -545,8 +562,8 @@ class TestVCFParsing(unittest.TestCase):
         result = Fragment.build_mutated_reads_set(bam_file, vcf_file)
 
         self.assertEqual(len(result), 2)
-        self.assertIn(read1, result)
-        self.assertIn(read2, result)
+        self.assertIn(read1.query_name, result)
+        self.assertIn(read2.query_name, result)
 
     def test_build_mutated_reads_set_invalid_chromosome_error(self) -> None:
         """Test error handling for invalid chromosome in VCF."""
@@ -602,6 +619,129 @@ class TestVCFIntegration(unittest.TestCase):
         finally:
             cleanup_temp_file(temp_path)
 
+    @unittest.skipUnless(  # type: ignore
+        os.path.exists(MUTATED_READS_ONLY_TEST_BAM) and
+        os.path.exists(MUTATED_READS_ONLY_TEST_BAM_BAI) and
+        os.path.exists(MUTATED_READS_ONLY_TEST_VCF),
+        "Integration test files not found"
+    )
+    def test_mutated_only_bam_integration(self) -> None:
+        """
+        Test that fragments in mutated-only BAM are correctly annotated. This
+        integration test relies on sensitive data and is thus ignored in most
+        contexts.
+        """
+        fragments = Fragment.from_bam(
+            MUTATED_READS_ONLY_TEST_BAM, MUTATED_READS_ONLY_TEST_VCF
+        )
+        self.assertGreater(
+            fragments.length(), 0, "No fragments loaded from BAM file"
+        )
+
+        total_fragments: int = fragments.length()
+        mutated_fragments: int = fragments.count_mutated_fragments()
+        mutated_count: int = 0
+        non_mutated_count: int = 0
+        unknown_count: int = 0
+
+        for fragment in fragments:
+            if fragment.is_mutated is True:
+                mutated_count += 1
+            elif fragment.is_mutated is False:
+                non_mutated_count += 1
+            else:  # fragment.is_mutated is None
+                unknown_count += 1
+
+        self.assertEqual(
+            mutated_count, mutated_fragments,
+            "count_mutated_fragments() should match manual count"
+        )
+
+        mutation_rate = mutated_fragments / total_fragments
+        non_mutation_rate = non_mutated_count / total_fragments
+        known_fragments = mutated_count + non_mutated_count
+        known_rate = known_fragments / total_fragments
+        self.assertEqual(
+            mutation_rate, 1.0,
+            f"Expected all fragments to be mutated, "
+            f"but only {mutation_rate:.2%} "
+            f"({mutated_fragments}/{total_fragments}) were mutated"
+        )
+        self.assertEqual(
+            non_mutation_rate, 0.0,
+            f"Expected no fragments to be non-mutated, "
+            f"but {non_mutation_rate:.2%} "
+            f"({non_mutated_count}/{total_fragments}) were non-mutated"
+        )
+        self.assertEqual(
+            known_rate, 1.0,
+            f"Expected all fragments to have known "
+            f"mutation status, but only {known_rate:.2%} "
+            f"({known_fragments}/{total_fragments}) were known"
+        )
+
+    @unittest.skipUnless(  # type: ignore
+        os.path.exists(UNMUTATED_READS_ONLY_TEST_BAM) and
+        os.path.exists(UNMUTATED_READS_ONLY_TEST_BAM_BAI) and
+        os.path.exists(UNMUTATED_READS_ONLY_TEST_VCF),
+        "Integration test files not found"
+    )
+    def test_unmutated_only_bam_integration(self) -> None:
+        """
+        Test that fragments in unmutated-only BAM are correctly annotated.
+        This integration test complements the mutated-only test and relies
+        on sensitive data, thus is ignored in most contexts.
+        """
+        fragments = Fragment.from_bam(
+            UNMUTATED_READS_ONLY_TEST_BAM, UNMUTATED_READS_ONLY_TEST_VCF
+        )
+        self.assertGreater(
+            fragments.length(), 0, "No fragments loaded from BAM file"
+        )
+
+        total_fragments: int = fragments.length()
+        mutated_fragments: int = fragments.count_mutated_fragments()
+        mutated_count: int = 0
+        non_mutated_count: int = 0
+        unknown_count: int = 0
+
+        for fragment in fragments:
+            if fragment.is_mutated is True:
+                mutated_count += 1
+            elif fragment.is_mutated is False:
+                non_mutated_count += 1
+            else:  # fragment.is_mutated is None
+                unknown_count += 1
+
+        self.assertEqual(
+            mutated_count, mutated_fragments,
+            "count_mutated_fragments() should match manual count"
+        )
+
+        mutation_rate = mutated_fragments / total_fragments
+        non_mutation_rate = non_mutated_count / total_fragments
+        known_fragments = mutated_count + non_mutated_count
+        known_rate = known_fragments / total_fragments
+
+        self.assertEqual(
+            mutation_rate, 0.0,
+            f"Expected no fragments to be mutated, "
+            f"but {mutation_rate:.2%} "
+            f"({mutated_fragments}/{total_fragments}) were mutated"
+        )
+        self.assertEqual(
+            non_mutation_rate, 1.0,
+            f"Expected all fragments to be non-mutated, "
+            f"but only {non_mutation_rate:.2%} "
+            f"({non_mutated_count}/{total_fragments}) were non-mutated"
+        )
+        self.assertEqual(
+            known_rate, 1.0,
+            f"Expected all fragments to have known "
+            f"mutation status, but only {known_rate:.2%} "
+            f"({known_fragments}/{total_fragments}) were known"
+        )
+
 
 class TestVCFEdgeCases(unittest.TestCase):
     """Test edge cases and error conditions in VCF processing."""
@@ -655,8 +795,8 @@ class TestVCFEdgeCases(unittest.TestCase):
         result = Fragment.build_mutated_reads_set(bam_file, vcf_file)
 
         self.assertEqual(len(result), 2)
-        self.assertIn(read1, result)
-        self.assertIn(read2, result)
+        self.assertIn(read1.query_name, result)
+        self.assertIn(read2.query_name, result)
 
     def test_read_with_none_query_sequence(self) -> None:
         """Test handling of reads with None query sequence."""
