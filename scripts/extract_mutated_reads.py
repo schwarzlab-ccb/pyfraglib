@@ -26,7 +26,7 @@ import pyfraglib
 
 from tqdm import tqdm
 from typing import Final, NoReturn, Set
-from pyfraglib.core import get_logger, homogenize_to_chrom_naming_convention
+from pyfraglib.core import homogenize_to_chrom_naming_convention
 
 version_string: Final[str] = \
     "extract_mutated_reads v{} (running on Python v{})" \
@@ -67,6 +67,10 @@ def parse_arguments() -> argparse.Namespace:
         "-o", "--output", required=True, help="Output BAM file path."
     )
     parser.add_argument(
+        "-k", "--keep", action="store_true", help="Write unmutated "
+        "reads to a second output BAM file with suffix 'unmutated'."
+    )
+    parser.add_argument(
         "-v", "--verbose", action="store_true", help="Enable verbose logging."
     )
 
@@ -86,7 +90,6 @@ def load_variants(
     Returns:
         Dictionary mapping (chromosome, position) to set of alternative alleles
     """
-    logger = get_logger()
     variants: dict[tuple[str, int], set[str]] = {}
 
     try:
@@ -172,7 +175,7 @@ def find_supporting_reads(
 
 def extract_mutated_reads(
     bam_path: str, output_path: str, supporting_reads: Set[str],
-    logger: logging.Logger
+    keep_unmutated: bool, logger: logging.Logger
 ) -> None:
     """
     Extract supporting reads to output BAM file.
@@ -181,12 +184,23 @@ def extract_mutated_reads(
         bam_path: Input BAM file path
         output_path: Output BAM file path
         supporting_reads: Set of read names to extract
+        keep_unmutated: Whether to write unmutated reads to BAM file, too
         logger: Logger to use
     """
     with pysam.AlignmentFile(bam_path, "rb") as bam:
+        unmutated_bam_file: pysam.AlignmentFile | None = None
+        unmutated_bam_filename: str = ""
+        if keep_unmutated:
+            base_path, ext = os.path.splitext(output_path)
+            unmutated_bam_filename = f"{base_path}_unmutated{ext}"
+            unmutated_bam_file = pysam.AlignmentFile(
+                unmutated_bam_filename, "wb", template=bam
+            )
+
         with pysam.AlignmentFile(output_path, "wb", template=bam) as output:
             total_reads: int = 0
             extracted_reads: int = 0
+            unmutated_reads: int = 0
 
             for read in tqdm(
                 bam.fetch(until_eof=True), desc="Extracting reads"
@@ -195,10 +209,19 @@ def extract_mutated_reads(
                 if read.query_name in supporting_reads:
                     output.write(read)
                     extracted_reads += 1
+                elif keep_unmutated and unmutated_bam_file is not None:
+                    unmutated_bam_file.write(read)
+                    unmutated_reads += 1
+
+        if keep_unmutated and unmutated_bam_file is not None:
+            unmutated_bam_file.close()
+            logger.info(
+                f"Wrote {unmutated_reads} unmutated reads to "
+                f"{unmutated_bam_filename}"
+            )
 
     logger.info(f"Extracted {extracted_reads} reads out of "
-                f"{total_reads} total reads")
-    logger.info(f"Output written to {output_path}")
+                f"{total_reads} total reads to {output_path}")
 
 
 def main() -> None:
@@ -209,6 +232,7 @@ def main() -> None:
     bam_path: str = args.bam
     vcf_path: str = args.vcf
     output_path: str = args.output
+    keep_unmutated: bool = args.keep
     verbose: bool = args.verbose
 
     if verbose:
@@ -224,8 +248,7 @@ def main() -> None:
     try:
         with pysam.AlignmentFile(bam_path, "rb") as bam:
             if not bam.has_index():
-                fail(f"BAM file '{bam_path}' is not indexed. "
-                     f"Please create an index file.", logger)
+                fail(f"BAM file '{bam_path}' is not indexed.", logger)
             bam_header: dict[str, object] = bam.header.to_dict()
     except Exception as e:
         fail(f"Error reading BAM file '{bam_path}': {e}", logger)
@@ -244,8 +267,9 @@ def main() -> None:
     if not supporting_reads:
         fail("No reads found supporting variants", logger)
 
-    extract_mutated_reads(bam_path, output_path, supporting_reads, logger)
-    logger.info("Processing complete")
+    extract_mutated_reads(
+        bam_path, output_path, supporting_reads, keep_unmutated, logger
+    )
 
 
 if __name__ == "__main__":
