@@ -91,12 +91,17 @@ def load_variants(
 
     try:
         with pysam.VariantFile(vcf_path) as vcf:
+            rec: pysam.VariantRecord
             for rec in vcf.fetch():
                 if rec.rlen != 1:  # only process SNVs
                     continue
                 if rec.alts is not None:
+                    # @NOTE(ds): `pysam' has 2 APIs for accessing the genomic
+                    # position of a variant: whereas `pos' is 1-based, `start'
+                    # is 0-based. Thus, we must be very careful here. See also:
+                    # ``https://pysam.readthedocs.io/en/latest/''.
                     variants.setdefault(
-                        (rec.contig, rec.start), set()  # 0-based position
+                        (rec.contig, rec.start), set()
                     ).update(rec.alts)
     except Exception as e:
         fail(f"Error reading VCF file '{vcf_path}': {e}", logger)
