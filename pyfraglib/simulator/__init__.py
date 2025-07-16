@@ -1,5 +1,5 @@
-# This file is part of `pyfraglib`, a software suite to calculate fragmentomics
-# features from cfDNA and perform downstream analyses.
+# This file is part of ``pyfraglib``, a software suite to calculate
+# fragmentomics features from cfDNA and perform downstream analyses.
 #
 # Copyright (C) 2024 Daniel Schütte, daniel.schuette@iccb-cologne.org
 #

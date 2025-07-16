@@ -1,5 +1,5 @@
-# This file is part of `pyfraglib`, a software suite to calculate fragmentomics
-# features from cfDNA and perform downstream analyses.
+# This file is part of ``pyfraglib``, a software suite to calculate
+# fragmentomics features from cfDNA and perform downstream analyses.
 #
 # Copyright (C) 2024 Daniel Schütte, daniel.schuette@iccb-cologne.org
 #
@@ -30,7 +30,7 @@ def fragments_per_chromosome_barplot(
 ) -> None:
     logger: logging.Logger = get_logger()
     logger.info(
-        "creating fragment-per-chromosome histograms in `{}'".format(out_dir)
+        "creating fragment-per-chromosome histograms in ``{}``".format(out_dir)
     )
 
     chrom_map_mut: defaultdict[str, int] = defaultdict(int)
@@ -72,7 +72,7 @@ def end_motifs_barplot(
 ) -> None:
     logger: logging.Logger = get_logger()
     logger.info(
-        "creating end motif barplots in `{}'".format(out_dir)
+        "creating end motif barplots in ``{}``".format(out_dir)
     )
 
     motifs_5p: defaultdict[str, int]

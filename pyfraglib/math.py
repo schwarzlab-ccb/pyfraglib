@@ -1,5 +1,5 @@
-# This file is part of `pyfraglib`, a software suite to calculate fragmentomics
-# features from cfDNA and perform downstream analyses.
+# This file is part of ``pyfraglib``, a software suite to calculate
+# fragmentomics features from cfDNA and perform downstream analyses.
 #
 # Copyright (C) 2024 Daniel Schütte, daniel.schuette@iccb-cologne.org
 #
@@ -28,13 +28,15 @@ from typing import Final
 LARGE_DATASET_THRESHOLD: Final[int] = 1_000_000
 
 
-# @NOTE(ds): The ordering of `params' is as follows ('n' = # of Gaussians):
-# mu_1, ..., mu_n, std_1, ... std_n, pi_1, ..., pi_n. The caller is responsible
-# for ensuring that `sum(pi_i) == 1.0', and that `params' holds exactly n*3
-# parameters.
 def gaussian_mixture(
     params: list[float], n: int, data: npt.NDArray[np.float64],
 ) -> npt.NDArray[np.float64]:
+    """
+    The ordering of ``params`` is as follows ('n' = # of Gaussians):
+    mu_1, ..., mu_n, std_1, ... std_n, pi_1, ..., pi_n. The caller is
+    responsible for ensuring that ``sum(pi_i) == 1.0``, and that ``params``
+    holds exactly n*3 parameters.
+    """
     assert n > 0, "Cannot mix <= 0 Gaussians."
     assert len(params) == 3*n, "Incorrect number of mixture parameters."
 
@@ -62,14 +64,16 @@ def mixture_cdf_wrapper(
     return np.array([mixture_cdf(x, params, n) for x in data])  # type: ignore
 
 
-# @NOTE(ds): `params' is as described above. It's important to note that we
-# normalize the NLL to avoid numerical instabilities associated with very large
-# values. The normalization factor must be provided upon every iteration, so
-# we must be careful to always use the same float.
 def negative_log_likelihood(
     params: list[float], n: int, data: npt.NDArray[np.float64],
     norm_const: float
 ) -> float:
+    """
+    ``params`` is as described above. It's important to note that we normalize
+    the NLL to avoid numerical instabilities associated with very large values.
+    The normalization factor must be provided upon every iteration, so we must
+    be careful to always use the same float.
+    """
     # @NOTE(ds): We clip the mixture fractions to avoid numerical instability
     # issues.
     params[2*n:] = np.clip(params[2*n:], 1e-6, 1-1e-6)  # type: ignore
@@ -78,22 +82,24 @@ def negative_log_likelihood(
     return -np.sum(np.log(pdf + epsilon)) / norm_const  # type: ignore
 
 
-# @NOTE(ds): We do some basic validation, but don't exhaust possible error
-# conditions in our sanity checks.
 def read_gmm_config(
     config_filepath: str
 ) -> tuple[int, float, list[float], list[tuple[float, float]]]:
+    """
+    We do some basic validation, but don't exhaust possible error conditions in
+    our sanity checks.
+    """
     with open(config_filepath, "r") as config_file:
         config: dict[str, object] = json.load(config_file)
 
         _n: object = config.get("number_of_gaussians")
         if not _n or type(_n) is not int or _n <= 0:
-            fail("`number_of_gaussians' in GMM config must be an int > 0")
+            fail("'number_of_gaussians' in GMM config must be an int > 0")
         n: int = int(_n)
 
         _ssp: object = config.get("subsample_percentage")
         if not _ssp or type(_ssp) is not float or _ssp <= 0.0 or _ssp > 1.0:
-            fail("`subsample_percentage' in GMM config must be a float > 0.0 "
+            fail("'subsample_percentage' in GMM config must be a float > 0.0 "
                  " and <= 1.0")
         ssp: float = float(_ssp)
 
@@ -144,13 +150,15 @@ def hessian(
     return np.zeros((len(params), len(params)))
 
 
-# @NOTE(ds): Fit a GMM of `n' 1D Gaussians with bounds on the free parameters.
-# The bounds are read from a configuration file. Optimized parameters are
-# returned and ordered as follows:
-# [m_1, m_2, ..., std_1, std_2, ..., pi_1, pi_2, ...].
 def fit_gmm(
     data: npt.NDArray[np.float64], config_filepath: str
 ) -> tuple[object, int, list[float], npt.NDArray[np.float64]]:
+    """
+    Fit a GMM of ``n`` 1D Gaussians with bounds on the free parameters. The
+    bounds are read from a configuration file. Optimized parameters are
+    returned and ordered as follows:
+    [m_1, m_2, ..., std_1, std_2, ..., pi_1, pi_2, ...].
+    """
     logger: logging.Logger = get_logger()
 
     initial_params: list[float]
@@ -234,14 +242,16 @@ def goodness_of_fit_stats(
     }
 
 
-# @NOTE(ds): Given `n' means and standard deviations, we plot a histogram of
-# `data' and overlay `n' normals. The parameters for the normals will most
-# likely come from a GMM, that's why the function is named like this. `name'
-# and `out_dir' are concatenated into a destination filepath.
 def plot_gmm(
     data: npt.NDArray[np.float64], num_gaussians: int, params: list[float],
     out_dir: str, name: str
 ) -> None:
+    """
+    Given ``n`` means and standard deviations, we plot a histogram of ``data``
+    and overlay ``n`` normals. The parameters for the normals will most likely
+    come from a GMM, that's why the function is named like this. ``name`` and
+    ``out_dir`` are concatenated into a destination filepath.
+    """
     sample_size: int = len(data)
     sample_min: np.float64 = np.min(data)
     sample_max: np.float64 = np.max(data)
