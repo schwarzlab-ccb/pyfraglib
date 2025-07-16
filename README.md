@@ -1,6 +1,6 @@
-# PyFragLib
+# pyfraglib
 
-![PyFragLib Logo](docs/pyfraglib_logo.jpg)
+![pyfraglib Logo](docs/pyfraglib_logo.jpg)
 
 ## Overview
 
