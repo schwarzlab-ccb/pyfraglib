@@ -1,7 +1,7 @@
 # This file is part of `pyfraglib`, a software suite to calculate fragmentomics
 # features from cfDNA and perform downstream analyses.
 #
-# Copyright (C) 2024 Daniel Schütte, daniel.schuette@iccb-cologne.org
+# Copyright (C) 2025 Daniel Schütte, daniel.schuette@iccb-cologne.org
 #
 # This program is free software: you can redistribute it and/or modify it under
 # the terms of the GNU General Public License as published by the Free Software
@@ -22,8 +22,8 @@ from pyfraglib.lengths import fragment_length_plot
 from pyfraglib.simulator import FragmentSimulator, TissueMixtureSimulator, \
                                 NucleaseProfile
 
-__version__ = "0.5.0"
-__repo_url__ = "https://bitbucket.org/schwarzlab/project-lymphoma-cfdna/"
+__version__ = "0.5.1"
+__repo_url__ = "https://bitbucket.org/schwarzlab/pyfraglib/"
 __all__ = [
     "Fragment", "FragmentList", "FragmentCollection", "fail",
     "get_logger", "FragFile", "fragments_per_chromosome_barplot",
