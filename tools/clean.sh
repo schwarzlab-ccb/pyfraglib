@@ -23,3 +23,5 @@ rm -rf frag_out/
 rm -rf plot_out/
 rm -rf scores_out/
 rm -rf pyfraglib.egg-info/
+rm -rf docs/build/
+rm -rf docs/source/api/generated/
