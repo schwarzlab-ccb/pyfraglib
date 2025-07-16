@@ -74,7 +74,7 @@ class Fragment:
         # big function. All variables above are filled in after this call.
         self.assign_read_pair_coords(read, mate)
 
-        if not mutated_reads:
+        if mutated_reads is None:
             self.is_mutated = None
         else:
             self.is_mutated = (read.query_name in mutated_reads or
