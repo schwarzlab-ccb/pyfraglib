@@ -1,7 +1,7 @@
 # This file is part of `pyfraglib`, a software suite to calculate fragmentomics
 # features from cfDNA and perform downstream analyses.
 #
-# Copyright (C) 2024 Daniel Schütte, daniel.schuette@iccb-cologne.org
+# Copyright (C) 2025 Daniel Schütte, daniel.schuette@iccb-cologne.org
 #
 # This program is free software: you can redistribute it and/or modify it under
 # the terms of the GNU General Public License as published by the Free Software
@@ -29,7 +29,7 @@ class MockAlignedSegment:
         reference_start: int = 100,
         reference_end: int = 250,
         reference_name: str = "1",
-        query_sequence: str = "ATCGATCGATCG",
+        query_sequence: str | None = "ATCGATCGATCG",
         is_forward: bool = True,
         is_read1: bool = True,
         is_read2: bool = False,
@@ -144,6 +144,25 @@ def create_mock_variant_record(
     variant.alts = alts
     variant.rlen = rlen
     return variant
+
+
+def create_mock_vcf_file(variants: list[Mock]) -> Mock:
+    """Create a mock VCF file with specified variants."""
+    vcf_file = Mock()
+    vcf_file.filename = b"test.vcf"
+    vcf_file.__iter__ = Mock(return_value=iter(variants))
+    return vcf_file
+
+
+def create_test_bam_with_reads(reads: list[MockAlignedSegment]) -> Mock:
+    """Create a mock BAM file with specified reads."""
+    bam_file = Mock()
+    bam_file.header.to_dict.return_value = {  # type: ignore
+        "SQ": [{"SN": "chr1"}]  # type: ignore
+    }
+    bam_file.fetch.return_value = reads  # type: ignore
+    bam_file.has_index.return_value = True  # type: ignore
+    return bam_file
 
 
 def cleanup_temp_file(filepath: str) -> None:

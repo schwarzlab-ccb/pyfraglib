@@ -22,7 +22,9 @@ from pyfraglib.fragment import Fragment, FragmentList, FragmentCollection, \
                                INSERT_SIZE_UPPER_BOUND, MIN_MAPQ, \
                                DEFAULT_KMER_LEN, MAX_KMER_LEN
 from tests.test_fixtures import MockAlignedSegment, create_mock_fragment, \
-                                create_test_fragment_list
+                                create_test_fragment_list, \
+                                create_mock_variant_record, \
+                                create_temp_frag_file, cleanup_temp_file
 
 
 class TestFragment(unittest.TestCase):
@@ -347,6 +349,342 @@ class TestUtilityFunctions(unittest.TestCase):
         )
 
         self.assertFalse(is_duplex(partial_duplex_read))
+
+
+class TestVCFParsing(unittest.TestCase):
+    """Test VCF parsing and mutation annotation functionality."""
+
+    def test_build_mutated_reads_set_basic(self) -> None:
+        """Test basic VCF parsing with simple SNV."""
+        bam_file = Mock()
+        bam_file.header.to_dict.return_value = {  # type: ignore
+            "SQ": [{"SN": "chr1"}]  # type: ignore
+        }
+
+        vcf_file = Mock()
+        vcf_file.filename = b"test.vcf"
+        variant = create_mock_variant_record(
+            contig="chr1", start=125, stop=126, ref="A", alts=("T",)
+        )
+        vcf_file.__iter__ = Mock(return_value=iter([variant]))
+
+        mutated_read = MockAlignedSegment(
+            query_name="read1",
+            query_sequence="ATCGATCGTCG",  # T at position 5 (alt)
+            reference_start=120,
+            reference_end=131
+        )
+        mutated_read.get_reference_positions = Mock(  # type: ignore
+            return_value=list(range(120, 131))  # type: ignore
+        )
+
+        normal_read = MockAlignedSegment(
+            query_name="read2",
+            query_sequence="ATCGAACGTCG",  # A at position 5 (ref)
+            reference_start=120,
+            reference_end=131
+        )
+        normal_read.get_reference_positions = Mock(  # type: ignore
+            return_value=list(range(120, 131))  # type: ignore
+        )
+
+        bam_file.fetch.return_value = [  # type: ignore
+            mutated_read, normal_read
+        ]
+
+        result = Fragment.build_mutated_reads_set(bam_file, vcf_file)
+
+        self.assertEqual(len(result), 1)
+        self.assertIn(mutated_read, result)
+        self.assertNotIn(normal_read, result)
+
+    def test_build_mutated_reads_set_non_snv_filtered(self) -> None:
+        """Test that non-SNV variants are filtered out."""
+        bam_file = Mock()
+        bam_file.header.to_dict.return_value = {  # type: ignore
+            "SQ": [{"SN": "chr1"}]  # type: ignore
+        }
+
+        vcf_file = Mock()
+        vcf_file.filename = b"test.vcf"
+        variant = create_mock_variant_record(
+            contig="chr1", start=125, stop=127, ref="AT", alts=("A",), rlen=2
+        )
+        vcf_file.__iter__ = Mock(return_value=iter([variant]))
+
+        result = Fragment.build_mutated_reads_set(bam_file, vcf_file)
+
+        self.assertEqual(len(result), 0)
+        bam_file.fetch.assert_not_called()  # type: ignore
+
+    def test_build_mutated_reads_set_chromosome_name_normalization(
+        self
+    ) -> None:
+        """Test chromosome name normalization between VCF and BAM."""
+        bam_file = Mock()
+        bam_file.header.to_dict.return_value = {  # type: ignore
+            "SQ": [{"SN": "chr1"}]  # type: ignore
+        }
+
+        vcf_file = Mock()
+        vcf_file.filename = b"test.vcf"
+        variant = create_mock_variant_record(
+            contig="1", start=125, stop=126, ref="A", alts=("T",)
+        )
+        vcf_file.__iter__ = Mock(return_value=iter([variant]))
+
+        mutated_read = MockAlignedSegment(
+            query_name="read1",
+            query_sequence="ATCGATCGTCG",  # T at position 5 (alt)
+            reference_start=120,
+            reference_end=131
+        )
+        mutated_read.get_reference_positions = Mock(  # type: ignore
+            return_value=list(range(120, 131))  # type: ignore
+        )
+        bam_file.fetch.return_value = [mutated_read]  # type: ignore
+
+        result = Fragment.build_mutated_reads_set(bam_file, vcf_file)
+        bam_file.fetch.assert_called_with(  # type: ignore
+            contig="chr1", start=125, stop=126
+        )
+        self.assertEqual(len(result), 1)
+
+    def test_build_mutated_reads_set_read_position_not_in_variant(
+        self
+    ) -> None:
+        """Test reads that do not span the variant position."""
+        bam_file = Mock()
+        bam_file.header.to_dict.return_value = {  # type: ignore
+            "SQ": [{"SN": "chr1"}]  # type: ignore
+        }
+
+        vcf_file = Mock()
+        vcf_file.filename = b"test.vcf"
+        variant = create_mock_variant_record(
+            contig="chr1", start=125, stop=126, ref="A", alts=("T",)
+        )
+        vcf_file.__iter__ = Mock(return_value=iter([variant]))
+
+        read = MockAlignedSegment(
+            query_name="read1",
+            query_sequence="ATCGTACGTCG",
+            reference_start=130,
+            reference_end=141
+        )
+        read.get_reference_positions = Mock(  # type: ignore
+            return_value=list(range(130, 141))  # type: ignore
+        )
+
+        bam_file.fetch.return_value = [read]  # type: ignore
+        result = Fragment.build_mutated_reads_set(bam_file, vcf_file)
+
+        self.assertEqual(len(result), 0)
+
+    def test_build_mutated_reads_set_unknown_variant_base(self) -> None:
+        """Test reads with bases that are neither ref nor alt."""
+        bam_file = Mock()
+        bam_file.header.to_dict.return_value = {  # type: ignore
+            "SQ": [{"SN": "chr1"}]  # type: ignore
+        }
+
+        vcf_file = Mock()
+        vcf_file.filename = b"test.vcf"
+        variant = create_mock_variant_record(
+            contig="chr1", start=125, stop=126, ref="A", alts=("T",)
+        )
+        vcf_file.__iter__ = Mock(return_value=iter([variant]))
+
+        read = MockAlignedSegment(
+            query_name="read1",
+            query_sequence="ATCGGACGTCG",  # G at position 5
+            reference_start=120,
+            reference_end=131
+        )
+        read.get_reference_positions = Mock(  # type: ignore
+            return_value=list(range(120, 131))  # type: ignore
+        )
+
+        bam_file.fetch.return_value = [read]  # type: ignore
+        result = Fragment.build_mutated_reads_set(bam_file, vcf_file)
+
+        self.assertEqual(len(result), 0)
+
+    def test_build_mutated_reads_set_multiple_variants(self) -> None:
+        """Test processing multiple variants in VCF."""
+        bam_file = Mock()
+        bam_file.header.to_dict.return_value = {  # type: ignore
+            "SQ": [{"SN": "chr1"}]  # type: ignore
+        }
+
+        vcf_file = Mock()
+        vcf_file.filename = b"test.vcf"
+        variant1 = create_mock_variant_record(
+            contig="chr1", start=125, stop=126, ref="A", alts=("T",)
+        )
+        variant2 = create_mock_variant_record(
+            contig="chr1", start=225, stop=226, ref="C", alts=("G",)
+        )
+        vcf_file.__iter__ = Mock(return_value=iter([variant1, variant2]))
+
+        read1 = MockAlignedSegment(
+            query_name="read1", query_sequence="ATCGATCGTCG"  # T at position 5
+        )
+        read1.get_reference_positions = Mock(  # type: ignore
+            return_value=list(range(120, 131))  # type: ignore
+        )
+
+        read2 = MockAlignedSegment(
+            query_name="read2", query_sequence="ATCGGGCGTCG"  # G at position 5
+        )
+        read2.get_reference_positions = Mock(  # type: ignore
+            return_value=list(range(220, 231))  # type: ignore
+        )
+
+        bam_file.fetch.side_effect = [[read1], [read2]]  # type: ignore
+        result = Fragment.build_mutated_reads_set(bam_file, vcf_file)
+
+        self.assertEqual(len(result), 2)
+        self.assertIn(read1, result)
+        self.assertIn(read2, result)
+
+    def test_build_mutated_reads_set_invalid_chromosome_error(self) -> None:
+        """Test error handling for invalid chromosome in VCF."""
+        bam_file = Mock()
+        bam_file.header.to_dict.return_value = {  # type: ignore
+            "SQ": [{"SN": "chr1"}]  # type: ignore
+        }
+
+        vcf_file = Mock()
+        vcf_file.filename = b"test.vcf"
+        variant = create_mock_variant_record(
+            contig="invalid_chr", start=125, stop=126, ref="A", alts=("T",)
+        )
+        vcf_file.__iter__ = Mock(return_value=iter([variant]))
+
+        bam_file.fetch.side_effect = ValueError(  # type: ignore
+            "Invalid chromosome"
+        )
+
+        with self.assertRaises(SystemExit):
+            Fragment.build_mutated_reads_set(bam_file, vcf_file)
+
+
+class TestVCFIntegration(unittest.TestCase):
+    """Integration tests for VCF parsing with real BAM processing."""
+
+    def test_fragment_mutation_consistency(self) -> None:
+        """Test that mutation annotation is consistent across fragment ops."""
+        fragments = FragmentList()
+
+        mutated_frag = create_mock_fragment(is_mutated=True)
+        normal_frag = create_mock_fragment(is_mutated=False)
+        unknown_frag = create_mock_fragment(is_mutated=None)
+
+        fragments.append(mutated_frag)
+        fragments.append(normal_frag)
+        fragments.append(unknown_frag)
+
+        self.assertEqual(fragments.count_mutated_fragments(), 1)
+        self.assertEqual(fragments.length(), 3)
+
+        temp_path = create_temp_frag_file(fragments)
+        try:
+            from pyfraglib.fragfile import FragFile
+            frag_file = FragFile(temp_path)
+            loaded_fragments = frag_file.get_fragment_list()
+
+            self.assertEqual(loaded_fragments.count_mutated_fragments(), 1)
+            for orig, loaded in zip(fragments, loaded_fragments):
+                self.assertEqual(orig.is_mutated, loaded.is_mutated)
+
+            frag_file.close()
+        finally:
+            cleanup_temp_file(temp_path)
+
+
+class TestVCFEdgeCases(unittest.TestCase):
+    """Test edge cases and error conditions in VCF processing."""
+
+    def test_empty_vcf_file(self) -> None:
+        """Test handling of empty VCF file."""
+        bam_file = Mock()
+        vcf_file = Mock()
+        vcf_file.filename = b"empty.vcf"
+        vcf_file.__iter__ = Mock(return_value=iter([]))
+
+        result = Fragment.build_mutated_reads_set(bam_file, vcf_file)
+
+        self.assertEqual(len(result), 0)
+
+    def test_vcf_with_multiple_alt_alleles(self) -> None:
+        """Test VCF records with multiple alternative alleles."""
+        bam_file = Mock()
+        bam_file.header.to_dict.return_value = {  # type: ignore
+            "SQ": [{"SN": "chr1"}]  # type: ignore
+        }
+
+        vcf_file = Mock()
+        vcf_file.filename = b"test.vcf"
+        variant = create_mock_variant_record(
+            contig="chr1", start=125, stop=126, ref="A", alts=("T", "G")
+        )
+        vcf_file.__iter__ = Mock(return_value=iter([variant]))
+
+        read1 = MockAlignedSegment(
+            query_name="read1",
+            query_sequence="ATCGATCGTCG",  # T at position 5 (alt)
+            reference_start=120,
+            reference_end=131
+        )
+        read1.get_reference_positions = Mock(  # type: ignore
+            return_value=list(range(120, 131))  # type: ignore
+        )
+
+        read2 = MockAlignedSegment(
+            query_name="read2",
+            query_sequence="ATCGGGCGTCG",  # G at position 5 (alt)
+            reference_start=120,
+            reference_end=131
+        )
+        read2.get_reference_positions = Mock(  # type: ignore
+            return_value=list(range(120, 131))  # type: ignore
+        )
+
+        bam_file.fetch.return_value = [read1, read2]  # type: ignore
+        result = Fragment.build_mutated_reads_set(bam_file, vcf_file)
+
+        self.assertEqual(len(result), 2)
+        self.assertIn(read1, result)
+        self.assertIn(read2, result)
+
+    def test_read_with_none_query_sequence(self) -> None:
+        """Test handling of reads with None query sequence."""
+        bam_file = Mock()
+        bam_file.header.to_dict.return_value = {  # type: ignore
+            "SQ": [{"SN": "chr1"}]  # type: ignore
+        }
+
+        vcf_file = Mock()
+        vcf_file.filename = b"test.vcf"
+        variant = create_mock_variant_record(
+            contig="chr1", start=125, stop=126, ref="A", alts=("T",)
+        )
+        vcf_file.__iter__ = Mock(return_value=iter([variant]))
+
+        read = MockAlignedSegment(
+            query_name="read1",
+            query_sequence=None,
+            reference_start=120,
+            reference_end=131
+        )
+        read.get_reference_positions = Mock(  # type: ignore
+            return_value=list(range(120, 131))  # type: ignore
+        )
+        bam_file.fetch.return_value = [read]  # type: ignore
+
+        with self.assertRaises(AssertionError):
+            Fragment.build_mutated_reads_set(bam_file, vcf_file)
 
 
 class TestConstants(unittest.TestCase):
