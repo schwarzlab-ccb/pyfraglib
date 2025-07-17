@@ -13,28 +13,30 @@
 # FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License for
 # more details. You should have received a copy of the GNU General Public
 # License along with this program. If not, see <https://www.gnu.org/licenses/>.
-set -e
-
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-DOCS_DIR="$(cd "$SCRIPT_DIR/../docs" && pwd)"
-cd "$DOCS_DIR"
-
 RED="\033[0;31m"
 GREEN="\033[0;32m"
 YELLOW="\033[1;33m"
 NC="\033[0m" # no Color
 
-echo -e "${GREEN}pyfraglib Documentation Builder${NC}"
-if [ ! -f "source/conf.py" ]; then
-    echo -e "${RED}Error: conf.py not found. Are you in the docs directory?${NC}"
-    exit 1
-fi
+set -e
 
-echo -e "${YELLOW}Checking dependencies...${NC}"
-if ! python -c "import sphinx" 2>/dev/null; then
-    echo -e "${YELLOW}Installing documentation dependencies...${NC}"
-    pip install -r requirements.txt
-fi
+setup() {
+    SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+    DOCS_DIR="$(cd "$SCRIPT_DIR/../docs" && pwd)"
+    cd "$DOCS_DIR"
+
+    echo -e "${GREEN}pyfraglib Documentation Builder${NC}"
+    if [ ! -f "source/conf.py" ]; then
+        echo -e "${RED}Error: conf.py not found. Are you in the docs directory?${NC}"
+        exit 1
+    fi
+
+    echo -e "${YELLOW}Checking dependencies...${NC}"
+    if ! python -c "import sphinx" 2>/dev/null; then
+        echo -e "${YELLOW}Installing documentation dependencies...${NC}"
+        pip install -r requirements.txt
+    fi
+}
 
 build_html() {
     echo -e "${YELLOW}Building HTML documentation...${NC}"
@@ -44,6 +46,7 @@ build_html() {
     sphinx-build -b html source build/html
     if [ $? -eq 0 ]; then
         echo -e "${GREEN}HTML documentation built successfully.${NC}"
+        echo -e "${GREEN}HTML files: docs/build/html/index.html${NC}"
         echo -e "${GREEN}Open docs/build/html/index.html in your browser.${NC}"
     else
         echo -e "${RED}HTML documentation build failed.${NC}"
@@ -55,11 +58,8 @@ build_pdf() {
     echo -e "${YELLOW}Building PDF documentation...${NC}"
     mkdir -p build
 
-    # Check if LaTeX is installed
     if ! command -v pdflatex &> /dev/null; then
         echo -e "${RED}Error: pdflatex not found. Please install LaTeX.${NC}"
-        echo -e "${YELLOW}On Ubuntu/Debian: sudo apt-get install texlive-latex-recommended texlive-latex-extra texlive-fonts-recommended${NC}"
-        echo -e "${YELLOW}On macOS: brew install mactex${NC}"
         exit 1
     fi
 
@@ -72,33 +72,35 @@ build_pdf() {
 
     echo -e "${YELLOW}Running pdflatex...${NC}"
     cd build/latex
+    set +e
     for i in {1..3}; do
         echo -e "${YELLOW}pdflatex run $i/3...${NC}"
         pdflatex -interaction=nonstopmode pyfraglib.tex
-        if [ $? -ne 0 ]; then
-            echo -e "${RED}pdflatex failed on run $i.${NC}"
+        if [ ! -f "pyfraglib.pdf" ]; then
+            echo -e "${RED}pdflatex failed on run $i - no PDF generated.${NC}"
             exit 1
         fi
     done
+    set -e
 
     cd "$DOCS_DIR"
-
-    # @NOTE(ds): Copy PDF to a more accessible location.
     if [ -f "build/latex/pyfraglib.pdf" ]; then
-        cp build/latex/pyfraglib.pdf build/pyfraglib.pdf
+        cp build/latex/pyfraglib.pdf pyfraglib.pdf
         echo -e "${GREEN}PDF documentation built successfully.${NC}"
-        echo -e "${GREEN}PDF file: docs/build/pyfraglib.pdf${NC}"
+        echo -e "${GREEN}PDF file: docs/pyfraglib.pdf${NC}"
     else
         echo -e "${RED}PDF generation failed.${NC}"
         exit 1
     fi
 }
 
-case "${1:-html}" in
+case "${1}" in
     html)
+        setup
         build_html
         ;;
     pdf)
+        setup
         build_pdf
         ;;
     *)
