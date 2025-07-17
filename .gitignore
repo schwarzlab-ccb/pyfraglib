@@ -21,3 +21,4 @@ notebooks/*/
 *.log*
 *.md
 *.pdf
+docs/source/api/generated/
