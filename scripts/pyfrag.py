@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """
 PyFragLib Command Line Interface
+================================
 
 This module provides a command-line interface for the PyFragLib software suite,
 which calculates fragmentomics features from cfDNA and performs downstream
@@ -27,6 +28,8 @@ Examples:
     Simulate cfDNA fragments:
         pyfrag.py simulate --config simulation.json --out-dir sim_output/
 
+License
+-------
 Copyright (C) 2025 Daniel Schütte, daniel.schuette@iccb-cologne.org
 
 This program is free software: you can redistribute it and/or modify it under
@@ -95,10 +98,6 @@ def signal_handler(sig: int, frame: object) -> NoReturn:
     fail("an error occurred", logger)
 
 
-# @NOTE(ds): We always require our users to indicate an output directory. What
-# type of output we produce is determined by a subcommand (implemented via
-# argparse's subparsers). Subcommands have a bunch of additional, but
-# individual options which determine their behavior only.
 def create_argparser() -> argparse.ArgumentParser:
     """
     Create and configure the argument parser for the CLI.
@@ -108,6 +107,12 @@ def create_argparser() -> argparse.ArgumentParser:
 
     Returns:
         Configured ArgumentParser instance with all subcommands
+
+    Note:
+        We always require our users to indicate an output directory. What
+        type of output we produce is determined by a subcommand (implemented
+        via argparse's subparsers). Subcommands have a bunch of additional, but
+        individual options which determine their behavior only.
     """
     argparser: argparse.ArgumentParser = argparse.ArgumentParser(
         prog="pyfrag", description="Use a subset of `pyfraglib's "
@@ -215,11 +220,6 @@ def create_argparser() -> argparse.ArgumentParser:
     return argparser
 
 
-# @NOTE(ds): At this point, we can assume that `out_dir' exists.
-# Loading all `FragmentList's into a collection before saving the to disk is
-# super expensive in terms of memory. We did that in previous versions of
-# `pyfraglib' but changed things around to be able to handle large directories
-# of even larger BAM files.
 def extract(out_dir: str, args: argparse.Namespace) -> None:
     """
     Extract fragment information from BAM files.
@@ -239,6 +239,12 @@ def extract(out_dir: str, args: argparse.Namespace) -> None:
         Batch processing of multiple BAM files is no longer recommended. The
         preferred way to handle large datasets is using the Nextflow pipeline
         included with PyFragLib.
+
+        At this point, we can assume that `out_dir' exists. Loading all
+        `FragmentList's into a collection before saving the to disk is super
+        expensive in terms of memory. We did that in previous versions of
+        `pyfraglib' but changed things around to be able to handle large
+        directories of even larger BAM files.
     """
     bam_file: Final[str] = args.bam_file
     bam_dir: Final[str] = args.bam_dir
@@ -284,7 +290,6 @@ def extract(out_dir: str, args: argparse.Namespace) -> None:
     Fragment.bams_to_frags(bam_files, vcf_files, out_dir, is_nanopore)
 
 
-# @NOTE(ds): `stats' and `lengths' follow very similar patterns.
 def stats(out_dir: str, args: argparse.Namespace) -> None:
     """
     Generate descriptive statistics from fragment files.
@@ -369,9 +374,6 @@ def lengths(out_dir: str, args: argparse.Namespace) -> None:
         fragment_length_gmm(fragments, config_file, out_dir, name)
 
 
-# @NOTE(ds): We interleave the calculation of our scores. It's ugly, but
-# otherwise we have to store all fragment files as a collection which requires
-# loads of memory.
 def scores(out_dir: str, args: argparse.Namespace) -> None:
     """
     Calculate fragmentomics scores from fragment files.
@@ -387,6 +389,11 @@ def scores(out_dir: str, args: argparse.Namespace) -> None:
 
     Raises:
         SystemExit: If invalid arguments or missing required files
+
+    Note:
+        We interleave the calculation of our scores. It's ugly, but otherwise
+        we have to store all fragment files as a collection which requires
+        loads of memory.
     """
     frag_file: Final[str] = args.frag_file
     frag_dir: Final[str] = args.frag_dir

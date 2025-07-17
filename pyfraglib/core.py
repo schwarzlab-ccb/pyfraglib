@@ -1,16 +1,109 @@
-# This file is part of ``pyfraglib``, a software suite to calculate
-# fragmentomics features from cfDNA and perform downstream analyses.
-#
-# Copyright (C) 2024 Daniel Schütte, daniel.schuette@iccb-cologne.org
-#
-# This program is free software: you can redistribute it and/or modify it under
-# the terms of the GNU General Public License as published by the Free Software
-# Foundation, either version 3 of the License, or (at your option) any later
-# version. This program is distributed in the hope that it will be useful, but
-# WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
-# FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License for
-# more details. You should have received a copy of the GNU General Public
-# License along with this program. If not, see <https://www.gnu.org/licenses/>.
+"""
+Core Utilities and Infrastructure for pyfraglib
+===============================================
+
+This module provides core utilities, and shared functions used throughout the
+pyfraglib library. It includes chromosome definitions, error handling, logging
+configuration, multiprocessing support, and statistical diversity indices.
+
+Key Components
+--------------
+- **Chromosome Definitions**: Reference genome coordinates for hg19 and hg38
+- **Error Handling**: Graceful failure mechanisms and logging
+- **Multiprocessing**: CPU detection and shared memory management
+- **Statistics**: Diversity indices (Shannon entropy, Simpson index)
+- **Utilities**: Chromosome name standardization and validation
+
+Chromosome Reference Data
+-------------------------
+The module includes comprehensive chromosome definitions for human reference
+genomes:
+
+- **hg19 (GRCh37)**: Chromosome lengths and accession numbers
+- **hg38 (GRCh38)**: Updated chromosome coordinates and identifiers
+
+Functions
+---------
+- :func:`get_logger`: Configure and retrieve logger instances
+- :func:`fail`: Graceful error handling with proper cleanup
+- :func:`detect_cpus`: Detect available CPU cores for multiprocessing
+- :func:`get_chromosome_length`: Get chromosome length for reference genome
+- :func:`homogenize_contig_name`: Standardize chromosome naming conventions
+- :func:`shannon_entropy`: Calculate Shannon entropy for diversity analysis
+- :func:`simpson_index`: Calculate Simpson diversity index
+
+Example Usage
+-------------
+.. code-block:: python
+
+    from pyfraglib.core import get_logger, detect_cpus, get_chromosome_length
+
+    # Configure logging
+    logger = get_logger()
+    logger.info("Starting analysis...")
+
+    # Detect CPU cores for multiprocessing
+    n_cpus = detect_cpus()
+    print(f"Using {n_cpus} CPU cores")
+
+    # Get chromosome length
+    chr1_length = get_chromosome_length("1", "hg38")
+    print(f"Chromosome 1 length: {chr1_length} bp")
+
+Multiprocessing Support
+-----------------------
+The module provides multiprocessing infrastructure through the
+:class:`PyfragManager` class, which enables efficient sharing of data
+structures across processes:
+
+.. code-block:: python
+
+    from pyfraglib.core import PyfragManager
+    from pyfraglib.fragment import FragmentCollection
+
+    # Register shared data structures
+    PyfragManager.register("FragmentCollection", FragmentCollection)
+
+    # Use in multiprocessing context
+    with PyfragManager() as manager:
+        shared_collection = manager.FragmentCollection()
+
+Error Handling
+--------------
+The :func:`fail` function provides centralized error handling with proper
+cleanup:
+
+.. code-block:: python
+
+    from pyfraglib.core import fail
+
+    # Graceful failure with logging
+    if not os.path.exists(required_file):
+        fail(f"Required file not found: {required_file}")
+
+Constants
+---------
+- :const:`LOGGER_NAME`: Standard logger name for pyfraglib
+- :const:`hg19_chromosomes`: Chromosome definitions for hg19/GRCh37
+- :const:`hg38_chromosomes`: Chromosome definitions for hg38/GRCh38
+
+License
+-------
+This file is part of ``pyfraglib``, a software suite to calculate
+fragmentomics features from cfDNA and perform downstream analyses.
+
+Copyright (C) 2024 Daniel Schütte, daniel.schuette@iccb-cologne.org
+
+This program is free software: you can redistribute it and/or modify it under
+the terms of the GNU General Public License as published by the Free Software
+Foundation, either version 3 of the License, or (at your option) any later
+version. This program is distributed in the hope that it will be useful, but
+WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License for
+more details. You should have received a copy of the GNU General Public
+License along with this program. If not, see <https://www.gnu.org/licenses/>.
+"""
+
 import logging
 import os
 import signal
@@ -141,7 +234,7 @@ def homogenize_to_chrom_naming_convention(
     contig: str, header: dict[str, object]
 ) -> str:
     """
-    Take a BAM file header and a contig name and returns the contig name
+    Take a BAM file header and a contig name and return the contig name
     according to the headers naming convention. If the header is invalid,
     return ``contig`` unaltered.
     """
@@ -157,8 +250,11 @@ def homogenize_to_chrom_naming_convention(
         return contig
 
 
-# @NOTE(ds): The input list needs to be normalized to proportions!
 def shannon_entropy(proportions: list[float]) -> float:
+    """
+    Note:
+        The input list needs to be normalized to proportions.
+    """
     prop_sum: float = 0.0
     for prop in proportions:
         log_prop: float = np.log(prop)
@@ -179,6 +275,9 @@ def simpson_index(proportions: list[float]) -> float:
 
 
 def detect_cpus() -> int:
+    """
+    Return the number of CPUs currently available.
+    """
     logger: logging.Logger = get_logger()
     num_cores: Final[int] = int(os.environ.get("SLURM_CPUS_PER_TASK", 1))
 
