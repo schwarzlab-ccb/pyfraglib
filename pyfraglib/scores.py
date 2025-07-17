@@ -1,16 +1,112 @@
-# This file is part of `pyfraglib`, a software suite to calculate fragmentomics
-# features from cfDNA and perform downstream analyses.
-#
-# Copyright (C) 2024 Daniel Schütte, daniel.schuette@iccb-cologne.org
-#
-# This program is free software: you can redistribute it and/or modify it under
-# the terms of the GNU General Public License as published by the Free Software
-# Foundation, either version 3 of the License, or (at your option) any later
-# version. This program is distributed in the hope that it will be useful, but
-# WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
-# FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License for
-# more details. You should have received a copy of the GNU General Public
-# License along with this program. If not, see <https://www.gnu.org/licenses/>.
+"""
+Fragmentomics Scores
+====================
+
+This module provides algorithms for calculating fragmentomics scores from cfDNA
+fragment data. These scores capture biologically meaningful patterns in
+fragment characteristics that can be e.g. be used as biomarkers.
+
+Key Algorithms
+--------------
+- **Windowed Protection Score (WPS)**: Measures nucleosome positioning and
+                                       chromatin accessibility
+- **Motif Diversity**: Quantifies diversity of fragment end motifs using
+                       entropy measures
+- **Score Visualization**: Generate plots for fragmentomics scores
+
+Windowed Protection Score (WPS)
+-------------------------------
+The WPS algorithm measures the degree to which genomic regions are protected
+from nuclease digestion, providing insights into nucleosome positioning and
+chromatin accessibility. Please refer to the API documentation for a detailed
+explanation of how the WPS is calculated.
+
+Motif Diversity
+---------------
+Fragment end motifs reflect nuclease cleavage preferences and can reveal
+tissue-specific patterns. This module provides functions to calculate diversity
+indices for fragment end motifs, including Shannon entropy and Simpson index.
+
+Example Usage
+-------------
+Calculate WPS for genomic regions:
+
+.. code-block:: python
+
+    from pyfraglib.scores import windowed_protection_score
+    from pyfraglib.fragment import Fragment
+
+    # Load fragments
+    fragments = Fragment.from_bam("sample.bam", "variants.vcf")
+
+    # Calculate WPS for BED regions
+    wps_scores = windowed_protection_score(fragments, "regions.bed")
+
+    # Access results
+    for region, score in wps_scores.items():
+        print(f"Region {region}: WPS = {score:.3f}")
+
+Calculate motif diversity:
+
+.. code-block:: python
+
+    from pyfraglib.scores import motif_diversity
+
+    # Calculate Shannon entropy for 4-mer end motifs
+    shannon_div = motif_diversity(fragments, kmer_len=4, index="shannon")
+    print(f"Shannon entropy: {shannon_div:.4f}")
+
+    # Calculate Simpson index
+    simpson_div = motif_diversity(fragments, kmer_len=4, index="simpson")
+    print(f"Simpson index: {simpson_div:.4f}")
+
+Visualize scores:
+
+.. code-block:: python
+
+    from pyfraglib.scores import score_line_plot
+
+    # Create line plot of WPS scores
+    score_line_plot(wps_scores, "output/", "sample_wps",
+                    xlabel="Genomic Position", ylabel="WPS Score",
+                    title="Windowed Protection Score")
+
+Performance Considerations
+--------------------------
+- Consider subsampling fragments for initial exploratory analysis
+- WPS calculation is memory-intensive for large genomic regions
+- Motif diversity scales with fragment count and k-mer length
+
+Functions
+---------
+- :func:`windowed_protection_score`: WPS calculation dispatcher
+- :func:`windowed_protection_score_fast`: Optimized WPS implementation
+- :func:`motif_diversity`: Calculate diversity indices for fragment end motifs
+- :func:`score_line_plot`: Generate line plots for fragmentomics scores
+
+Biological Interpretation
+-------------------------
+- **High WPS**: Indicates nucleosome-protected regions with regular spacing
+- **Low WPS**: Suggests accessible chromatin or irregular nucleosome positions
+- **High Motif Diversity**: Indicates diverse nuclease cleavage patterns
+- **Low Motif Diversity**: Suggests dominant cleavage motifs or bias
+
+License
+-------
+This file is part of ``pyfraglib``, a software suite to calculate fragmentomics
+features from cfDNA and perform downstream analyses.
+
+Copyright (C) 2025 Daniel Schütte, daniel.schuette@iccb-cologne.org
+
+This program is free software: you can redistribute it and/or modify it under
+the terms of the GNU General Public License as published by the Free Software
+Foundation, either version 3 of the License, or (at your option) any later
+version. This program is distributed in the hope that it will be useful, but
+WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License for
+more details. You should have received a copy of the GNU General Public
+License along with this program. If not, see <https://www.gnu.org/licenses/>.
+"""
 import logging
 import typing
 import os
@@ -23,18 +119,75 @@ import numpy as np
 import numpy.typing as npt
 
 from collections import defaultdict
-from intervaltree import Interval
 from pyfraglib.core import shannon_entropy, simpson_index, fail, \
                            get_chromosome_length, hg19_chromosomes, \
                            hg38_chromosomes, homogenize_contig_name
-from pyfraglib.fragment import FragmentList, IntervalTable
+from pyfraglib.fragment import FragmentList
 from pyfraglib import get_logger
 
 
-# NOTE(ds): Return the MDS for 5' and 3' fragments.
 def motif_diversity(
     fragments: FragmentList, name: str, index: str = "shannon"
 ) -> tuple[float, float]:
+    """
+    Calculate diversity indices for fragment end motifs.
+
+    Computes diversity measures for fragment end motifs (k-mers) using Shannon
+    entropy or Simpson index. These metrics quantify the diversity of nuclease
+    cleavage patterns and can reveal tissue-specific fragmentation signatures
+    in cfDNA samples.
+
+    Args:
+        fragments: List of fragments to analyze. Bogus fragments are
+            automatically excluded from calculations.
+        name: Sample or analysis name for logging purposes. Used in log
+            messages to identify which sample is being processed.
+        index: Diversity index to calculate. Options are:
+            * ``"shannon"``: Shannon entropy (default)
+            * ``"simpson"``: Simpson index
+
+    Returns:
+        tuple[float, float]: A tuple containing (5p_diversity, 3p_diversity).
+            Returns (0.0, 0.0) if no valid fragments are found
+
+    Raises:
+        SystemExit: If an invalid diversity index is specified. Only "shannon"
+            and "simpson" are supported.
+
+    Note:
+        * Uses 4-mer sequences from fragment ends for analysis
+        * Automatically filters out motifs containing 'N' bases
+        * Zero counts are excluded to avoid log(0) issues in calculations
+        * Results are normalized and comparable across samples
+
+    Example:
+        Calculate motif diversity for a sample::
+
+            from pyfraglib.fragment import Fragment
+            from pyfraglib.scores import motif_diversity
+
+            # Load fragments
+            fragments = Fragment.from_bam("sample.bam", "variants.vcf")
+
+            # Calculate Shannon entropy
+            shannon_5p, shannon_3p = motif_diversity(
+                fragments, "sample_001", "shannon"
+            )
+            print(f"5' Shannon entropy: {shannon_5p:.4f}")
+            print(f"3' Shannon entropy: {shannon_3p:.4f}")
+
+            # Calculate Simpson index
+            simpson_5p, simpson_3p = motif_diversity(
+                fragments, "sample_001", "simpson"
+            )
+            print(f"5' Simpson index: {simpson_5p:.4f}")
+            print(f"3' Simpson index: {simpson_3p:.4f}")
+
+    See Also:
+        * :func:`pyfraglib.core.shannon_entropy` - Shannon entropy calculation
+        * :func:`pyfraglib.core.simpson_index` - Simpson index calculation
+        * :class:`FragmentList.count_endmotifs` - Low-level motif counting
+    """
     logger: logging.Logger = get_logger()
 
     index_func: typing.Callable[[list[float]], float]
@@ -43,7 +196,7 @@ def motif_diversity(
     elif index == "simpson":
         index_func = simpson_index
     else:
-        fail(f"motif_diversity(): unknown index function `{index}'")
+        fail(f"motif_diversity(): unknown index function ``{index}``")
 
     logger.info(f"calculating motif diversity score ({index}) for {name}")
 
@@ -70,32 +223,101 @@ def motif_diversity(
     return (index_5p, index_3p)
 
 
-# @NOTE(ds): This is a simply dispatch function to facilitate selection of a
-# WPS implementation.
 def windowed_protection_score(
     fragments: FragmentList, regions: pysam.TabixFile, win_size: int = 120,
     genome: str = "hg19"
 ) -> pd.DataFrame:
+    """
+    Calculate Windowed Protection Score (WPS) for genomic regions.
+
+    Computes the Windowed Protection Score, which measures the degree to which
+    genomic regions are protected from nuclease digestion. This metric provides
+    insights into nucleosome positioning and chromatin accessibility patterns
+    in cell-free DNA samples.
+
+    The WPS algorithm calculates protection as the difference between spanning
+    and ending fragments within genomic windows. Higher WPS values indicate
+    regions with regular nucleosome positioning, while lower values suggest
+    accessible chromatin or irregular positioning.
+
+    Args:
+        fragments: Collection of fragments to analyze. Bogus fragments are
+            automatically excluded from WPS calculations.
+        regions: Indexed BED file containing genomic regions of interest.
+            Must be opened with pysam.TabixFile and properly formatted.
+        win_size: Window size in base pairs for WPS calculation. Default is
+            120bp, which corresponds to nucleosome-sized protection. Must be
+            positive.
+        genome: Reference genome version for chromosome length validation.
+            Supported values are "hg19" and "hg38".
+
+    Returns:
+        pd.DataFrame: DataFrame containing WPS results with columns:
+            * ``chrom``: Chromosome name
+            * ``pos``: Genomic position
+            * ``abs_pos``: Absolute position across the genome
+            * ``wps``: Windowed Protection Score
+            * ``depth``: Fragment coverage depth
+            * ``spanning_frags``: Number of fragments spanning the window
+            * ``ending_frags``: Number of fragments ending in the window
+            * ``info``: Additional information from BED file
+
+    Note:
+        * Requires a sorted, indexed BED file for efficient region queries
+        * Results include both raw WPS scores and supporting coverage metrics
+        * Memory usage scales with the number of genomic regions analyzed
+
+    Example:
+        Calculate WPS for promoter regions::
+
+            import pysam
+            from pyfraglib.fragment import Fragment
+            from pyfraglib.scores import windowed_protection_score
+
+            # Load fragments and genomic regions
+            fragments = Fragment.from_bam("sample.bam", "variants.vcf")
+            regions = pysam.TabixFile("promoters.bed.gz")
+
+            # Calculate WPS with default parameters
+            wps_results = windowed_protection_score(fragments, regions)
+
+            # Access results
+            print(f"Calculated WPS for {len(wps_results)} positions")
+            print(f"Mean WPS: {wps_results['wps'].mean():.3f}")
+
+            # Filter for high protection regions
+            protected_regions = wps_results[wps_results['wps'] > 10]
+            print(f"Found {len(protected_regions)} highly protected positions")
+
+    See Also:
+        * :func:`windowed_protection_score_fast` - Optimized WPS implementation
+        * :func:`score_line_plot` - Visualization of WPS results
+    """
     return windowed_protection_score_fast(fragments, regions, win_size, genome)
 
 
-# @NOTE(ds): We removed the `step_size' argument because this algorithm does
-# not need that. It iterates over fragments instead of genomic regions:
-#
-#  > case 1 (fragment_size < window_size):
-#       [frag_start - win_size/2, frag_end + win_size/2] <- -1
-#
-# > case 2 (fragment_size >= window_size):
-#       [frag_start - win_size/2, frag_start + win_size/2) <- -1
-#       [frag_start + win_size/2, frag_end   - win_size/2] <- +1
-#       (frag_end   - win_size/2, frag_end   + win_size/2] <- -1
-#
-# The implementation below tries to be extremely careful about interval
-# definitions to not introduce 1-off errors.
 def windowed_protection_score_fast(
     fragments: FragmentList, regions: pysam.TabixFile, win_size: int = 120,
     genome: str = "hg19"
 ) -> pd.DataFrame:
+    """
+    This fast WPS implementation replaces the previous ``pyfraglib`` WPS
+    implementation. We removed the ``step_size`` argument because this
+    algorithm does not need that. It iterates over fragments instead of genomic
+    regions like so:
+
+    > case 1 (fragment_size < window_size):
+          [frag_start - win_size/2, frag_end + win_size/2] <- -1
+
+    > case 2 (fragment_size >= window_size):
+          [frag_start - win_size/2, frag_start + win_size/2) <- -1
+          [frag_start + win_size/2, frag_end   - win_size/2] <- +1
+          (frag_end   - win_size/2, frag_end   + win_size/2] <- -1
+
+    The implementation below tries to be extremely careful about interval
+    definitions to not introduce 1-off errors. The arguments are identical to
+    :func:`windowed_protection_score`. See there for more information.
+    """
     assert win_size > 0
 
     chrom_map_wps: dict[str, npt.NDArray[np.int64]] = \
@@ -146,78 +368,6 @@ def windowed_protection_score_fast(
                                  regions, genome)
 
 
-# @DEPRECATED(ds): This function should no longer be used!
-#
-# @NOTE(ds): We assume a correctly formatted BED file to be provided for the
-# `region' argument. An `info' field can be used to carry additional data over
-# the the resulting dataframe (e.g. gene names).
-def windowed_protection_score_slow(
-    fragments: FragmentList, regions: pysam.TabixFile,
-    win_size: int = 120, genome: str = "hg19"
-) -> pd.DataFrame:
-    assert win_size > 0
-
-    col_names: list[str] = ["chrom", "pos", "abs_pos", "wps", "info"]
-    wps_df: pd.DataFrame = pd.DataFrame(
-        None, index=range(precalc_size(regions)), columns=col_names
-    )
-
-    region: str
-    interval_table: IntervalTable = fragments.to_interval_table()
-    it: int = 0
-    cum_pos: int = 0
-    cur_chrom: str | None = None
-
-    for region in regions.fetch():  # type: ignore
-        chrom: str
-        istart: str
-        iend: str
-        info: str
-
-        chrom, istart, iend, info = region.split()
-        get_logger().debug(f"WPS at {info}")
-
-        # @NOTE(ds): To calculate our scores over the same windows as we do
-        # with the fast algorithm, we need to slightly adjust the windows.
-        for win_start in range(int(istart)-60, int(iend)-60+1):
-            win_end: int = win_start + win_size  # right-exclusive
-            win_mid: int = win_start + win_size // 2
-
-            if not cur_chrom:
-                cur_chrom = chrom
-            elif chrom != cur_chrom:
-                cum_pos += get_chromosome_length(cur_chrom, genome)
-                cur_chrom = chrom
-
-            intervals: list[Interval]  # type: ignore
-            intervals = interval_table.get_overlaps(
-                chrom, win_start, win_end
-            )
-
-            num_spanning_frags: int = 0
-            num_intersecting_frags: int = 0
-            interval: Interval  # type: ignore
-            for interval in intervals:  # type: ignore
-                s: int = interval.begin  # type: ignore
-                e: int = interval.end  # type: ignore
-                if s > win_start or e < win_end:
-                    num_intersecting_frags += 1
-                else:
-                    num_spanning_frags += 1
-
-            new_row: list[str | float] = [
-                chrom, win_mid, win_mid + cum_pos,
-                num_spanning_frags - num_intersecting_frags,
-                info
-            ]
-            wps_df.loc[it] = new_row
-            it += 1
-
-    regions.reset()
-    get_logger().debug(f"calculated WPS for {it} positions")
-    return wps_df
-
-
 def precalc_size(regions: pysam.TabixFile) -> int:
     it: int = 0
     for region in regions.fetch():  # type: ignore
@@ -242,7 +392,7 @@ def create_chromosome_map(
     elif genome == "hg38":
         chromosomes = hg38_chromosomes
     else:
-        fail(f"unknown genome `{genome}' requested")
+        fail(f"unknown genome ``{genome}`` requested")
 
     for name, length, _, _ in chromosomes:
         chrom_map[name] = np.zeros(length, dtype=np.int64)
@@ -327,21 +477,98 @@ def chromosome_maps_to_df(
     return output_df
 
 
-# @NOTE(ds): `exclude_chroms' must be in "1" format (not "chr1"). `region` is
-# only applied if a single chromosome is selected (by excluding all chromosomes
-# but one, that is).
 def score_line_plot(
     df: pd.DataFrame, name: str, out_dir: str, score: str = "wps",
     exclude_chroms: list[str] = ["Y", "M"], region: tuple[int, int] = (0, 0),
     genome: str = "hg19", log_transform: bool = False,
     plot_spanning_ending_frags: bool = False
 ) -> None:
+    """
+    Generate line plots for fragmentomics scores across the genome.
+
+    Creates exploratory line plots showing fragmentomics scores across
+    chromosomes or specific genomic regions. Supports multiple score types
+    including WPS, fragment depth, and fragment ratios with customizable
+    visualization options.
+
+    The function generates genome-wide plots or focused plots for single
+    chromosome regions.
+
+    Args:
+        df: DataFrame containing score data with required columns:
+            ``chrom``, ``pos``, ``abs_pos``, and the specified score column.
+            Additional columns ``spanning_frags`` and ``ending_frags`` required
+            if ``plot_spanning_ending_frags=True``.
+        name: Sample or analysis name used for the plot title and output
+            filename.
+        out_dir: Output directory path where the plot PNG file will be saved.
+        score: Score type to plot. Supported options:
+            * ``"wps"``: Windowed Protection Score (default)
+            * ``"depth"``: Fragment coverage depth
+            * ``"ratio_end_span"``: Ratio of ending to spanning fragments
+            * ``"ratio_span_total"``: Ratio of spanning to total fragments
+        exclude_chroms: List of chromosomes to exclude from plotting.
+            Default excludes Y and mitochondrial chromosomes.
+        region: Genomic region to focus on as (start, end) coordinates.
+            Only applied when plotting a single chromosome. Default (0, 0)
+            plots the entire chromosome.
+        genome: Reference genome version for chromosome definitions.
+            Supported values are "hg19" and "hg38".
+        log_transform: Whether to apply logarithmic transformation to y-axis.
+            Useful for scores with wide dynamic ranges.
+        plot_spanning_ending_frags: Whether to overlay spanning and ending
+            fragment counts on the plot. Only available for single-chromosome
+            plots.
+
+    Returns:
+        None. The function saves a PNG plot to the specified output directory
+        with filename ``{name}_{score}.png``.
+
+    Raises:
+        SystemExit: If an unsupported score type is specified.
+
+    Note:
+        * Automatically calculates ratio scores if not present in DataFrame
+        * Handles division by zero in ratio calculations automatically
+
+    Example:
+        Create WPS line plot across the genome::
+
+            import pandas as pd
+            from pyfraglib.scores import score_line_plot
+
+            # Assuming wps_results is a df from windowed_protection_score
+            score_line_plot(
+                df=wps_results,
+                name="sample_001",
+                out_dir="plots/",
+                score="wps",
+                exclude_chroms=["Y", "M"]
+            )
+            # Creates: plots/sample_001_wps.png
+
+        Create focused plot for chromosome 1 with fragment details::
+
+            score_line_plot(
+                df=chr1_results,
+                name="chr1_detailed",
+                out_dir="plots/",
+                score="wps",
+                exclude_chroms=[],  # Include all chromosomes in data
+                region=(1000000, 2000000),  # Focus on 1Mb region
+                plot_spanning_ending_frags=True
+            )
+
+    See Also:
+        * :func:`windowed_protection_score` - Generate WPS data for plotting
+        * :func:`motif_diversity` - Calculate diversity scores for plotting
+    """
     if score not in ["wps", "depth", "ratio_end_span", "ratio_span_total"]:
-        fail(f"unknown score `{score}' requested")
+        fail(f"unknown score ``{score}`` requested")
 
     outpath: str = os.path.join(out_dir, f"{name}_{score}.png")
     get_logger().info(
-        f"saving score plot for {name} to `{outpath}'"
+        f"saving score plot for {name} to ``{outpath}``"
     )
 
     chromosomes: list[tuple[str, int, str, str]]
@@ -350,7 +577,7 @@ def score_line_plot(
     elif genome == "hg38":
         chromosomes = hg38_chromosomes
     else:
-        fail(f"unknown genome `{genome}' requested")
+        fail(f"unknown genome ``{genome}`` requested")
 
     if score == "ratio_end_span":
         # Avoid division by zero: set ratio to 0 when spanning_frags is 0.

@@ -2,7 +2,7 @@
 Core Utilities and Infrastructure for pyfraglib
 ===============================================
 
-This module provides core utilities, and shared functions used throughout the
+This module provides core utilities and shared functions used throughout the
 pyfraglib library. It includes chromosome definitions, error handling, logging
 configuration, multiprocessing support, and statistical diversity indices.
 
@@ -103,7 +103,6 @@ FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License for
 more details. You should have received a copy of the GNU General Public
 License along with this program. If not, see <https://www.gnu.org/licenses/>.
 """
-
 import logging
 import os
 import signal

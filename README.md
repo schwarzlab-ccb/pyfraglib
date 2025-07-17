@@ -1,6 +1,6 @@
 # pyfraglib
 
-![pyfraglib Logo](docs/pyfraglib_logo.jpg)
+![pyfraglib Logo](docs/imgs/pyfraglib_logo.jpg)
 
 ## Overview
 
@@ -19,7 +19,7 @@ It is recommended that `pyfraglib` is installed into a dedicated conda
 environment using `pip`, the Python package manager:
 
 ```bash
-git clone git@bitbucket.org:schwarzlab/project-lymphoma-cfdna.git
+git clone git@bitbucket.org:schwarzlab/pyfraglib.git
 cd pyfraglib
 conda env create -f pyfraglib.yml
 conda activate pyfraglib
@@ -32,9 +32,6 @@ During development, all code in `pyfraglib` is thoroughly type-checked using
 ```bash
 ./tools/dev_install.sh # typing & linting errors are reported
 ```
-
-As soon as `pyfraglib` is available through PyPI, installation will be even
-easier (no need to clone the repo then).
 
 ## Usage
 
@@ -61,20 +58,21 @@ operations as much as possible. See `tools/nextflow.config` for all paths and
 variables that must be set by the user. Currently, only `slurm` is supported as
 a scheduler (via the `ramses` profile).
 
-## Implemented Algorithms
+## Available fragmentomics features
 
-| Fragmentomics Feature                    | Related Publication                 | Impl. Status  |
-|------------------------------------------|-------------------------------------|---------------|
-| Fragment length analysis                 |                                     | in progress   |
-| K-mer end motifs 3'/5'                   |                                     | in progress   |
-| Motif diversity score                    |                                     | in progress   |
-| Window protection score                  |                                     | in progress   |
-| D/U fragment ends ("OCF")                | Sun et al., Genome Research, 2019   | not yet       |
-| NMF-derived fragment length signatures   | Renaud et al., Elife, 2022          | not yet       |
-| DELFI Metric (short / long fragments)    | Cristiano et al., Nature 2019       | not yet       |
-| Maximum nucleosome protection            | Snyder et al., 2016                 | not planned   |
-| 2k- & NDR-TSS coverage metrics           | Ulz et al., Nature Genetics 2016    | not planned   |
-| Promoter fragmentation entropy           |                                     | not planned   |
+Please refer to the project's documentation for a list of currently supported
+features (see below for instructions on how to build documentation using
+Sphinx).
+
+## Documentation
+
+Sphinx is used to create documentation. The easiest way to create repository-wide
+documentation in HTML or PDF format, run:
+
+```bash
+./tools/build_docs.sh pdf # or:
+./tools/build_docs.sh html
+```
 
 ## Citation
 
