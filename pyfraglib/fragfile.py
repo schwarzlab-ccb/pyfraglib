@@ -64,12 +64,6 @@ Fragment files integrate seamlessly with pyfraglib analysis functions:
     fragment_length_plot(fragments, "plots/", "sample")
     diversity_5p, diversity_3p = motif_diversity(fragments, "sample")
 
-See Also
---------
-- :class:`pyfraglib.fragment.Fragment` - Individual fragment objects
-- :class:`pyfraglib.fragment.FragmentList` - Fragment collections
-- :meth:`pyfraglib.fragment.FragmentList.to_frag_file` - Writing fragment files
-
 License
 -------
 This file is part of ``pyfraglib``, a software suite to calculate

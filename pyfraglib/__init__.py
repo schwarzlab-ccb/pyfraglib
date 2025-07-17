@@ -112,18 +112,8 @@ script:
 
 Requirements
 ------------
-The following packages are required for ``pyfraglib`` to run:
-
-- Python 3.10+
-- NumPy
-- SciPy
-- Matplotlib
-- Pandas
-- pysam
-- intervaltree
-- tqdm
-
-See ``setup.py`` for additional build dependencies.
+The number of packages are required for ``pyfraglib`` to run: See
+``setup.py`` for additional build dependencies.
 
 Version Information
 -------------------

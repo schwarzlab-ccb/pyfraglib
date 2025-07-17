@@ -49,11 +49,6 @@ The analysis generates multiple outputs including visualizations, fitted
 parameters, and goodness-of-fit statistics for downstream analysis and quality
 control.
 
-See Also
----------
-    * :mod:`pyfraglib.math` - Core mathematical functions for GMM fitting
-    * :mod:`pyfraglib.stats` - General statistical analysis functions
-
 License
 -------
 This file is part of ``pyfraglib``, a software suite to calculate
