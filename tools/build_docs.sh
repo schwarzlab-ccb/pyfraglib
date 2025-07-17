@@ -75,8 +75,8 @@ build_pdf() {
     set +e
     for i in {1..3}; do
         echo -e "${YELLOW}pdflatex run $i/3...${NC}"
-        pdflatex -interaction=nonstopmode pyfraglib.tex
-        if [ ! -f "pyfraglib.pdf" ]; then
+        pdflatex -interaction=nonstopmode pyfraglib_documentation.tex
+        if [ ! -f "pyfraglib_documentation.pdf" ]; then
             echo -e "${RED}pdflatex failed on run $i - no PDF generated.${NC}"
             exit 1
         fi
@@ -84,10 +84,10 @@ build_pdf() {
     set -e
 
     cd "$DOCS_DIR"
-    if [ -f "build/latex/pyfraglib.pdf" ]; then
-        cp build/latex/pyfraglib.pdf pyfraglib.pdf
+    if [ -f "build/latex/pyfraglib_documentation.pdf" ]; then
+        cp build/latex/pyfraglib_documentation.pdf pyfraglib_documentation.pdf
         echo -e "${GREEN}PDF documentation built successfully.${NC}"
-        echo -e "${GREEN}PDF file: docs/pyfraglib.pdf${NC}"
+        echo -e "${GREEN}PDF file: docs/pyfraglib_documentation.pdf${NC}"
     else
         echo -e "${RED}PDF generation failed.${NC}"
         exit 1

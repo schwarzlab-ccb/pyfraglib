@@ -1,0 +1,39 @@
+/* Custom CSS for pyfraglib documentation */
+
+/* Add some custom styling if needed */
+.wy-nav-content {
+    max-width: 1200px;
+}
+
+/* Style for code blocks */
+.highlight {
+    margin: 1em 0;
+}
+
+/* Style for admonitions */
+.admonition {
+    margin: 1em 0;
+    padding: 1em;
+    border-radius: 4px;
+}
+
+/* Custom styling for the logo */
+.logo {
+    max-width: 200px;
+    height: auto;
+}
+
+/* Improve table styling */
+.wy-table-responsive table td, .wy-table-responsive table th {
+    white-space: normal;
+}
+
+/* Better spacing for function signatures */
+.sig-name {
+    font-weight: bold;
+}
+
+/* Styling for parameter lists */
+.field-list {
+    margin: 1em 0;
+}

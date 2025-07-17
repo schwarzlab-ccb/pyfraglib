@@ -53,7 +53,6 @@ See Also
 ---------
     * :mod:`pyfraglib.math` - Core mathematical functions for GMM fitting
     * :mod:`pyfraglib.stats` - General statistical analysis functions
-    * :doc:`../examples/index` - Complete analysis examples
 
 License
 -------
@@ -211,7 +210,6 @@ def fragment_length_gmm(fragments: FragmentList, config_filepath: str,
     See Also:
         * :func:`pyfraglib.math.fit_gmm` - Core GMM fitting algorithm
         * :func:`write_gmm_params` - Parameter export functionality
-        * :doc:`../examples/index` - Complete analysis examples
     """
     logger: logging.Logger = get_logger()
     logger.info(

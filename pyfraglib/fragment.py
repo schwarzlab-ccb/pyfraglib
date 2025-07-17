@@ -229,7 +229,8 @@ class Fragment:
         self, read: pysam.AlignedSegment, mate: Optional[pysam.AlignedSegment],
         mutated_reads: Optional[set[str]]
     ) -> None:
-        """Initialize a Fragment from BAM alignment data.
+        """
+        Initialize a Fragment from BAM alignment data.
 
         Creates a Fragment object from pysam AlignedSegment data, handling both
         paired-end and single-end sequencing reads. Automatically determines
@@ -246,7 +247,7 @@ class Fragment:
 
         Note:
             * Paired-end processing requires both reads to be properly aligned
-            * Single-end processing uses the read's full aligned sequence
+            * Single-end processing uses the full aligned sequence of the read
             * Fragment coordinates follow BAM 0-based conventions
             * Quality filtering and bogus detection are applied automatically
         """
@@ -521,8 +522,9 @@ class Fragment:
                 print(f"Bogus fragments: {fragments.count_bogus_fragments()}")
 
         See Also:
-            * :func:`from_bams` - Process multiple BAM files in parallel
-            * :func:`bams_to_frags` - Batch processing to .frag files
+            * :func:`Fragment.from_bams` - Process multiple BAM files in
+                                           parallel
+            * :func:`Fragment.bams_to_frags` - Batch processing to .frag files
         """
         logger: logging.Logger = get_logger()
 
@@ -754,12 +756,10 @@ class Fragment:
         Process multiple BAM files in parallel and collect fragments in memory.
 
         Warning:
-            This function has significant memory overhead! Consider using
-            :func:`bams_to_frags` for large-scale processing or the provided
-            Nextflow pipeline.
+            This function has significant memory overhead. Consider using
+            :func:`Fragment.bams_to_frags` for large-scale processing or the
+            provided Nextflow pipeline.
         """
-        # @NOTE(ds): Unfortunately, we have to do a lot of dynamic typing.
-        # Thus, mypy complains on multiple occasions.
         with PyfragManager() as mngr:
             shared_collection = mngr.FragmentCollection()  # type: ignore
             input_data: list[tuple[str, str | None]] = []
@@ -792,12 +792,13 @@ class Fragment:
 
         Batch processing that extracts fragments from multiple BAM files in
         parallel and writes results directly to disk as compressed .frag files.
-        This approach avoids the memory overhead of :func:`from_bams` by not
-        storing all fragments in memory simultaneously. It can still be very
-        expensive.
+        This approach avoids the memory overhead of :func:`Fragment.from_bams`
+        by not storing all fragments in memory simultaneously. It can still be
+        very expensive.
+
+        Note:
+            We use the same multiprocessing idioms as in ``from_bams``
         """
-        # @NOTE(ds): We use the same multiprocessing idioms as in
-        # ``from_bams``.
         input_data: list[tuple[str, str | None]] = []
 
         for idx, filepath in enumerate(filepaths):
