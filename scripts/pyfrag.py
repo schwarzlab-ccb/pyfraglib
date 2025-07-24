@@ -458,7 +458,6 @@ def simulate(out_dir: str, args: argparse.Namespace) -> None:
     - Basic simulation: single tissue type with specified parameters
     - Tissue mixture: multiple tissues with specified fractions
     - Cancer progression: tumor fraction changes over time
-    - Fetal fraction: maternal plasma with fetal DNA component
 
     Args:
         out_dir: Output directory for .frag file(s)
@@ -492,8 +491,6 @@ def simulate(out_dir: str, args: argparse.Namespace) -> None:
             simulate_cancer_progression(
                 config, output_name, fasta_path, out_dir
             )
-        elif simulation_mode == "fetal_fraction":
-            simulate_fetal_fraction(config, output_name, fasta_path, out_dir)
         else:
             fail(
                 "unknown simulation mode: {}".format(simulation_mode), logger
@@ -660,7 +657,12 @@ def simulate_cancer_progression(
             "fragments_per_timepoint"
         ]  # type: ignore
         regions: list[dict[str, object]] = config["regions"]  # type: ignore
-        cancer_type: str = config.get("cancer_type", "generic")  # type: ignore
+        size_shift: float = float(
+            config.get("size_shift", -15.0)  # type: ignore
+        )
+        short_enrichment: float = float(
+            config.get("short_enrichment", 0.2)  # type: ignore
+        )
 
         genomic_regions: list[tuple[str, int, int]] = []
         for region in regions:
@@ -702,7 +704,8 @@ def simulate_cancer_progression(
             time_points=time_points,
             fragments_per_timepoint=fragments_per_timepoint,
             genomic_regions=genomic_regions,
-            cancer_type=cancer_type
+            size_shift=size_shift,
+            short_enrichment=short_enrichment
         )
     )
 
@@ -715,66 +718,6 @@ def simulate_cancer_progression(
             )
         )
         fragments.to_frag_file(timepoint_name, out_dir)
-
-
-def simulate_fetal_fraction(
-    config: dict[str, object], output_name: str, fasta_path: str, out_dir: str
-) -> None:
-    """Fetal fraction simulation for NIPT applications."""
-    try:
-        fetal_fraction: float = config["fetal_fraction"]  # type: ignore
-        total_fragments: int = config["total_fragments"]  # type: ignore
-        regions: list[dict[str, object]] = config["regions"]  # type: ignore
-        gestational_age: int = config.get(
-            "gestational_age", 20
-        )  # type: ignore
-
-        genomic_regions: list[tuple[str, int, int]] = []
-        for region in regions:
-            chrom_val = region["chromosome"]
-            start_val = region["start"]
-            end_val = region["end"]
-            if (
-                isinstance(chrom_val, str) and
-                isinstance(start_val, int) and
-                isinstance(end_val, int)
-            ):
-                genomic_regions.append((chrom_val, start_val, end_val))
-
-    except KeyError as e:
-        fail(
-            "missing required parameter for fetal fraction: {}".format(e),
-            logger
-        )
-
-    logger.info(
-        "initializing fetal fraction simulator with FASTA: {}".format(
-            fasta_path
-        )
-    )
-    simulator: TissueMixtureSimulator = TissueMixtureSimulator(
-        fasta_path=fasta_path
-    )
-
-    logger.info(
-        "simulating fetal fraction: {:.1%} at {} weeks gestation".format(
-            fetal_fraction, gestational_age
-        )
-    )
-
-    fragments: FragmentList = simulator.simulate_fetal_fraction(
-        fetal_fraction=fetal_fraction,
-        total_fragments=total_fragments,
-        genomic_regions=genomic_regions,
-        gestational_age=gestational_age
-    )
-
-    logger.info(
-        "saving {} simulated fragments to {}.frag".format(
-            fragments.length(), output_name
-        )
-    )
-    fragments.to_frag_file(output_name, out_dir)
 
 
 def switch_on_subcommand(subcmd: str, args: argparse.Namespace,
