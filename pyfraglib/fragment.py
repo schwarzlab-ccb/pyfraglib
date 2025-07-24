@@ -942,11 +942,12 @@ class FragmentList():
     analysis, and serialization to .frag files for efficient storage and reuse.
 
     Key Features:
-    * **Fragment management**: Add, iterate, and count fragments
-    * **Quality metrics**: Count bogus and mutated fragments
-    * **Motif analysis**: Extract and count end motif patterns
-    * **Serialization**: Save/load to compressed .frag format
-    * **Interval operations**: Convert to interval trees for overlap queries
+        * **Fragment management**: Add, iterate, and count fragments
+        * **Quality metrics**: Count bogus and mutated fragments
+        * **Motif analysis**: Extract and count end motif patterns
+        * **Serialization**: Save/load to compressed .frag format
+        * **Interval operations**: Convert to interval trees for overlap
+          queries
 
     Example:
         Basic fragment collection usage::
@@ -981,9 +982,15 @@ class FragmentList():
         self.__fragments: list[Fragment] = []
 
     def append(self, fragment: Fragment) -> None:
+        """
+        Append a fragment to this list.
+        """
         self.__fragments.append(fragment)
 
     def length(self) -> int:
+        """
+        Return the number of fragments in this list.
+        """
         return len(self.__fragments)
 
     def __iter__(self) -> Generator[Fragment, None, None]:
@@ -991,6 +998,9 @@ class FragmentList():
             yield fragment
 
     def count_bogus_fragments(self) -> int:
+        """
+        Count the number of bogus fragments.
+        """
         counter: int = 0
         for frag in self.__fragments:
             if frag.is_bogus:
@@ -998,6 +1008,9 @@ class FragmentList():
         return counter
 
     def count_mutated_fragments(self) -> int:
+        """
+        Count the number of mutated fragments.
+        """
         counter: int = 0
         for frag in self.__fragments:
             if frag.is_mutated:
@@ -1011,11 +1024,15 @@ class FragmentList():
             for fragment in self.__fragments:
                 fragment.dump(outfile)
 
-    # @NOTE(ds): Returns the 5' and 3' motifs as well as the number of
-    # analyzed fragments.
     def count_endmotifs(
         self, kmer_len: int
     ) -> tuple[defaultdict[str, int], defaultdict[str, int], int]:
+        """
+        Count the number of unique fragment end motifs.
+
+        Returns the 5' and 3' motifs as well as the number of analyzed
+        fragments.
+        """
         motifs_5p: defaultdict[str, int] = defaultdict(int)
         motifs_3p: defaultdict[str, int] = defaultdict(int)
 
@@ -1036,6 +1053,9 @@ class FragmentList():
         return motifs_5p, motifs_3p, num_frags
 
     def to_interval_table(self) -> "IntervalTable":
+        """
+        Convert this fragment list into an interval table.
+        """
         table: IntervalTable = IntervalTable()
 
         for frag in self.__fragments:

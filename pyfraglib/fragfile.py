@@ -112,7 +112,7 @@ class FragFile:
 
     See Also:
         * :meth:`pyfraglib.fragment.FragmentList.to_frag_file` - Writing
-                                                                 fragment files
+          fragment files
         * :class:`pyfraglib.fragment.Fragment` - Individual fragment objects
         * :class:`pyfraglib.fragment.FragmentList` - Fragment collections
     """
@@ -134,10 +134,8 @@ class FragFile:
             PermissionError: If the file cannot be opened due to permissions.
 
         Note:
-            * File is opened immediately in binary read mode
             * No validation of file contents is performed during initialization
-            * Use context manager (with statement) for automatic cleanup
-            * File remains open until explicitly closed or garbage collected
+            * Use context manager for automatic cleanup
         """
         self.__path: str = path
         self.__file: gzip.GzipFile = gzip.open(self.__path, "rb")
@@ -151,7 +149,7 @@ class FragFile:
 
         Yields:
             Fragment: Individual Fragment objects from the file in the order
-                they were originally serialized.
+            they were originally serialized.
 
         Raises:
             pickle.UnpicklingError: If fragment deserialization fails due to
@@ -183,7 +181,7 @@ class FragFile:
 
         See Also:
             * :meth:`get_fragment_list` - Bulk loading all fragments into
-                                          memory
+              memory
             * :class:`pyfraglib.fragment.Fragment` - Fragment object structure
         """
         while True:
@@ -204,7 +202,7 @@ class FragFile:
 
         Returns:
             FragmentList: A FragmentList object containing all fragments from
-                the file, ready for analysis and manipulation.
+            the file, ready for analysis and manipulation.
 
         Raises:
             pickle.UnpicklingError: If any fragment deserialization fails.
@@ -219,7 +217,7 @@ class FragFile:
         See Also:
             * :meth:`__iter__` - Memory-efficient streaming iteration
             * :class:`pyfraglib.fragment.FragmentList` - Fragment collection
-                                                         class
+              class
             * :mod:`pyfraglib.lengths` - Fragment length analysis functions
         """
         fragment: Fragment
