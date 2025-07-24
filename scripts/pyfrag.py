@@ -54,7 +54,7 @@ import pandas as pd
 
 from typing import Final, NoReturn, Optional
 from pyfraglib import Fragment, FragmentList
-from pyfraglib.core import CodeUnreachableError
+from pyfraglib.core import CodeUnreachableError, parse_bed_file
 from pyfraglib.fragfile import FragFile
 from pyfraglib.lengths import fragment_length_plot, fragment_length_gmm
 from pyfraglib.stats import fragments_per_chromosome_barplot, \
@@ -507,7 +507,10 @@ def simulate_basic(
 ) -> None:
     """Basic single-tissue simulation."""
     try:
-        regions: list[dict[str, object]] = config["regions"]  # type: ignore
+        bed_file: str = config["bed_file"]  # type: ignore
+        total_fragments: int = config.get(
+            "total_fragments", 10000
+        )  # type: ignore
         fragment_params: dict[str, object] = config.get(
             "fragment_params", {}
         )  # type: ignore
@@ -529,6 +532,10 @@ def simulate_basic(
             "tissue_type", "healthy"
         )  # type: ignore
 
+        if not os.path.exists(bed_file):
+            fail("BED file '{}' does not exist".format(bed_file), logger)
+
+        genomic_regions: list[tuple[str, int, int]] = parse_bed_file(bed_file)
     except KeyError as e:
         fail(
             "missing required parameter for basic simulation: {}".format(e),
@@ -541,38 +548,33 @@ def simulate_basic(
     simulator: FragmentSimulator = FragmentSimulator(fasta_path=fasta_path)
     all_fragments: FragmentList = FragmentList()
 
-    for region in regions:
-        try:
-            chrom: str = str(region["chromosome"])
-            start: int = int(region["start"])  # type: ignore
-            end: int = int(region["end"])  # type: ignore
-            num_fragments: int = int(region["num_fragments"])  # type: ignore
+    fragments_per_region = total_fragments // len(genomic_regions)
 
-            logger.info(
-                "simulating {} fragments from {}:{}-{}".format(
-                    num_fragments, chrom, start, end
-                )
+    for chrom, start, end in genomic_regions:
+        if fragments_per_region == 0:
+            continue
+        logger.info(
+            "simulating {} fragments from {}:{}-{}".format(
+                fragments_per_region, chrom, start, end
             )
+        )
 
-            fragment_size_params: dict[str, float] | None = None
-            if fragment_params:
-                fragment_size_params = {}
-                for k, v in fragment_params.items():
-                    if isinstance(v, (int, float, str)):
-                        fragment_size_params[k] = float(v)
+        fragment_size_params: dict[str, float] | None = None
+        if fragment_params:
+            fragment_size_params = {}
+            for k, v in fragment_params.items():
+                if isinstance(v, (int, float, str)):
+                    fragment_size_params[k] = float(v)
 
-            fragment_list: FragmentList = simulator.simulate_fragments(
-                chrom=chrom, start=start, end=end,
-                num_fragments=num_fragments,
-                tissue_type=tissue_type, nuclease_profile=nuclease_profile,
-                fragment_size_params=fragment_size_params
-            )
+        fragment_list: FragmentList = simulator.simulate_fragments(
+            chrom=chrom, start=start, end=end,
+            num_fragments=fragments_per_region,
+            tissue_type=tissue_type, nuclease_profile=nuclease_profile,
+            fragment_size_params=fragment_size_params
+        )
 
-            for fragment in fragment_list:
-                all_fragments.append(fragment)
-
-        except KeyError as e:
-            fail("missing required region parameter: {}".format(e), logger)
+        for fragment in fragment_list:
+            all_fragments.append(fragment)
 
     logger.info(
         "saving {} simulated fragments to {}.frag".format(
@@ -592,20 +594,13 @@ def simulate_tissue_mixture(
             "tissue_fractions"
         ]  # type: ignore
         total_fragments: int = config["total_fragments"]  # type: ignore
-        regions: list[dict[str, object]] = config["regions"]  # type: ignore
+        bed_file: str = config["bed_file"]  # type: ignore
         add_noise: bool = config.get("add_noise", True)  # type: ignore
 
-        genomic_regions: list[tuple[str, int, int]] = []
-        for region in regions:
-            chrom_val = region["chromosome"]
-            start_val = region["start"]
-            end_val = region["end"]
-            if (
-                isinstance(chrom_val, str) and
-                isinstance(start_val, int) and
-                isinstance(end_val, int)
-            ):
-                genomic_regions.append((chrom_val, start_val, end_val))
+        if not os.path.exists(bed_file):
+            fail("BED file '{}' does not exist".format(bed_file), logger)
+
+        genomic_regions: list[tuple[str, int, int]] = parse_bed_file(bed_file)
 
     except KeyError as e:
         fail(
@@ -656,7 +651,7 @@ def simulate_cancer_progression(
         fragments_per_timepoint: int = config[
             "fragments_per_timepoint"
         ]  # type: ignore
-        regions: list[dict[str, object]] = config["regions"]  # type: ignore
+        bed_file: str = config["bed_file"]  # type: ignore
         size_shift: float = float(
             config.get("size_shift", -15.0)  # type: ignore
         )
@@ -664,17 +659,10 @@ def simulate_cancer_progression(
             config.get("short_enrichment", 0.2)  # type: ignore
         )
 
-        genomic_regions: list[tuple[str, int, int]] = []
-        for region in regions:
-            chrom_val = region["chromosome"]
-            start_val = region["start"]
-            end_val = region["end"]
-            if (
-                isinstance(chrom_val, str) and
-                isinstance(start_val, int) and
-                isinstance(end_val, int)
-            ):
-                genomic_regions.append((chrom_val, start_val, end_val))
+        if not os.path.exists(bed_file):
+            fail("BED file '{}' does not exist".format(bed_file), logger)
+
+        genomic_regions: list[tuple[str, int, int]] = parse_bed_file(bed_file)
 
     except KeyError as e:
         fail(
