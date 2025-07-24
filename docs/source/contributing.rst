@@ -1,12 +1,12 @@
 Contributing
 ============
 
-We welcome contributions to pyfraglib! This document outlines how to contribute to the project.
+We welcome contributions to ``pyfraglib``! This document outlines how to contribute to the project.
 
 Getting Started
 ---------------
 
-See :doc:`installation` for installation instructions. After initial setup, please create a feature branch and follow our coding standards outlined below. Please make sure that your commit messages roughly follow our style. After every commit, use
+See :doc:`installation` for installation instructions. After the initial setup, please create a feature branch and follow our coding standards outlined below. Please make sure that your commit messages roughly follow our style. After every commit, use
 
    .. code-block:: bash
 
@@ -23,30 +23,22 @@ Code Style
 
 * Follow PEP 8 style guidelines
 * Use double quotes for strings (``"`` not ``'``)
-* Maximum line length: < 80 characters (should be enforced by the linter)
-* Use descriptive variable and function names (snake_case for functions, methods, and variables; CamelCase for class names)
+* Maximum line length: < 80 characters (this is also enforced by the linter)
+* Use descriptive variable and function names (``snake_case`` for functions, methods, and variables; ``CamelCase`` for class names)
 
 Type Annotations
 ~~~~~~~~~~~~~~~~
 
-* All functions must have complete type annotations
-* Use ``typing.Final`` for constants
-* Use ``typing.NoReturn`` for functions that don't return
-* Follow strict mypy settings as defined in ``pyproject.toml``
-* use ``# type: ignore`` very, very sparingly
+All functions must have complete type annotations! Please use ``typing.Final`` for constants and ``typing.NoReturn`` for functions that don't return to the caller. We are trying to follow very strict mypy settings as defined in ``pyproject.toml``, but because some Python libraries are not typed and others rely on dynamic typing a lot, we sometimes need to disable ``mypy``. Nonetheless, please use ``# type: ignore`` very, very sparingly
 
 Documentation and Testing
 ~~~~~~~~~~~~~~~~~~~~~~~~~
 
 * All public functions and classes must have docstrings
-* Use Google-style docstrings for consistency
 * Include parameter descriptions and return value information
 * Add examples for complex functions
-* Update relevant ``.rst`` files for new features
-* Update API documentation if adding new modules
-* Write unit tests for all new functionality
-* Use the existing test fixtures in ``tests/test_fixtures.py``
-* Follow the naming convention ``test_<functionality>``
-* Include edge cases and error conditions
+* Update relevant ``.rst`` files when implementing new features
+* Write as many unit tests for new functionality as possible
+* Use the existing test fixtures in ``tests/test_fixtures.py`` and Follow the naming convention ``test_<functionality>``
 
-Thank you for contributing to pyfraglib!
+Thank you for contributing to ``pyfraglib``!

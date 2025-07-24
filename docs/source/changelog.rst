@@ -13,11 +13,9 @@ Version 0.5.1 (Current)
 Future Releases
 ---------------
 
-**Roadmap of planned Features:**
+**Roadmap of planned features:**
 
-* Additional fragmentomics algorithms
-* Extended simulation features
-* Machine learning integration utilities
+* Add additional simulation features
 
 Contributing
 ------------
