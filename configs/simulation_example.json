@@ -2,20 +2,8 @@
   "output_name": "simulated_sample",
   "fasta_path": "./data/ref/Homo_sapiens.GRCh37.dna.primary_assembly.fa",
   "tissue_type": "healthy",
-  "regions": [
-    {
-      "chromosome": "1",
-      "start": 1000000,
-      "end": 2000000,
-      "num_fragments": 5000
-    },
-    {
-      "chromosome": "2",
-      "start": 500000,
-      "end": 1500000,
-      "num_fragments": 3000
-    }
-  ],
+  "bed_file": "data/ref/loci_covered_by_panel.bed",
+  "total_fragments": 8000,
   "fragment_params": {
     "mean": 167,
     "std": 10,

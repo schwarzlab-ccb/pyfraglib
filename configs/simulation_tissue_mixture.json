@@ -6,21 +6,5 @@
   "tissue_fractions": [0.7, 0.2, 0.1],
   "total_fragments": 10000,
   "add_noise": true,
-  "regions": [
-    {
-      "chromosome": "1",
-      "start": 1000000,
-      "end": 2000000
-    },
-    {
-      "chromosome": "2",
-      "start": 500000,
-      "end": 1500000
-    },
-    {
-      "chromosome": "17",
-      "start": 41000000,
-      "end": 41500000
-    }
-  ]
+  "bed_file": "data/ref/loci_covered_by_panel.bed"
 }
