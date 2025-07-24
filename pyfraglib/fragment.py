@@ -215,14 +215,53 @@ VALID_CHROMOSOME_NAMES: Final = [str(x) for x in range(1, 23)] + \
 
 @dataclass(slots=True)
 class Fragment:
-    start_pos: int  # first aligned position (0-based)
-    end_pos: int  # one past last aligned position
+    """
+    Serializable container for cell-free DNA fragment data.
+
+    This class represents a single cfDNA fragment extracted from BAM file
+    alignment data, containing all relevant information for downstream
+    fragmentomics analysis. Fragments are immutable once created and include
+    quality control flags for reliable analysis.
+
+    The Fragment class serves as the fundamental data structure throughout
+    ``pyfraglib``, supporting both paired-end and single-end sequencing data
+    as well as mutation annotations.
+
+    See Also
+    --------
+    :class:`FragmentList` : Collection of fragments from single sample
+    :class:`FragmentCollection` : Multi-sample fragment collections
+    :class:`FragFile` : Reading/writing .frag files
+    :mod:`pyfraglib.stats` : Fragment statistics and visualization
+    """
+
+    #: First aligned position of this fragment (0-based).
+    start_pos: int
+
+    #: One past the last aligned position of this fragment.
+    end_pos: int
+
+    #: Contig on which this fragment is located.
     chrom: str
+
+    #: Flag indicating the directionality of this fragment.
     is_forward: bool
+
+    #: Length of this fragment in base pairs.
     length: int
-    end5p: str  # 5' -> 3' orientation
-    end3p: str  # 5' -> 3' orientation
+
+    #: Bases at the 5' end of this fragment (5' -> 3' orientation).
+    end5p: str
+
+    #: Bases at the 3' end of this fragment (5' -> 3' orientation).
+    end3p: str
+
+    #: Flag indicating whether this is a bogus fragment
+    #: (see module- and class-level documentation for definition).
     is_bogus: bool
+
+    #: Flag indicating whether this fragment carries a mutation, potentially
+    #: identifying it as a tumor-derived fragment.
     is_mutated: Optional[bool]
 
     def __init__(
@@ -428,6 +467,9 @@ class Fragment:
             self.is_forward = right_read.is_forward
 
     def dump(self, pickle_file: gzip.GzipFile) -> None:
+        """
+        Save a fragment to disk.
+        """
         pickle.dump(self, pickle_file)
 
     # @NOTE(ds): In the returned tuple, the first member is 5' and the
