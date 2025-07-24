@@ -1,14 +1,14 @@
 Lengths Command
 ===============
 
-The ``lengths`` command performs Gaussian Mixture Model (GMM) analysis on fragment length distributions.
+The ``lengths`` command plots fragment length distributions and fits a configurable Gaussian Mixture Model (GMM) to the distributions. Model parameters and visualizations are saved to disk.
 
 Syntax
 ------
 
 .. code-block:: bash
 
-   pyfrag.py lengths [OPTIONS]
+   pyfrag.py -o <OUT_DIR> lengths [OPTIONS]
 
 Options
 -------
@@ -17,112 +17,37 @@ Options
 
    --frag-file PATH       Single fragment file to analyze
    --frag-dir PATH        Directory containing fragment files
-   --config-file PATH     GMM configuration file (JSON format)
-   --out-dir PATH         Output directory for plots and results (required)
+   --config-file PATH     GMM configuration file (JSON format, required)
 
 Examples
 --------
 
-Analyze Single Fragment File
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
 .. code-block:: bash
 
-   pyfrag.py lengths --frag-file sample.frag --config-file configs/gmm_3.json --out-dir lengths/
-
-Analyze Multiple Fragment Files
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-.. code-block:: bash
-
-   pyfrag.py lengths --frag-dir fragments/ --config-file configs/gmm_2.json --out-dir lengths/
+   pyfrag.py --out-dir lengths/ lengths --frag-file sample.frag --config-file configs/gmm_3.json
 
 Configuration File Format
 --------------------------
 
-GMM configuration files use JSON format:
+GMM configuration files use *JSON* format with the following fields:
 
 .. code-block:: json
 
-   {
-       "n_components": 3,
-       "means_init": [167, 320, 450],
-       "covariance_type": "full",
-       "max_iter": 100,
-       "n_init": 10,
-       "random_state": 42
-   }
+    {
+        "number_of_gaussians": 3,
+        "subsample_percentage": 0.10,
+        "means_lower_bounds": [50, 250, 450],
+        "means_upper_bounds": [250, 450, 650],
+        "std_lower_bounds": [1, 1, 1],
+        "std_upper_bounds": [30, 60, 90],
+        "initial_means": [160, 320, 480],
+        "initial_pis": [0.70, 0.20, 0.10]
+    }
 
-Configuration Parameters
-~~~~~~~~~~~~~~~~~~~~~~~~
-
-- ``n_components``: Number of Gaussian components to fit
-- ``means_init``: Initial means for components (optional)
-- ``covariance_type``: Type of covariance matrix ("full", "tied", "diag", "spherical")
-- ``max_iter``: Maximum number of iterations for fitting
-- ``n_init``: Number of random initializations
-- ``random_state``: Random seed for reproducibility
+The parameters determine the number of Gaussians fit, the lower and upper bounds on the means and standard deviations, and the initial parameters for means, standard deviations, and mixture fractions (:math:`\pi`). The `subsample_percentage` parameter can be used if the `.frag` file contains a large number of fragments which sometimes makes the GMM fitting prohibitively slow. The model indicates such situations with an informative error message.
 
 Output
 ------
 
-Plots
-~~~~~
+The output saved to ``<OUT_DIR>`` contains a kernel density estimate plot of the fragment length distribution, stratified into mutated vs. wildtype fragments, and a plot of the GMM fit. Model parameters are saved to a *JSON* file along with goodness-of-fit parameters.
 
-- ``*_length_distribution.png`` - Histogram with GMM overlay
-- ``*_gmm_components.png`` - Individual component plots
-- ``*_residuals.png`` - Residual analysis plots
-
-Results Files
-~~~~~~~~~~~~~
-
-- ``*_gmm_results.json`` - Fitted parameters and statistics
-- ``*_components.csv`` - Component means, weights, and covariances
-- ``*_goodness_of_fit.csv`` - AIC, BIC, and log-likelihood values
-
-Interpretation
---------------
-
-Component Analysis
-~~~~~~~~~~~~~~~~~~
-
-Typical cfDNA shows multiple fragment size components:
-
-- **Nucleosomal fragments** (~167bp): Mono-nucleosomal DNA
-- **Di-nucleosomal fragments** (~320bp): Di-nucleosomal DNA  
-- **Longer fragments** (>400bp): Higher-order chromatin structures
-
-Goodness of Fit
-~~~~~~~~~~~~~~~
-
-- **AIC** (Akaike Information Criterion): Lower values indicate better fit
-- **BIC** (Bayesian Information Criterion): Penalizes model complexity
-- **Log-likelihood**: Higher values indicate better fit
-
-Requirements
-------------
-
-- Fragment files must be valid .frag files
-- Configuration file must be valid JSON
-- scipy for GMM fitting
-- matplotlib for plotting
-
-Performance Notes
------------------
-
-- GMM fitting is computationally intensive
-- Memory usage scales with fragment count
-- Multiple components increase fitting time
-- Convergence may be slow for complex distributions
-
-Troubleshooting
----------------
-
-**"GMM failed to converge" error**
-   Try different initialization parameters or increase max_iter
-
-**Poor fit quality**
-   Adjust the number of components or initialization means
-
-**Memory errors**
-   Reduce the number of components or process smaller datasets
