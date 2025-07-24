@@ -58,7 +58,9 @@ from pyfraglib.core import CodeUnreachableError, parse_bed_file
 from pyfraglib.fragfile import FragFile
 from pyfraglib.lengths import fragment_length_plot, fragment_length_gmm
 from pyfraglib.stats import fragments_per_chromosome_barplot, \
-                            end_motifs_barplot, log_stats
+                            end_motifs_barplot, log_stats, \
+                            export_length_distribution_csv, \
+                            export_end_motifs_csv
 from pyfraglib.scores import motif_diversity, windowed_protection_score, \
                              score_line_plot
 from pyfraglib.simulator import FragmentSimulator, NucleaseProfile, \
@@ -170,6 +172,10 @@ def create_argparser() -> argparse.ArgumentParser:
         "-f", "--frag-file", type=str, dest="frag_file", required=False,
         help="Input FRAG file to be analyzed. Must not be combined with "
         "`--frag-dir'.")
+    argparser_stats.add_argument(
+        "--kmer-length", type=int, dest="kmer_len", default=4,
+        help="K-mer length for end motif analyses."
+        )
 
     argparser_lengths: argparse.ArgumentParser = subparsers.add_parser(
         "lengths", help="Given (a) `.frag' file(s), read fragment length "
@@ -308,6 +314,7 @@ def stats(out_dir: str, args: argparse.Namespace) -> None:
     """
     frag_file: Final[str] = args.frag_file
     frag_dir: Final[str] = args.frag_dir
+    kmer_len: Final[int] = args.kmer_len
 
     if frag_file and frag_dir:
         fail("--frag-dir and --frag-file are incompatible options", logger)
@@ -328,7 +335,10 @@ def stats(out_dir: str, args: argparse.Namespace) -> None:
         name: str = filename_only(path)
         log_stats(fragments, logger, out_dir, name)
         fragments_per_chromosome_barplot(fragments, out_dir, name)
-        end_motifs_barplot(fragments, out_dir, name, kmer_len=3)
+        export_length_distribution_csv(fragments, out_dir, name)
+
+        end_motifs_barplot(fragments, out_dir, name, kmer_len=kmer_len)
+        export_end_motifs_csv(fragments, out_dir, name, kmer_len=kmer_len)
 
 
 def lengths(out_dir: str, args: argparse.Namespace) -> None:

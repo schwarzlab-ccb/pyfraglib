@@ -12,6 +12,8 @@ Key Features
 - **End Motif Analysis**: k-mer frequency analysis for 5' and 3' fragment ends
 - **Quality Metrics**: Statistical summaries including bogus and mutated
   fragment counts
+- **CSV Export Functions**: Export fragment length distributions and end motif
+  counts to CSV format for external analysis
 
 License
 -------
@@ -30,6 +32,7 @@ more details. You should have received a copy of the GNU General Public
 License along with this program. If not, see <https://www.gnu.org/licenses/>.
 """
 import os
+import csv
 import json
 import logging
 import itertools
@@ -37,7 +40,7 @@ import itertools
 import matplotlib
 import matplotlib.pyplot as plt
 
-from collections import defaultdict
+from collections import defaultdict, Counter
 from pyfraglib.core import fail
 from pyfraglib.fragment import FragmentList
 from pyfraglib import get_logger
@@ -253,3 +256,122 @@ def log_stats(
             "number_of_mutated_fragments": num_mut_frags
         }
         json.dump(data, file)
+
+
+def export_length_distribution_csv(
+    fragments: FragmentList, out_dir: str, name: str
+) -> None:
+    """
+    Export fragment length distribution to CSV file.
+
+    Creates a CSV file containing fragment length counts for statistical
+    analysis and visualization in external tools. Each row represents a
+    unique fragment length with its corresponding count.
+
+    Parameters
+    ----------
+    fragments : FragmentList
+        Fragment collection to analyze. Bogus fragments are automatically
+        excluded.
+    out_dir : str
+        Output directory path where the CSV file will be saved. Directory
+        must exist and be writable.
+    name : str
+        Sample identifier used for the output filename. Used to generate
+        unique CSV filenames for each sample.
+
+    Output Files
+    ------------
+    Creates a CSV file named ``{name}_length_distribution.csv`` with columns:
+    - ``fragment_length``: Fragment length in base pairs (sorted ascending)
+    - ``count``: Number of fragments with that specific length
+    """
+    logger: logging.Logger = get_logger()
+    lengths: list[int] = []
+    for frag in fragments:
+        if not frag.is_bogus:
+            lengths.append(frag.length)
+
+    if not lengths:
+        fail("no valid fragments found for length distribution")
+
+    length_counts: Counter[int] = Counter(lengths)
+    sorted_lengths: list[tuple[int, int]] = sorted(length_counts.items())
+
+    outpath: str = os.path.join(out_dir, f"{name}_length_distribution.csv")
+    with open(outpath, "w", newline="") as csvfile:
+        writer = csv.writer(csvfile)
+        writer.writerow(["fragment_length", "count"])  # type: ignore
+        for length, count in sorted_lengths:
+            writer.writerow([length, count])  # type: ignore
+
+    logger.info(
+        "exported {} unique fragment lengths to {}".format(
+            len(sorted_lengths), outpath
+        )
+    )
+
+
+def export_end_motifs_csv(
+    fragments: FragmentList, out_dir: str, name: str, kmer_len: int
+) -> None:
+    """
+    Export fragment end motif counts to CSV file.
+
+    Creates a CSV file containing 5' and 3' end motif frequencies for
+    downstream analysis and visualization in external tools. Each row
+    represents a unique k-mer motif with counts for both fragment ends.
+
+    Parameters
+    ----------
+    fragments : FragmentList
+        Fragment collection for motif analysis. Bogus fragments are
+        automatically excluded.
+    out_dir : str
+        Output directory path where the CSV file will be saved. Directory
+        must exist and be writable.
+    name : str
+        Sample identifier used for the output filename. Used to generate
+        unique CSV filenames for each sample.
+    kmer_len : int
+        Length of k-mer motifs to analyze. Typically 3 or 4 nucleotides.
+
+    Output Files
+    ------------
+    Creates a CSV file named ``{name}_k{kmer_len}_end_motifs.csv`` with
+    columns:
+    - ``motif_5p``: 5' end k-mer sequence (e.g., "AAA", "AAC", etc.)
+    - ``count_5p``: Number of fragments with this 5' end motif
+    - ``motif_3p``: 3' end k-mer sequence (e.g., "AAA", "AAC", etc.)
+    - ``count_3p``: Number of fragments with this 3' end motif
+    """
+    logger: logging.Logger = get_logger()
+    motifs_5p: defaultdict[str, int]
+    motifs_3p: defaultdict[str, int]
+    num_frags: int
+
+    motifs_5p, motifs_3p, num_frags = fragments.count_endmotifs(kmer_len)
+    if num_frags == 0:
+        fail("no valid fragments found for end motif analysis")
+
+    all_motifs: set[str] = set(motifs_5p.keys()) | set(motifs_3p.keys())
+    sorted_motifs: list[str] = sorted(all_motifs)
+
+    outpath: str = os.path.join(out_dir, f"{name}_k{kmer_len}_end_motifs.csv")
+    with open(outpath, "w", newline="") as csvfile:
+        writer = csv.writer(csvfile)
+        writer.writerow(
+            ["motif_5p", "count_5p", "motif_3p", "count_3p"]  # type: ignore
+        )
+        for motif in sorted_motifs:
+            count_5p: int = motifs_5p[motif]
+            count_3p: int = motifs_3p[motif]
+            writer.writerow(
+                [motif, count_5p, motif, count_3p]  # type: ignore
+            )
+
+    logger.info(
+        "exported {} unique k-mer motifs to {}".format(
+            len(sorted_motifs), outpath
+        )
+    )
