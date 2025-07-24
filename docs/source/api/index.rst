@@ -3,8 +3,8 @@ API Reference
 
 This section contains the Python API documentation for ``pyfraglib``.
 
-Core Classes and Functions
---------------------------
+Core Classes
+------------
 
 .. autosummary::
    :toctree: generated
@@ -12,12 +12,9 @@ Core Classes and Functions
 
    pyfraglib.Fragment
    pyfraglib.FragmentList
-   pyfraglib.FragmentCollection
    pyfraglib.FragFile
-   pyfraglib.get_logger
-   pyfraglib.fail
 
-Key Modules
+Module List
 -----------
 
 .. autosummary::
@@ -33,8 +30,11 @@ Key Modules
    pyfraglib.scores
    pyfraglib.simulator
 
-Simulation Classes
-------------------
+Core Simulation Classes
+-----------------------
+
+The simulation code lives in its own module, but the most important classes get
+re-exported into the ``pyfraglib`` namespace:
 
 .. autosummary::
    :toctree: generated
