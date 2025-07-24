@@ -489,7 +489,7 @@ class Fragment:
 
         Returns:
             tuple[str, str]: A tuple containing (5p_motif, 3p_motif).
-                Both motifs are nucleotide sequences of the specified length.
+            Both motifs are nucleotide sequences of the specified length.
 
         Note:
             * Motifs are extracted from stored end sequences during fragment
@@ -527,11 +527,11 @@ class Fragment:
         sequencing data.
 
         Processing includes:
-        * **Quality filtering**: MAPQ >= 20, proper fragment lengths
-        * **Duplicate handling**: Automatic detection and filtering
-        * **Mutation annotation**: Links VCF variants to BAM reads
-        * **Progress tracking**: Visual progress bar for large files
-        * **Memory optimization**: Efficient read caching and cleanup
+            - **Quality filtering**: MAPQ >= 20, proper fragment lengths
+            - **Duplicate handling**: Automatic detection and filtering
+            - **Mutation annotation**: Links VCF variants to BAM reads
+            - **Progress tracking**: Visual progress bar for large files
+            - **Memory optimization**: Efficient read caching and cleanup
 
         Args:
             filepath: Path to indexed BAM file. Must have corresponding
@@ -544,7 +544,7 @@ class Fragment:
 
         Returns:
             FragmentList: List of extracted fragments with quality metrics
-                and optional mutation annotations.
+            and optional mutation annotations.
 
         Raises:
             SystemExit: If BAM file lacks required index or processing fails.
@@ -564,9 +564,8 @@ class Fragment:
                 print(f"Bogus fragments: {fragments.count_bogus_fragments()}")
 
         See Also:
-            * :func:`Fragment.from_bams` - Process multiple BAM files in
-                                           parallel
-            * :func:`Fragment.bams_to_frags` - Batch processing to .frag files
+            * :func:`Fragment.from_bams`: Process multiple files in parallel
+            * :func:`Fragment.bams_to_frags`: Batch processing to .frag files
         """
         logger: logging.Logger = get_logger()
 
@@ -681,10 +680,10 @@ class Fragment:
         of cfDNA fragments carrying specific mutations for downstream analysis.
 
         The function:
-        * Processes all SNVs in the VCF file
-        * Finds overlapping reads at each variant position
-        * Checks read bases against reference and alternative alleles
-        * Returns read names that contain mutations
+            - Processes all SNVs in the VCF file
+            - Finds overlapping reads at each variant position
+            - Checks read bases against reference and alternative alleles
+            - Returns read names that contain mutations
 
         Args:
             bam_file: Opened BAM file containing aligned reads. Must be indexed
@@ -694,7 +693,7 @@ class Fragment:
 
         Returns:
             set[str]: Set of read names that contain alternative alleles at
-                variant positions. Used to mark fragments as mutated.
+            variant positions. Used to mark fragments as mutated.
 
         Note:
             * Only processes single nucleotide variants (SNVs)
@@ -860,7 +859,7 @@ class Fragment:
         is_mutated: bool | None = None
     ) -> "Fragment":
         """
-        Create a simulated Fragment without requiring pysam objects.
+        Create a simulated Fragment without requiring ``pysam`` objects.
 
         Creates a Fragment object with known properties for simulation
         purposes, bypassing the normal BAM file processing pipeline. This
@@ -879,7 +878,7 @@ class Fragment:
 
         Returns:
             Fragment: A properly initialized Fragment object with simulated
-                properties.
+            properties.
 
         Note:
             * Automatically applies quality filtering (bogus detection)
