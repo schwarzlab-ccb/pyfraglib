@@ -57,7 +57,8 @@ setup(
         "scripts/pyfrag.py",
         "scripts/txt_to_vcf.py",
         "scripts/download_tss_annos.py",
-        "scripts/extract_mutated_reads.py"
+        "scripts/extract_mutated_reads.py",
+        "scripts/nmf_fragment_lengths.py"
     ],
 
     keywords=["cfDNA", "fragmentomics"],

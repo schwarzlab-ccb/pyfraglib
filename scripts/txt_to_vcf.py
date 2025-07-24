@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """
 TXT to VCF Converter
+====================
 
 This script converts custom tab-delimited SNV files to standard VCF format.
 It processes files with genomic variant information and creates properly
@@ -56,6 +57,7 @@ from pyfraglib.core import hg19_chromosomes, hg38_chromosomes, \
 
 version_string: Final[str] = "txt_to_vcf v{} (running on Python v{})" \
     .format(pyfraglib.__version__, sys.version.split(" ")[0])
+LOGGER_NAME: Final[str] = "txt_to_vcf"
 
 
 def fail(msg: str, logger: logging.Logger) -> NoReturn:
@@ -234,7 +236,7 @@ if __name__ == "__main__":
     - 0: Success
     - 1: Error (file not found, invalid format, etc.)
     """
-    logger: logging.Logger = logging.getLogger("txt_to_vcf")
+    logger: logging.Logger = logging.getLogger(LOGGER_NAME)
     argparser: argparse.ArgumentParser = create_argparser()
     args: argparse.Namespace = argparser.parse_args()
 
