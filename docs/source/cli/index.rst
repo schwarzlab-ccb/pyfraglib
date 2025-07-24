@@ -1,10 +1,10 @@
 Command Line Interface
 ======================
 
-pyfraglib provides a comprehensive command-line interface through the ``pyfrag.py`` script. This section covers all available commands and their options.
+pyfraglib provides a command-line interface through the ``pyfrag.py`` script. This section covers all available commands and most of their options.
 
 .. toctree::
-   :maxdepth: 2
+   :maxdepth: 1
 
    extract
    stats
@@ -40,45 +40,14 @@ All subcommands support these global options:
 
    -h, --help     Show help message and exit
    -v, --verbose  Enable verbose logging
-   --version      Show program version
+   -o, --out-dir  Set the output directory for the subcommand
 
-Getting Help
-------------
-
-For help with any subcommand:
+Importantly, for help with any subcommand:
 
 .. code-block:: bash
 
    pyfrag.py <subcommand> --help
 
-Example: ``pyfrag.py extract --help``
-
-Basic Usage Examples
---------------------
-
-Extract fragments from a BAM file:
-
-.. code-block:: bash
-
-   pyfrag.py extract --bam-file sample.bam --out-dir fragments/
-
-Generate statistics:
-
-.. code-block:: bash
-
-   pyfrag.py stats --frag-file sample.frag --out-dir statistics/
-
-Calculate WPS scores:
-
-.. code-block:: bash
-
-   pyfrag.py scores --frag-file sample.frag --bed-file regions.bed --out-dir scores/
-
-Simulate synthetic data:
-
-.. code-block:: bash
-
-   pyfrag.py simulate --config simulation_config.json --out-dir synthetic/
 
 Additional Scripts
 ------------------

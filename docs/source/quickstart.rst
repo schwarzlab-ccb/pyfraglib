@@ -13,10 +13,14 @@ The typical pyfraglib workflow involves:
 3. **Calculate fragmentomics scores** (WPS, motif diversity)
 4. **Visualize results** with plots and statistics
 
+.. image:: ../imgs/workflow.png
+   :alt: Pyfraglib workflow diagram
+   :width: 900px
+
 Command Line Interface
 ----------------------
 
-``pyfraglib`` provides a command-line interface through the ``pyfrag.py`` script:
+``pyfraglib`` provides a command-line interface through the ``pyfrag.py`` script that lets you perform these tasks in a few commands:
 
 Extract Fragments
 ~~~~~~~~~~~~~~~~~

@@ -28,6 +28,10 @@ from pyfraglib import get_logger
 def fragments_per_chromosome_barplot(
     fragments: FragmentList, out_dir: str, name: str
 ) -> None:
+    """
+    Create a bar plot showing the number of mutated vs. wildtype fragments per
+    chromosome.
+    """
     logger: logging.Logger = get_logger()
     logger.info(
         "creating fragment-per-chromosome histograms in ``{}``".format(out_dir)
@@ -70,6 +74,9 @@ def fragments_per_chromosome_barplot(
 def end_motifs_barplot(
     fragments: FragmentList, out_dir: str, name: str, kmer_len: int
 ) -> None:
+    """
+    Create a bar plot of 5' and 3' end motifs.
+    """
     logger: logging.Logger = get_logger()
     logger.info(
         "creating end motif barplots in ``{}``".format(out_dir)
@@ -133,6 +140,9 @@ def log_stats(
     fragments: FragmentList, logger: logging.Logger,
     out_dir: str, name: str
 ) -> None:
+    """
+    Write fragment statistics to a JSON file.
+    """
     num_bogus_frags: int = fragments.count_bogus_fragments()
     num_mut_frags: int = fragments.count_mutated_fragments()
     num_frags: int = fragments.length()

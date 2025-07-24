@@ -8,80 +8,39 @@ Syntax
 
 .. code-block:: bash
 
-   pyfrag.py extract [OPTIONS]
+   pyfrag.py -o <OUT_DIR> extract [OPTIONS]
+
+The ``-o / --out-dir`` must come *before* the subcommand. Please be aware that all other subcommands follow this pattern, too.
 
 Options
 -------
 
-Input Options
-~~~~~~~~~~~~~
-
 .. code-block:: bash
 
    --bam-file PATH        Single BAM file to process
-   --bam-dir PATH         Directory containing BAM files
-   --vcf-file PATH        VCF file for mutation annotation (optional)
-   --vcf-dir PATH         Directory containing VCF files (optional)
+   --bam-dir PATH         Directory containing BAM files to process
+   --with-vcf             Search for VCF file for mutation annotation (optional)
+   --nanopore             Process BAM as single-ended Nanopore data
 
-Output Options
-~~~~~~~~~~~~~~
-
-.. code-block:: bash
-
-   --out-dir PATH         Output directory for .frag files (required)
-
-Processing Options
-~~~~~~~~~~~~~~~~~~
-
-.. code-block:: bash
-
-   --nanopore             Process as single-ended Nanopore data
-   --parallel             Enable parallel processing for multiple files
+If the ``--with-vcf`` flag is set, ``pyfraglib`` will search for one *VCF* file per *BAM*. The *VCF* must be named identically, except for the file extension which must be ``.vcf`` instead of ``.bam``. *BAM* files must be indexed.
 
 Examples
 --------
 
-Process Single BAM File
-~~~~~~~~~~~~~~~~~~~~~~~~
-
 .. code-block:: bash
 
-   pyfrag.py extract --bam-file sample.bam --out-dir fragments/
+   pyfrag.py --out-dir fragments/ extract --bam-file sample.bam --with-vcf
 
-Process with Mutation Annotation
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-.. code-block:: bash
-
-   pyfrag.py extract --bam-file sample.bam --vcf-file variants.vcf --out-dir fragments/
-
-Process Multiple BAM Files
-~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-.. code-block:: bash
-
-   pyfrag.py extract --bam-dir bam_files/ --out-dir fragments/
-
-Process Nanopore Data
-~~~~~~~~~~~~~~~~~~~~~
-
-.. code-block:: bash
-
-   pyfrag.py extract --bam-file nanopore.bam --nanopore --out-dir fragments/
 
 Output
 ------
 
-The extract command creates ``.frag`` files in the specified output directory. These files contain compressed, serialized fragment data that can be used by other pyfraglib commands.
-
-Output file naming:
-- Input: ``sample.bam`` → Output: ``sample.frag``
-- Input: ``data/patient1.bam`` → Output: ``patient1.frag``
+The extract command creates ``.frag`` files in the specified output directory. These files contain compressed, serialized fragment data that can be used by other pyfraglib commands. For an input file named ``sample.bam``, an output file called ``sample.frag`` will be created in ``<OUT_DIR>``.
 
 Quality Filters
 ---------------
 
-The extraction process applies several quality filters:
+The extraction process applies several quality filters that are currently hard-coded as source code constants:
 
 - **MAPQ ≥ 20**: Minimum mapping quality score
 - **Insert size ≤ 900bp**: Maximum insert size for paired-end reads
@@ -89,29 +48,7 @@ The extraction process applies several quality filters:
 - **No 'N' bases**: Filters out fragments with ambiguous nucleotides
 - **Proper pairing**: For paired-end data, both reads must be properly paired
 
-Requirements
+General Tips
 ------------
 
-- BAM files must be indexed (``.bai`` files required)
-- Sufficient disk space for output files
-- VCF files must match the reference genome used for BAM alignment
-
-Performance Tips
-----------------
-
-- Use SSD storage for better I/O performance
-- Process multiple files in parallel when possible
-- Ensure adequate RAM (8GB+ recommended for large BAM files)
-- Pre-sort and index BAM files for optimal performance
-
-Troubleshooting
----------------
-
-**"BAM file not indexed" error**
-   Create an index with: ``samtools index input.bam``
-
-**Memory errors**
-   Reduce the number of files processed simultaneously or increase available RAM
-
-**No fragments extracted**
-   Check that BAM file contains properly aligned reads with valid chromosome names
+If you want to process a large set of samples, we recommend against using the ``--bam-dir`` flag. Even though the latter works on *BAM* files in parallel and writes fragment data to disk immediately, it still requires potentially large amounts of memory. We much rather recommend adopting the Nextflow pipeline in our ``tools/`` directory for working with many samples.

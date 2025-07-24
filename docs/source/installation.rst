@@ -1,7 +1,7 @@
 Installation
 ============
 
-``pyfraglib`` depends on several external Python packages. The recommended installation methods below are ``setup.py`` and ``pyproject.toml`` based so dependencies should be installed for you. For ``pysam``, please refer to their documentation to learn about common issues (if you have any, that is!).
+``pyfraglib`` depends on several external Python packages. The recommended installation method below is ``setup.py`` and ``pyproject.toml`` based so dependencies should be installed for you. For ``pysam``, please refer to their documentation to learn about common issues (if you have any, that is!). Please also take a look at our ``README.md`` for the latest installation instructions. Installing ``pyfraglib`` from PyPI will be supported in the future.
 
 Conda Installation (Recommended)
 ---------------------------------
@@ -28,12 +28,7 @@ For development work, use the development installation script:
 
    ./tools/dev_install.sh
 
-This script will:
-
-* Run type checking with mypy
-* Run linting with flake8
-* Install the package in development mode
-* Run all tests
+This script will run type checking with mypy, perform linting with flake8, install the package, and run all tests.
 
 Verification
 ------------
@@ -44,7 +39,9 @@ To verify your installation, run the test suite:
 
    python -m unittest discover -s tests -v
 
-Or have ``pyfraglib`` print version information:
+Some integration tests might be reported as skipped if the necessary data files are not available. We do not provide data files for our more complex tests for privacy reasons.
+
+You can have ``pyfraglib`` print version information as follows:
 
 .. code-block:: bash
 
