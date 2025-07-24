@@ -273,6 +273,57 @@ def simpson_index(proportions: list[float]) -> float:
     return prop_sum
 
 
+def parse_bed_file(bed_path: str) -> list[tuple[str, int, int]]:
+    """
+    Parse BED file and return list of genomic regions.
+
+    Parameters
+    ----------
+    bed_path : str
+        Path to BED file containing genomic regions
+
+    Returns
+    -------
+    list[tuple[str, int, int]]
+        List of (chromosome, start, end) tuples
+
+    Notes
+    -----
+    Supports standard BED format with at least 3 columns:
+    chromosome, start, end. Additional columns are ignored.
+    """
+    logger: logging.Logger = get_logger()
+    regions: list[tuple[str, int, int]] = []
+
+    if not os.path.exists(bed_path):
+        fail(f"BED file '{bed_path}' does not exist")
+
+    logger.info(f"Parsing BED file: {bed_path}")
+
+    with open(bed_path, "r") as f:
+        for line_num, line in enumerate(f, 1):
+            line = line.strip()
+            if not line or line.startswith("#"):
+                continue
+
+            parts = line.split("\t")
+            if len(parts) < 3:
+                logger.warning(f"Skipping invalid BED line {line_num}: {line}")
+                continue
+
+            try:
+                chrom = parts[0]
+                start = int(parts[1])
+                end = int(parts[2])
+                regions.append((chrom, start, end))
+            except ValueError as e:
+                logger.warning(f"Skipping invalid BED line {line_num}: {e}")
+                continue
+
+    logger.info(f"Parsed {len(regions)} regions from BED file")
+    return regions
+
+
 def detect_cpus() -> int:
     """
     Return the number of CPUs currently available.
