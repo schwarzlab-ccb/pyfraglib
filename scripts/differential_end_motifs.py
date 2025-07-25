@@ -321,33 +321,34 @@ def create_differential_plots(
         out_dir: Output directory for plots
         logger: Logger instance for output
     """
-    fig1, ax1 = plt.subplots(figsize=(10, 8))
-    neg_log10_p: npt.NDArray[np.float64] = \
-        -np.log10(results_df["p_value"].values + 1e-100)  # type: ignore
+    neg_log10_p_adj: npt.NDArray[np.float64] = \
+        -np.log10(results_df["p_adjusted"].values + 1e-100)  # type: ignore
     colors: list[str] = [  # type: ignore
         "red" if sig else "gray"  # type: ignore
         for sig in results_df["significant"]  # type: ignore
     ]
+
+    fig1, ax1 = plt.subplots(figsize=(10, 8))
     ax1.scatter(
-        results_df["log_fold_change"], neg_log10_p,  # type: ignore
+        results_df["log_fold_change"], neg_log10_p_adj,  # type: ignore
         c=colors, alpha=0.7, s=30
     )
 
     ax1.axhline(
         y=-np.log10(0.05), color="black",  # type: ignore
-        linestyle="--", alpha=0.5, label="p = 0.05"
+        linestyle="--", alpha=0.5, label="FDR = 0.05"
     )
     ax1.axvline(x=0, color="black", linestyle="-", alpha=0.3)
     ax1.set_xlabel("Log2 Fold Change (Group B / Group A)")
-    ax1.set_ylabel("-log10(p-value)")
+    ax1.set_ylabel("-log10(FDR-adjusted p-value)")
     ax1.set_title("Volcano Plot: Differential End Motif Analysis")
-    ax1.legend(["p = 0.05", "Significant", "Non-significant"])  # type: ignore
+    ax1.legend(["FDR = 0.05", "FDR < 0.05", "FDR ≥ 0.05"])  # type: ignore
     ax1.grid(True, alpha=0.3)
 
     top_significant: pd.DataFrame = \
-        results_df[results_df["significant"]].head(10)  # type: ignore
+        results_df[results_df["significant"]].head(15)  # type: ignore
     for _, row in top_significant.iterrows():  # type: ignore
-        if row["p_value"] < 0.001:  # type: ignore
+        if row["p_adjusted"] < 0.01:  # type: ignore
             motif_name: str = (
                 row["motif"].replace("motif_", "")  # type: ignore
                             .replace("_", " ")
@@ -355,7 +356,7 @@ def create_differential_plots(
             ax1.annotate(
                 motif_name,
                 (row["log_fold_change"],  # type: ignore
-                 -np.log10(row["p_value"] + 1e-100)),  # type: ignore
+                 -np.log10(row["p_adjusted"] + 1e-100)),  # type: ignore
                 xytext=(5, 5), textcoords="offset points",
                 fontsize=8, alpha=0.8
             )
