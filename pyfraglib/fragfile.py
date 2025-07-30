@@ -6,20 +6,12 @@ This module provides efficient I/O operations for fragment data using
 compressed serialization. The FragFile class enables access to serialized
 fragment data for convenient iteration.
 
-Key Features
-------------
-- **Compressed storage**: Gzip compression for efficiency
-- **Pickle serialization**: Reliable Python object serialization
-- **Bulk loading**: Convert fragment files to FragmentList objects
-- **Automatic cleanup**: Context manager support and automatic file closing
-
 File Format
 -----------
 Fragment files (.frag) use the following format:
 
 - **Compression**: Gzip compression (typically 70-80% size reduction)
-- **Serialization**: Python pickle protocol for reliable object storage
-- **Compression ratio**: ~70-80% space savings vs uncompressed
+- **Serialization**: Python pickle protocol for object storage
 - **Streaming iteration**: Space-constant streaming support for large files
 
 Example Usage
@@ -45,24 +37,6 @@ Basic fragment file operations:
     with FragFile("output/sample.frag") as fragfile:
         all_fragments = fragfile.get_fragment_list()
         print(f"Loaded {len(all_fragments)} fragments")
-
-Integration with Analysis Workflows
------------------------------------
-Fragment files integrate seamlessly with pyfraglib analysis functions:
-
-.. code-block:: python
-
-    from pyfraglib.fragfile import FragFile
-    from pyfraglib.lengths import fragment_length_plot
-    from pyfraglib.scores import motif_diversity
-
-    # Load fragments from file
-    with FragFile("sample.frag") as fragfile:
-        fragments = fragfile.get_fragment_list()
-
-    # Run analysis
-    fragment_length_plot(fragments, "plots/", "sample")
-    diversity_5p, diversity_3p = motif_diversity(fragments, "sample")
 
 License
 -------

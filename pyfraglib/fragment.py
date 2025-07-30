@@ -10,19 +10,19 @@ sequencing data.
 Key Classes
 -----------
 - :class:`Fragment`: Individual cfDNA fragment with genomic coordinates and
-                     properties
+  properties
 - :class:`FragmentList`: Collection of fragments from a single sample
 - :class:`FragmentCollection`: Multi-sample fragment collection for batch
-                               processing
+  processing
 - :class:`IntervalTable`: Efficient genomic interval management using interval
-                          trees (was mostly used in older versions of certain
-                          algorithms, but actively used for test cases)
+  trees (was mostly used in older versions of certain algorithms, but actively
+  used for test cases)
 
 Core Features
 -------------
 - **BAM File Processing**: Extract fragments from BAM files
 - **Mutation Annotation**: Link VCF variants to BAM reads for mutated fragment
-                           identification
+  identification
 - **Quality Control**: Filter bogus fragments and apply quality thresholds
 - **Batch Processing**: Parallel processing of multiple BAM files
 - **Serialization**: Save/load fragment data in compressed .frag format
@@ -32,12 +32,14 @@ Fragment Properties
 Each Fragment contains:
 
 - **Chromosome**: Standardized name of contig from which the fragment
-                  originates
+  originates
 - **Genomic Coordinates**: Start and end positions (0-based)
 - **Length**: Fragment length in base pairs
 - **End Motifs**: 5' and 3' end sequences (k-mers)
 - **Mutation Status**: Whether fragment contains variants
 - **Quality Flags**: Bogus fragment detection and quality metrics
+
+Please see the class documentation for additional information.
 
 Example Usage
 -------------
@@ -176,7 +178,7 @@ License
 This file is part of ``pyfraglib``, a software suite to calculate fragmentomics
 features from cfDNA and perform downstream analyses.
 
-Copyright (C) 2024 Daniel Schütte, daniel.schuette@iccb-cologne.org
+Copyright (C) 2025 Daniel Schütte, daniel.schuette@iccb-cologne.org
 
 This program is free software: you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -904,13 +906,18 @@ class Fragment:
         return fragment
 
 
-# @NOTE(ds): Constraints of multiprocessing and pickle force us to define these
-# functions outside of ``from_bams`` and ``bams_to_frags``. Tasks 0 and 1 only
-# differ in how they treat the resulting ``FragmentList``s. Whereas t0 writes
-# the into a shared buffer, t1 writes them to disk immediately. That's freeing
-# the used memory and reducing our mem footprint.
 def task0(filepath: str, vcfpath: str | None,
           frags_per_bam: "FragmentCollection", is_nanopore: bool) -> None:
+    """
+    Helper function for parallel BAM file processing.
+
+    Note:
+        Constraints of multiprocessing and pickle force us to define this
+        function outside of ``from_bams`` and ``bams_to_frags``. Tasks 0 and 1
+        only differ in how they treat the resulting ``FragmentList``. Whereas
+        t0 writes the into a shared buffer, t1 writes them to disk immediately.
+        That is freeing the used memory and reducing our mem footprint.
+    """
     frags: FragmentList = Fragment.from_bam(filepath, vcfpath, is_nanopore)
     filename: str = os.path.basename(filepath)
     name, _ = os.path.splitext(filename)
@@ -919,6 +926,9 @@ def task0(filepath: str, vcfpath: str | None,
 
 def task1(filepath: str, vcfpath: str | None,
           out_dir: str, is_nanopore: bool) -> None:
+    """
+    Helper function for parallel BAM file processing.
+    """
     logger: logging.Logger = get_logger()
 
     frags: FragmentList = Fragment.from_bam(filepath, vcfpath, is_nanopore)
@@ -1067,6 +1077,10 @@ class FragmentList():
 
 
 def is_duplex(read: pysam.AlignedSegment) -> bool:
+    """
+    Determine whether a read has duplex support, based on an project-specific
+    definition.
+    """
     has_xi: bool = True
     has_xj: bool = True
 

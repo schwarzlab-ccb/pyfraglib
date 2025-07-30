@@ -69,10 +69,9 @@ def fragments_per_chromosome_barplot(
         Sample identifier used for plot title and output filename. Used to
         generate informative plot titles and unique output filenames.
 
-    Output Files
-    ------------
-    Creates a PNG file named ``{name}_mut_frags_per_chrom.png`` in the
-    specified output directory.
+    Returns
+    -------
+    A PNG file named ``{name}_mut_frags_per_chrom.png``.
     """
     logger: logging.Logger = get_logger()
     logger.info(
@@ -137,11 +136,10 @@ def end_motifs_barplot(
         Length of k-mer motifs to analyze. Typically 3 or 4 nucleotides.
         Determines the resolution of motif analysis.
 
-    Output Files
-    ------------
-    Creates two PNG files:
-    - ``{name}_k{kmer_len}_5p_frag_end_motifs.png`` - 5' end motifs
-    - ``{name}_k{kmer_len}_3p_frag_end_motifs.png`` - 3' end motifs
+    Returns
+    -------
+    ``{name}_k{kmer_len}_5p_frag_end_motifs.png`` - 5' end motifs
+    ``{name}_k{kmer_len}_3p_frag_end_motifs.png`` - 3' end motifs
     """
     logger: logging.Logger = get_logger()
     logger.info(
@@ -211,7 +209,12 @@ def log_stats(
 
     Calculates quality metrics for a fragment collection, logs them to the
     console and exports structured data to JSON format for downstream analysis
-    and record keeping.
+    and record keeping. The JSON file contains:
+
+    - ``number_of_fragments``: Total fragment count
+    - ``number_of_bogus_fragments``: Low-quality fragment count
+    - ``number_of_mutated_fragments``: Mutation-carrying fragment count
+
 
     Parameters
     ----------
@@ -225,13 +228,9 @@ def log_stats(
     name : str
         Sample identifier used for JSON filename and log messages.
 
-    Output Files
-    ------------
-    Creates a JSON file named ``{name}_frag_stats.json`` containing:
-    - ``number_of_fragments``: Total fragment count
-    - ``number_of_bogus_fragments``: Low-quality fragment count
-    - ``number_of_mutated_fragments``: Mutation-carrying fragment count
-
+    Returns
+    -------
+    A JSON file named ``{name}_frag_stats.json``.
     """
     num_bogus_frags: int = fragments.count_bogus_fragments()
     num_mut_frags: int = fragments.count_mutated_fragments()
@@ -266,7 +265,11 @@ def export_length_distribution_csv(
 
     Creates a CSV file containing fragment length counts for statistical
     analysis and visualization in external tools. Each row represents a
-    unique fragment length with its corresponding count.
+    unique fragment length with its corresponding count. The column names are
+    as follows:
+
+    - ``fragment_length``: Fragment length in base pairs (sorted ascending)
+    - ``count``: Number of fragments with that specific length
 
     Parameters
     ----------
@@ -280,11 +283,9 @@ def export_length_distribution_csv(
         Sample identifier used for the output filename. Used to generate
         unique CSV filenames for each sample.
 
-    Output Files
-    ------------
-    Creates a CSV file named ``{name}_length_distribution.csv`` with columns:
-    - ``fragment_length``: Fragment length in base pairs (sorted ascending)
-    - ``count``: Number of fragments with that specific length
+    Returns
+    -------
+    A CSV file named ``{name}_length_distribution.csv``.
     """
     logger: logging.Logger = get_logger()
     lengths: list[int] = []
@@ -320,7 +321,13 @@ def export_end_motifs_csv(
 
     Creates a CSV file containing 5' and 3' end motif frequencies for
     downstream analysis and visualization in external tools. Each row
-    represents a unique k-mer motif with counts for both fragment ends.
+    represents a unique k-mer motif with counts for both fragment ends. The
+    column names are as follows:
+
+    - ``motif_5p``: 5' end k-mer sequence (e.g., "AAA", "AAC", etc.)
+    - ``count_5p``: Number of fragments with this 5' end motif
+    - ``motif_3p``: 3' end k-mer sequence (e.g., "AAA", "AAC", etc.)
+    - ``count_3p``: Number of fragments with this 3' end motif
 
     Parameters
     ----------
@@ -336,14 +343,9 @@ def export_end_motifs_csv(
     kmer_len : int
         Length of k-mer motifs to analyze. Typically 3 or 4 nucleotides.
 
-    Output Files
-    ------------
-    Creates a CSV file named ``{name}_k{kmer_len}_end_motifs.csv`` with
-    columns:
-    - ``motif_5p``: 5' end k-mer sequence (e.g., "AAA", "AAC", etc.)
-    - ``count_5p``: Number of fragments with this 5' end motif
-    - ``motif_3p``: 3' end k-mer sequence (e.g., "AAA", "AAC", etc.)
-    - ``count_3p``: Number of fragments with this 3' end motif
+    Returns
+    -------
+    A CSV file named ``{name}_k{kmer_len}_end_motifs.csv``.
     """
     logger: logging.Logger = get_logger()
     motifs_5p: defaultdict[str, int]

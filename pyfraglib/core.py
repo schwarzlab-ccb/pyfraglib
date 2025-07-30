@@ -3,8 +3,9 @@ Core Utilities and Infrastructure for pyfraglib
 ===============================================
 
 This module provides core utilities and shared functions used throughout the
-pyfraglib library. It includes chromosome definitions, error handling, logging
-configuration, multiprocessing support, and statistical diversity indices.
+``pyfraglib`` library. It includes chromosome definitions, error handling,
+logging configuration, multiprocessing support, and statistical diversity
+indices.
 
 Key Components
 --------------
@@ -13,14 +14,6 @@ Key Components
 - **Multiprocessing**: CPU detection and shared memory management
 - **Statistics**: Diversity indices (Shannon entropy, Simpson index)
 - **Utilities**: Chromosome name standardization and validation
-
-Chromosome Reference Data
--------------------------
-The module includes comprehensive chromosome definitions for human reference
-genomes:
-
-- **hg19 (GRCh37)**: Chromosome lengths and accession numbers
-- **hg38 (GRCh38)**: Updated chromosome coordinates and identifiers
 
 Functions
 ---------
@@ -53,8 +46,8 @@ Example Usage
 Multiprocessing Support
 -----------------------
 The module provides multiprocessing infrastructure through the
-:class:`PyfragManager` class, which enables efficient sharing of data
-structures across processes:
+:class:`PyfragManager` class, which enables automatic locking while sharing
+data structures across processes:
 
 .. code-block:: python
 
@@ -92,7 +85,7 @@ License
 This file is part of ``pyfraglib``, a software suite to calculate
 fragmentomics features from cfDNA and perform downstream analyses.
 
-Copyright (C) 2024 Daniel Schütte, daniel.schuette@iccb-cologne.org
+Copyright (C) 2025 Daniel Schütte, daniel.schuette@iccb-cologne.org
 
 This program is free software: you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -115,7 +108,6 @@ from typing import NoReturn, Final
 
 LOGGER_NAME: Final[str] = "pyfraglib"
 
-# @NOTE(ds): From ``https://www.ncbi.nlm.nih.gov/grc/human/data?asm=GRCh37``.
 hg19_chromosomes: Final[list[tuple[str, int, str, str]]] = [
     ("1",  249250621, "CM000663.1", "NC_000001.10"),
     ("2",  243199373, "CM000664.1", "NC_000002.11"),
@@ -144,7 +136,6 @@ hg19_chromosomes: Final[list[tuple[str, int, str, str]]] = [
     ("M",  16569,     "J01415.2",   "NC_012920.1")
 ]
 
-# @NOTE(ds): From ``https://www.ncbi.nlm.nih.gov/grc/human/data?asm=GRCh38``.
 hg38_chromosomes: Final[list[tuple[str, int, str, str]]] = [
     ("1",  248956422, "CM000663.2", "NC_000001.11"),
     ("2",  242193529, "CM000664.2", "NC_000002.12"),
@@ -208,6 +199,13 @@ class PyfragManager(BaseManager):
 
 
 def get_chromosome_length(chrom: str, genome: str = "hg19") -> int:
+    """
+    Get the length of a given chromosome in the context of a genome assembly.
+
+    Note:
+        - hg38 from https://www.ncbi.nlm.nih.gov/grc/human/data?asm=GRCh38
+        - hg19 from https://www.ncbi.nlm.nih.gov/grc/human/data?asm=GRCh37
+    """
     chromosomes: list[tuple[str, int, str, str]]
     if genome == "hg19":
         chromosomes = hg19_chromosomes
@@ -224,6 +222,11 @@ def get_chromosome_length(chrom: str, genome: str = "hg19") -> int:
 
 
 def homogenize_contig_name(contig: str) -> str:
+    """
+    Transform a ``contig`` name into the format used internally by
+    ``pyfraglib``. All code dealing with chromosome names should use this
+    function to ensure consistency.
+    """
     if contig.startswith("chr"):
         contig = contig[3:]
     return contig
@@ -251,6 +254,8 @@ def homogenize_to_chrom_naming_convention(
 
 def shannon_entropy(proportions: list[float]) -> float:
     """
+    Calculate Shannon entropy for a list of floats.
+
     Note:
         The input list needs to be normalized to proportions.
     """
@@ -267,6 +272,12 @@ def shannon_entropy(proportions: list[float]) -> float:
 
 
 def simpson_index(proportions: list[float]) -> float:
+    """
+    Calculate Simpson index for a list of floats.
+
+    Note:
+        The input list needs to be normalized to proportions.
+    """
     prop_sum: float = 0.0
     for prop in proportions:
         prop_sum += prop * prop

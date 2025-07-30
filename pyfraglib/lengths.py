@@ -2,52 +2,12 @@
 Fragment length analysis and visualization
 ==========================================
 
-This module provides tools for analyzing and visualizing fragment length
-distributions. It includes functions for creating kernel density plots to
-compare wildtype and mutated fragments, and for fitting Gaussian mixture models
-(GMMs) to fragment length data.
-
-The module supports:
-
-- **Length distribution visualization**: Kernel density estimation plots
-                                         comparing wildtype vs mutated fragment
-                                         length distributions
-- **Gaussian mixture modeling**: Automated fitting of multi-component normal
-                                 distributions to fragment length data with
-                                 convergence checking
-- **Goodness-of-fit statistics**: Statistical evaluation of GMM fits including
-                                  Kolmogorov-Smirnov tests and Jensen-Shannon
-                                  divergence
-- **Parameter export**: JSON serialization of fitted GMM parameters and
-                        statistics
-
-Key Features:
--------------
-
-* Automated GMM fitting with configurable number of components
-* Statistical validation of model fits
-* Visualization of results
-
-Example:
-    Basic fragment length analysis workflow::
-
-        from pyfraglib import Fragment, fragment_length_plot, \
-                              fragment_length_gmm
-
-        # Load fragments from BAM file
-        fragments = Fragment.from_bam("sample.bam", "variants.vcf")
-
-        # Create length distribution plots
-        fragment_length_plot(fragments, "output/", "sample")
-
-        # Fit Gaussian mixture model
-        fragment_length_gmm(
-            fragments, "configs/gmm_3.json", "output/", "sample"
-        )
-
-The analysis generates multiple outputs including visualizations, fitted
-parameters, and goodness-of-fit statistics for downstream analysis and quality
-control.
+This module provides functions for analyzing and visualizing fragment length
+distributions. It includes kernel density plots to compare wildtype and mutated
+fragments, and code for fitting Gaussian mixture models (GMMs) to fragment
+length data. For cohort-wide analysis of fragment length profiles using non-
+negative matrix factorization (NMF), we are providing a separate script in
+``scripts/``.
 
 License
 -------
@@ -111,9 +71,6 @@ def fragment_length_plot(
             fragments = Fragment.from_bam("sample.bam", "variants.vcf")
             fragment_length_plot(fragments, "plots/", "patient_001")
             # Creates: plots/patient_001_frags_len_kde.png
-
-    See Also:
-        fragment_length_gmm: For quantitative modeling of length distributions
     """
     logger: logging.Logger = get_logger()
     logger.info(
@@ -155,9 +112,8 @@ def fragment_length_gmm(fragments: FragmentList, config_filepath: str,
     Fit Gaussian mixture models to fragment length distributions.
 
     Performs analysis of fragment length data by fitting Gaussian mixture
-    models (GMMs) with a configurable number of components.
-
-    The function automatically:
+    models (GMMs) with a configurable number of components. The function
+    automatically:
 
     * Fits GMM parameters using maximum likelihood estimation
     * Validates model convergence and goodness-of-fit
@@ -176,7 +132,7 @@ def fragment_length_gmm(fragments: FragmentList, config_filepath: str,
 
     Returns:
         None. Results are saved to multiple output files in the specified
-            directory.
+        directory.
 
     Raises:
         SystemExit: If GMM fitting fails due to non-convergence or numerical
@@ -185,9 +141,7 @@ def fragment_length_gmm(fragments: FragmentList, config_filepath: str,
 
     Note:
         * Requires a valid GMM configuration file (see ``configs/`` directory)
-        * Generates both visual diagnostics and quantitative statistics
         * May not converge for poor data
-        * Results include goodness-of-fit metrics for model validation
 
     Example:
         Fit a 3-component GMM to fragment lengths::
@@ -242,9 +196,8 @@ def write_gmm_params(
     Export Gaussian mixture model parameters and statistics to JSON.
 
     Serializes comprehensive GMM fitting results to a structured JSON file
-    for downstream analysis, quality control, and reproducibility. The output
-    includes fitted parameters, optimization metrics, and goodness-of-fit
-    statistics.
+    for downstream analysis. The output includes fitted parameters and
+    goodness-of-fit statistics.
 
     Args:
         n: Number of Gaussian components in the fitted model.
@@ -265,28 +218,6 @@ def write_gmm_params(
 
     Returns:
         None. Results are written to a JSON file in the specified directory.
-
-    Note:
-        * Parameters are automatically parsed and organized by component
-        * Includes both optimization and statistical validation metrics
-        * Mostly used as a utility function
-
-    Example:
-        Typical usage within GMM fitting workflow::
-
-            # After fitting GMM
-            write_gmm_params(
-                n=3,
-                params=[167, 120, 200, 25, 15, 30, 0.6, 0.3, 0.1],
-                obj_val=-12345.67,
-                conv=True,
-                goodness_of_fit={"ks_statistic": 0.05, "ks_p_value": 0.8},
-                out_dir="results/",
-                name="sample"
-            )
-            # Creates: results/sample_gmm_frags_len.json
-
-    File Format:
         The output JSON contains::
 
             {

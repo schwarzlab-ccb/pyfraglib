@@ -6,6 +6,8 @@ This section contains the Python API documentation for ``pyfraglib``.
 Core Classes
 ------------
 
+The following core classes represent cfDNA fragments and collections of them in ``pyfraglib``:
+
 .. autosummary::
    :toctree: generated
    :nosignatures:
@@ -13,22 +15,6 @@ Core Classes
    pyfraglib.Fragment
    pyfraglib.FragmentList
    pyfraglib.FragFile
-
-Module List
------------
-
-.. autosummary::
-   :toctree: generated
-   :nosignatures:
-
-   pyfraglib.core
-   pyfraglib.fragment
-   pyfraglib.fragfile
-   pyfraglib.math
-   pyfraglib.stats
-   pyfraglib.lengths
-   pyfraglib.scores
-   pyfraglib.simulator
 
 Core Simulation Classes
 -----------------------
@@ -43,4 +29,22 @@ re-exported into the ``pyfraglib`` namespace:
    pyfraglib.FragmentSimulator
    pyfraglib.TissueMixtureSimulator
    pyfraglib.NucleaseProfile
+
+Module List
+-----------
+
+Alternative, please select a class of interest to you from the following list:
+
+.. autosummary::
+   :toctree: generated
+   :nosignatures:
+
+   pyfraglib.core
+   pyfraglib.fragment
+   pyfraglib.fragfile
+   pyfraglib.math
+   pyfraglib.stats
+   pyfraglib.lengths
+   pyfraglib.scores
+   pyfraglib.simulator
 

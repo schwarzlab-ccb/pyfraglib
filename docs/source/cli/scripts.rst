@@ -72,14 +72,14 @@ Options
 
 
 nmf_fragment_lengths.py
-------------------------
+-----------------------
 
 Performs non-negative matrix factorization (NMF) on fragment length distributions from cfDNA samples. This analysis identifies underlying signatures in fragment length patterns that can reveal tissue-specific or pathological fragmentation patterns.
 
 NMF decomposes the fragment length matrix into basis components (signatures) and mixing coefficients (sample compositions). The script runs multiple random initializations to ensure stable results and normalizes mixing coefficients to represent true proportions.
 
 Input Requirements
-~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~
 
 * Text file listing fragment length CSV file paths (one per line)
 * CSV files from ``pyfrag stats`` with columns: ``fragment_length``, ``count``
@@ -112,14 +112,14 @@ Options
 
 
 differential_end_motifs.py
----------------------------
+--------------------------
 
 Performs differential analysis of fragment end motif abundances between two groups of cfDNA samples. This statistical analysis identifies motifs that are significantly over-represented in one group versus another, which can reveal tissue-specific cleavage preferences or pathological changes in nuclease activity.
 
 The analysis uses Wilcoxon rank-sum tests for non-parametric comparison, followed by Benjamini-Hochberg FDR correction to control for multiple testing across all motifs.
 
 Input Requirements
-~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~
 
 * JSON configuration file with ``group_a`` and ``group_b`` fields
 * Each group contains a list of CSV file paths
@@ -150,7 +150,7 @@ Options
    --verbose             Enable verbose logging
 
 Configuration Format
-~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~
 
 .. code-block:: json
 

@@ -2,7 +2,8 @@
 cfDNA Simulator
 ===============
 
-This module allows for simulation of biologically realistic cfDNA fragments.
+This module facilitates the simulation of biologically realistic cfDNA
+fragments.
 
 License
 -------
