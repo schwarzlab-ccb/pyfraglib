@@ -47,4 +47,6 @@ Alternative, please select a class of interest to you from the following list:
    pyfraglib.lengths
    pyfraglib.scores
    pyfraglib.simulator
+   pyfraglib.simulator.fragment_simulator
+   pyfraglib.simulator.tissue_mixture_simulator
 

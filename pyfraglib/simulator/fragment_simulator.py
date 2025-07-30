@@ -1,43 +1,53 @@
 """
 Biologically Realistic cfDNA Fragment Simulation
-===============================================
+================================================
 
 This module provides simulation capabilities for cell-free DNA (cfDNA)
-fragments based on experimentally observed fragmentation biological. The
-simulator integrates multiple layers of biological complexity to generate
-realistic cfDNA fragmentation patterns suitable for method validation and
-training data generation.
+fragments based on experimentally observed fragmentation biology. The
+simulator tries to achieve realism by integrating multiple layers of biological
+complexity. It might be used e.g. for method validation or training data
+generation.
 
 Key Features
 ------------
 - **Real genomic sequences**: Uses reference FASTA files to provide sequence
-                              context
-- **Nucleosome positioning**: Realistic nucleosome maps with occupancy scoring
+  context
+- **Nucleosome positioning**: Models DNA protection by nucleosome
+  through incorporating nucleosome maps
 - **Chromatin accessibility**: Tissue-specific chromatin states and
-                               accessibility
+  accessibility, DNA shielding by transcription factors
 - **Nuclease specificity**: Experimentally-determined nuclease cleavage
-                            preferences
+  preferences
 - **Fragment size distributions**: Adjustable size patterns with periodicity
 - **End motif generation**: Sequence-context aware end motif simulation
 
 Biological Foundation
---------------------
-The simulator is based on a literature review:
+---------------------
+Core parts of the simulator are based on the following assumptions:
 
 1. **Nuclease Activities**:
-   - DNASE1L3: CC dinucleotide preference (Serpas et al. 2019 PNAS)
-   - DNASE1: AT-rich accessibility preference (Lazarovici et al. 2013 PNAS)
-   - DFFB: Nucleosome linker preference (Widlak et al. 2000 Apoptosis)
+
+    - DNASE1L3: plasma nuclease, CC dinucleotide preference
+      (Serpas et al. 2019 PNAS)
+    - DNASE1: endonuclease, AT-rich accessibility preference, predominantly
+      produces T ends
+      (Lazarovici et al. 2013 PNAS, Han et al. 2020 Am J Hum Genet.)
+    - DFFB: Nucleosome linker preference, produces A ends
+      (Han et al. 2020 Am J Hum Genet.)
 
 2. **Fragment Size Patterns**:
+
    - Mono-nucleosomal peak (~167 bp) with 10 bp periodicity
    - Di-nucleosomal components (~334 bp)
-   - Tissue-specific size distributions
+     (reviewed in Lo et al. 2021 Science)
 
 3. **Chromatin Context**:
+
    - Nucleosome positioning affects cleavage accessibility
    - Transcription factor binding site protection
-   - Tissue-specific chromatin openness patterns
+     (reviewed in Lo et al. 2021 Science)
+
+Additional references can be found in the respective classes and methods.
 
 Example Usage
 -------------
@@ -68,23 +78,7 @@ Example Usage
     )
 
     # Process generated fragments
-    print(f"Generated {fragments.length()} realistic cfDNA fragments")
-
-Performance Considerations
--------------------------
-- Extensive caching for sequence contexts and nucleosome calculations
-- Batch processing for improved computational efficiency
-- Memory-conscious design for large-scale simulations
-- Binary search optimization for spatial queries
-
-References
-----------
-- Serpas et al. (2019) PNAS: "Dnase1l3 deletion causes aberrations in length
-  and end-motif frequencies in plasma DNA"
-- Lazarovici et al. (2013) PNAS: "Probing DNA shape and methylation state on
-  a genomic scale with DNase I"
-- Widlak & Garrard (2005) J Cell Biochem: "Discovery, regulation, and action
-  of the major apoptotic nucleases DFF40/CAD and endonuclease G"
+    print(f"Generated {fragments.length()} cfDNA fragments")
 
 License
 -------
@@ -127,6 +121,7 @@ class NucleosomeMap:
     Notes
     -----
     Nucleosome occupancy scores affect the probability of DNA cleavage:
+
     - High occupancy (>0.8): Strong protection, low cleavage probability
     - Medium occupancy (0.3-0.8): Moderate protection
     - Low occupancy (<0.3): Weak protection, higher cleavage probability
@@ -157,27 +152,16 @@ class ChromatinState:  # type: ignore
     cfDNA fragmentation patterns. Different chromatin states lead to varying
     nuclease accessibility and cleavage probability.
 
-    Attributes
-    ----------
-    open_regions : IntervalTree
-        Genomic intervals representing accessible chromatin regions (e.g.,
-        from ATAC-seq or DNase-seq data). Fragments originating from these
-        regions have higher cleavage probability.
-    tf_binding_sites : IntervalTree
-        Transcription factor binding sites that provide protection from
-        nuclease cleavage. These regions typically show reduced fragmentation.
-    ctcf_sites : IntervalTree
-        CTCF binding sites that create specific chromatin architecture and
-        affect local nuclease accessibility patterns.
-
     Notes
     -----
     Each IntervalTree should contain intervals with genomic coordinates:
+
     - Chromosome-specific trees for efficient spatial queries
     - 0-based coordinate system following standard conventions
     - Additional metadata can be stored as interval data
 
     The chromatin state significantly influences:
+
     - Base cleavage probability (open regions: ~0.6, closed regions: ~0.1)
     - Transcription factor protection effects (30% of normal cleavage)
     - Tissue-specific fragmentation patterns
@@ -195,15 +179,24 @@ class ChromatinState:  # type: ignore
     ...     ctcf_sites=IntervalTree()
     ... )
     """
+    #: Genomic intervals representing accessible chromatin regions (e.g.,
+    #: from ATAC-seq or DNase-seq data). Fragments originating from these
+    #: regions have higher cleavage probability.
     open_regions: IntervalTree  # type: ignore
+
+    #: Transcription factor binding sites that provide protection from
+    #: nuclease cleavage. These regions typically show reduced fragmentation.
     tf_binding_sites: IntervalTree  # type: ignore
+
+    #: CTCF binding sites that create specific chromatin architecture and
+    #: affect local nuclease accessibility patterns.
     ctcf_sites: IntervalTree  # type: ignore
 
 
 @dataclass
 class NucleaseProfile:
     """
-    Comprehensive nuclease activity and sequence preference parameters.
+    Nuclease activity and sequence preference parameters.
 
     This class defines the activity levels and sequence preferences of
     different nucleases involved in cfDNA fragmentation. The parameters are
@@ -213,6 +206,7 @@ class NucleaseProfile:
     Notes
     -----
     Activity levels are relative and multiplicative:
+
     - 1.0 represents normal physiological activity
     - Values >1.0 increase nuclease activity
     - Values <1.0 decrease nuclease activity
@@ -221,11 +215,6 @@ class NucleaseProfile:
     Motif preferences are multiplicative factors applied to base cleavage
     probability based on local sequence context. Higher values increase
     cleavage probability for sequences containing the motif.
-
-    Default preferences are based on:
-    - DNase I: Lazarovici et al. (2013) PNAS - accessibility preference
-    - DNase1L3: Serpas et al. (2019) PNAS - CC dinucleotide preference
-    - DFFB: Widlak et al. (2000) Apoptosis - linker region preference
 
     Examples
     --------
@@ -243,27 +232,27 @@ class NucleaseProfile:
     ...     dffb_activity=2.0
     ... )
     """
-    # Relative activity level of DNase I. Higher values increase overall
-    # fragmentation in accessible chromatin regions. DNase I shows preference
-    # for AT-rich accessible regions.
+    #: Relative activity level of DNase I. Higher values increase overall
+    #: fragmentation in accessible chromatin regions. DNase I shows preference
+    #: for AT-rich accessible regions.
     dnase1_activity: float = 1.0
 
-    # Relative activity level of DNase I Like 3 (DNase1L3). This is the
-    # primary nuclease responsible for cfDNA fragmentation in healthy
-    # individuals. Shows strong CC dinucleotide preference.
+    #: Relative activity level of DNase I Like 3 (DNase1L3). This is the
+    #: primary nuclease responsible for cfDNA fragmentation in healthy
+    #: individuals. Shows strong CC dinucleotide preference.
     dnase1l3_activity: float = 1.0
 
-    # Relative activity level of DNA Fragmentation Factor B (DFFB), an
-    # apoptotic nuclease. More active during cell death and shows preference
-    # for nucleosome linker regions.
+    #: Relative activity level of the apoptotic nuclease DNA Fragmentation
+    #: Factor B (DFFB). More active during cell death and shows preference
+    #: for nucleosome linker regions.
     dffb_activity: float = 1.0
 
-    # Sequence motif preferences for DNase I. If None, uses default
-    # preferences based on literature (AT-rich sequences preferred).
+    #: Sequence motif preferences for DNase I. If None, uses default
+    #: preferences based on literature (AT-rich sequences preferred).
     dnase1_motif_preference: dict[str, float] | None = None
 
-    # Sequence motif preferences for DNase1L3. If None, uses default
-    # preferences (strong CC dinucleotide preference).
+    #: Sequence motif preferences for DNase1L3. If None, uses default
+    #: preferences (strong CC dinucleotide preference).
     dnase1l3_motif_preference: dict[str, float] | None = None
 
     def __post_init__(self) -> None:

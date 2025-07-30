@@ -1,6 +1,6 @@
 """
 Tissue Mixture cfDNA Simulation
-==============================
+===============================
 
 Advanced cfDNA simulation module for modeling complex biological scenarios
 involving multiple tissue sources, disease progression, and clinical
@@ -8,14 +8,14 @@ conditions. This module extends the base FragmentSimulator to handle realistic
 multi-tissue mixtures commonly encountered in liquid biopsy applications.
 
 Key Applications
----------------
+----------------
 - **Cancer Detection**: Tumor-derived cfDNA mixed with normal tissue background
 - **Organ Transplant Monitoring**: Donor cfDNA in recipient plasma
 - **Disease Progression**: Longitudinal cfDNA changes over time
 - **Therapy Response**: cfDNA dynamics during treatment
 
 Biological Foundation
---------------------
+---------------------
 The simulator incorporates tissue-specific characteristics based on:
 
 1. **Fragment Size Distributions**: Tissue-specific size patterns
@@ -36,11 +36,6 @@ The simulator incorporates tissue-specific characteristics based on:
    - Cancer progression signatures
    - Fetal fraction dynamics
    - Therapy response patterns
-
-Class Hierarchy
----------------
-.. inheritance-diagram:: TissueMixtureSimulator
-   :parts: 1
 
 Example Usage
 -------------
@@ -124,35 +119,6 @@ class TissueProfile:
     that affect fragment size distributions, nucleosome positioning, chromatin
     accessibility, and nuclease activity patterns.
 
-    Attributes
-    ----------
-    name : str
-        Tissue identifier (e.g., "hematopoietic", "liver", "tumor").
-        Used for logging and identification purposes.
-    fragment_size_distribution : dict[str, float]
-        Parameters defining fragment size distribution:
-        - "mean": Mean fragment size (typically 140-170bp)
-        - "std": Standard deviation of size distribution
-        - "short_fraction": Proportion of short fragments (<150bp)
-    nucleosome_spacing : float
-        Average nucleosome spacing in base pairs. Typical values:
-        - Normal tissues: 185-190bp
-        - Tumor tissues: 175-185bp (more compact)
-        - Fetal tissues: 175-180bp
-    chromatin_openness : float
-        Relative chromatin accessibility (0.0-1.0 scale):
-        - 0.0: Completely closed chromatin
-        - 0.5: Moderately accessible
-        - 1.0: Highly accessible (e.g., hematopoietic)
-    end_motif_preferences : dict[str, float]
-        Relative preferences for specific end motifs:
-        - Keys: Dinucleotide motifs ("CC", "CG", "AT", etc.)
-        - Values: Multiplicative factors (1.0 = neutral, >1.0 = preferred)
-    methylation_level : float
-        Average DNA methylation level (0.0-1.0):
-        - Affects DNASE1L3 activity (higher methylation = more activity)
-        - Typical values: 0.3-0.8 depending on tissue and disease state
-
     Notes
     -----
     Tissue profiles are based on experimental observations from:
@@ -181,12 +147,42 @@ class TissueProfile:
     ...     methylation_level=0.4
     ... )
     """
+    #: Tissue identifier (e.g., "hematopoietic", "liver", "tumor").
+    #: Used for logging and identification purposes.
     name: str
+
+    #: Parameters defining fragment size distribution:
+    #:
+    #: - "mean": Mean fragment size (typically 140-170bp)
+    #: - "std": Standard deviation of size distribution
+    #: - "short_fraction": Proportion of short fragments (<150bp)
     fragment_size_distribution: dict[str, float]
+
+    #: Average nucleosome spacing in base pairs. Typical values:
+    #:
+    #: - Normal tissues: 185-190bp
+    #: - Tumor tissues: 175-185bp (more compact)
+    #: - Fetal tissues: 175-180bp
     nucleosome_spacing: float
+
+    #: Relative chromatin accessibility (0.0-1.0 scale):
+    #:
+    #: - 0.0: Completely closed chromatin
+    #: - 0.5: Moderately accessible
+    #: - 1.0: Highly accessible (e.g., hematopoietic)
     chromatin_openness: float
+
+    #: Relative preferences for specific end motifs:
+    #:
+    #: - Keys: Dinucleotide motifs ("CC", "CG", "AT", etc.)
+    #: - Values: Multiplicative factors (1.0 = neutral, >1.0 = preferred)
     end_motif_preferences: dict[str, float]
-    methylation_level: float  # average methylation, affects DNASE1L3
+
+    #: Average DNA methylation level (0.0-1.0):
+    #:
+    #: - Affects DNASE1L3 activity (higher methylation = more activity)
+    #: - Typical values: 0.3-0.8 depending on tissue and disease state
+    methylation_level: float
 
 
 TISSUE_PROFILES = {
@@ -243,36 +239,16 @@ class DiseaseSignature:
     signatures can be applied to modify baseline tissue profiles to model
     disease states.
 
-    Attributes
-    ----------
-    name : str
-        Disease identifier (e.g., "breast_cancer", "lung_cancer", "sepsis").
-    size_shift : float
-        Systematic shift in mean fragment size (in base pairs):
-        - Negative values: Shorter fragments (common in cancer)
-        - Positive values: Longer fragments (rare)
-        - Typical range: -30 to +10 bp
-    periodicity_change : float
-        Alteration in 10bp nucleosomal periodicity strength:
-        - 1.0: No change in periodicity
-        - <1.0: Reduced periodicity (disrupted nucleosome positioning)
-        - >1.0: Enhanced periodicity
-    preferred_cut_sites : list[str]
-        Disease-specific preferred cleavage motifs.
-        List of DNA motifs that show increased cleavage in disease state.
-    aberrant_ends : dict[str, float]
-        Abnormal end motif frequencies in disease:
-        - Keys: Motif sequences
-        - Values: Relative frequency changes (1.0 = no change)
-
     Notes
     -----
     Disease signatures are typically applied stochastically:
+
     - Not all fragments from diseased tissue show the signature
     - Application probability often correlates with disease severity
     - Multiple signatures may be combined for complex conditions
 
     Common disease patterns:
+
     - **Cancer**: Shorter fragments, reduced periodicity, altered motifs
     - **Inflammation**: Increased apoptotic fragmentation patterns
     - **Organ damage**: Tissue-specific fragmentation changes
@@ -287,10 +263,31 @@ class DiseaseSignature:
     ...     aberrant_ends={"CC": 1.5, "AA": 0.8}
     ... )
     """
+    #: Disease identifier (e.g., "breast_cancer", "lung_cancer", "sepsis").
     name: str
+
+    #: Systematic shift in mean fragment size (in base pairs):
+    #:
+    #: - Negative values: Shorter fragments (common in cancer)
+    #: - Positive values: Longer fragments (rare)
+    #: - Typical range: -30 to +10 bp
     size_shift: float
+
+    #: Alteration in 10bp nucleosomal periodicity strength:
+    #:
+    #: - 1.0: No change in periodicity
+    #: - <1.0: Reduced periodicity (disrupted nucleosome positioning)
+    #: - >1.0: Enhanced periodicity
     periodicity_change: float
+
+    #: Disease-specific preferred cleavage motifs.
+    #: List of DNA motifs that show increased cleavage in disease state.
     preferred_cut_sites: list[str]
+
+    #: Abnormal end motif frequencies in disease:
+    #:
+    #: - Keys: Motif sequences
+    #: - Values: Relative frequency changes (1.0 = no change)
     aberrant_ends: dict[str, float]
 
 
@@ -309,15 +306,18 @@ class TissueMixtureSimulator(FragmentSimulator):
     Key Features
     ------------
     Multi-tissue Mixing:
+
     - Proportional mixing of different tissue sources
     - Tissue-specific fragmentation characteristics
     - Noise modeling
 
     Cancer Progression:
+
     - Longitudinal tumor fraction changes
     - Cancer-specific fragmentation signatures
 
     Clinical Realism:
+
     - Biological and technical noise addition
     - Fragment loss modeling (extraction efficiency)
     - End repair artifacts simulation
