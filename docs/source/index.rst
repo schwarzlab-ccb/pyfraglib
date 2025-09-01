@@ -16,7 +16,6 @@ pyfraglib Documentation
    cli/index
    api/index
    simulation/index
-   examples/index
    contributing
    changelog
 

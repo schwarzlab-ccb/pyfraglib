@@ -154,5 +154,5 @@ pyfraglib uses JSON configuration files for various analyses. Examples can be fo
 Next Steps
 ----------
 
-Please refer to the :doc:`api/index` documentation for detailed API reference. More complex use cases can be found at :doc:`examples/index`. CLI usage is explained here :doc:`cli/index` with a reference of all available command-line options. Lastly, you can learn about :doc:`simulation/index` for generating synthetic data.
+Please refer to the :doc:`api/index` documentation for detailed API reference. CLI usage is explained here :doc:`cli/index` with a reference of all available command-line options. Lastly, you can learn about :doc:`simulation/index` for generating synthetic data.
 
