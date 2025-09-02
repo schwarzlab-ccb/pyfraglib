@@ -1,0 +1,102 @@
+digraph SimulationArchitecture {
+    rankdir=TB;
+    node [shape=box, style=filled, fillcolor=lightblue];
+    edge [fontsize=10];
+
+    // Main entry point
+    CLI [label="pyfrag.py simulate (CLI)", shape=ellipse, fillcolor=yellow];
+
+    // Configuration and data classes
+    subgraph cluster_config {
+        label="Configuration & Data Structures";
+        style=filled;
+        fillcolor=lightgray;
+
+        Config [label="JSON Configuration", fillcolor=lightyellow];
+        NucleaseProfile [label="NucleaseProfile\n• Dnase1\n• Dnase1l3\n• DFFB"];
+        TissueProfile [label="TissueProfile\n• fragment_size_distribution\n• nucleosome_spacing\n• chromatin_openness\n• end_motif_preferences\n• methylation_level"];
+        NucleosomeMap [label="NucleosomeMap\n• positions\n• occupancy"];
+        ChromatinState [label="ChromatinState\n• open_regions\n• tf_binding_sites\n• ctcf_sites"];
+    }
+
+    // Core simulation classes
+    subgraph cluster_simulators {
+        label="Simulation Engine";
+        style=filled;
+        fillcolor=lightcyan;
+
+        SequenceGenerator [label="SequenceContextGenerator"];
+        FragmentSimulator [label="FragmentSimulator"];
+        TissueMixtureSimulator [label="TissueMixtureSimulator\n(extends FragmentSimulator)"];
+    }
+
+    // Output classes
+    subgraph cluster_output {
+        label="Output Data Structures";
+        style=filled;
+        fillcolor=lightgreen;
+
+        Fragment [label="Fragment"];
+        FragmentList [label="FragmentList"];
+        FragFile [label="FragFile"];
+    }
+
+    // Simulation modes
+    subgraph cluster_modes {
+        label="Simulation Modes";
+        style=filled;
+        fillcolor=lavender;
+
+        BasicMode [label="Basic Mode\n• Single tissue simulation\n• Uses FragmentSimulator", shape=diamond];
+        TissueMixture [label="Tissue Mixture Mode\n• Multi-tissue simulation\n• Proportional mixing", shape=diamond];
+        CancerProgression [label="Cancer Progression Mode\n• Longitudinal simulation\n• Size shift & enrichment", shape=diamond];
+    }
+
+    // Predefined tissue profiles
+    subgraph cluster_tissues {
+        label="Predefined Tissue Profiles";
+        style=filled;
+        fillcolor=mistyrose;
+
+        Hematopoietic [label="hematopoietic\n• Mean: 167bp, Std: 10bp\n• Spacing: 185bp\n• Openness: 0.7"];
+        Liver [label="liver\n• Mean: 165bp, Std: 12bp\n• Spacing: 190bp\n• Openness: 0.5"];
+        Tumor [label="tumor\n• Mean: 150bp, Std: 18bp\n• Spacing: 175bp\n• Openness: 0.8"];
+    }
+
+    // Relationships and data flow
+    CLI -> Config [label="reads"];
+
+    // Configuration flows
+    Config -> BasicMode [label="simulation_mode=basic"];
+    Config -> TissueMixture [label="simulation_mode=tissue_mixture"];
+    Config -> CancerProgression [label="simulation_mode=cancer_progression"];
+
+    // Mode to simulator mapping
+    BasicMode -> FragmentSimulator [label="uses"];
+    TissueMixture -> TissueMixtureSimulator [label="uses"];
+    CancerProgression -> TissueMixtureSimulator [label="uses"];
+
+    // Simulator dependencies
+    FragmentSimulator -> SequenceGenerator [label="contains"];
+    FragmentSimulator -> NucleosomeMap [label="uses"];
+    FragmentSimulator -> ChromatinState [label="uses"];
+    TissueMixtureSimulator -> TissueProfile [label="uses"];
+
+    // Tissue profiles
+    TissueMixtureSimulator -> Hematopoietic [label="predefined"];
+    TissueMixtureSimulator -> Liver [label="predefined"];
+    TissueMixtureSimulator -> Tumor [label="predefined"];
+
+    // Data structure relationships
+    TissueProfile -> NucleaseProfile [label="generates"];
+    SequenceGenerator -> NucleaseProfile [label="uses"];
+
+    // Output generation
+    FragmentSimulator -> Fragment [label="creates"];
+    Fragment -> FragmentList [label="collected in"];
+    FragmentList -> FragFile [label="saved as"];
+    TissueMixtureSimulator -> FragmentList [label="creates"];
+
+    // Key algorithms (invisible edges for layout)
+    FragmentSimulator -> NucleaseProfile [label="applies", style=dotted];
+}

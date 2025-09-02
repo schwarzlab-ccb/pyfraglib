@@ -22,3 +22,4 @@ notebooks/*/
 *.md
 *.pdf
 docs/source/api/generated/
+presentations
