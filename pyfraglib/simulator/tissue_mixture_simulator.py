@@ -71,7 +71,6 @@ Predefined tissue profiles based on literature:
 
 - **hematopoietic**: Blood cell-derived cfDNA (normal background)
 - **liver**: Hepatocyte-derived cfDNA (organ damage monitoring)
-- **placenta**: Placental cfDNA (pregnancy monitoring)
 - **tumor**: Generic tumor-derived cfDNA (cancer detection)
 
 Custom tissue profiles can be defined using the TissueProfile dataclass.
@@ -205,16 +204,6 @@ TISSUE_PROFILES = {
         chromatin_openness=0.5,
         end_motif_preferences={"CC": 1.3, "CT": 1.1},
         methylation_level=0.75
-    ),
-    "placenta": TissueProfile(
-        name="placenta",
-        fragment_size_distribution={
-            "mean": 143, "std": 15, "short_fraction": 0.3
-        },
-        nucleosome_spacing=180,
-        chromatin_openness=0.6,
-        end_motif_preferences={"CG": 1.4, "GC": 1.2},
-        methylation_level=0.4  # hypomethylated
     ),
     "tumor": TissueProfile(
         name="tumor",
@@ -462,16 +451,6 @@ class TissueMixtureSimulator(FragmentSimulator):
         ...     total_fragments=50000,
         ...     genomic_regions=[("chr1", 1000000, 1500000)],
         ...     add_noise=True
-        ... )
-
-        Multi-organ monitoring:
-
-        >>> fragments = simulator.simulate_tissue_mixture(
-        ...     tissue_types=["hematopoietic", "liver", "placenta"],
-        ...     tissue_fractions=[0.85, 0.10, 0.05],
-        ...     total_fragments=100000,
-        ...     genomic_regions=[("chr1", 1000000, 2000000),
-        ...                      ("chr2", 2000000, 3000000)]
         ... )
         """
         if abs(sum(tissue_fractions) - 1.0) > 0.001:

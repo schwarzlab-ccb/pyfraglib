@@ -47,8 +47,6 @@ Core parts of the simulator are based on the following assumptions:
    - Transcription factor binding site protection
      (reviewed in Lo et al. 2021 Science)
 
-Additional references can be found in the respective classes and methods.
-
 Example Usage
 -------------
 .. code-block:: python
@@ -114,9 +112,8 @@ class NucleosomeMap:
     Container for nucleosome positioning data across chromosomes.
 
     This class stores nucleosome positioning information, e.g. derived from
-    experimental data such as MNase-seq or NOMe-seq experiments. The
-    positioning data is used to model realistic nucleosome protection effects
-    during cfDNA fragmentation.
+    experimental data. The positioning is used to model realistic nucleosome
+    protection effects during cfDNA fragmentation.
 
     Notes
     -----
@@ -169,28 +166,27 @@ class ChromatinState:  # type: ignore
     Examples
     --------
     >>> from intervaltree import IntervalTree
-    >>> open_regions = IntervalTree()
-    >>> open_regions.addi(1000, 2000)  # Open chromatin region
-    >>> tf_sites = IntervalTree()
-    >>> tf_sites.addi(1500, 1520)  # Protected TF binding site
+    >>> chr1_open = IntervalTree()
+    >>> chr1_open.addi(1000, 2000)  # Open chromatin region
+    >>> chr1_tf = IntervalTree()
+    >>> chr1_tf.addi(1500, 1520)  # Protected TF binding site
     >>> chromatin = ChromatinState(
-    ...     open_regions=open_regions,
-    ...     tf_binding_sites=tf_sites,
-    ...     ctcf_sites=IntervalTree()
+    ...     open_regions={"chr1": chr1_open},
+    ...     tf_binding_sites={"chr1": chr1_tf},
+    ...     ctcf_sites={"chr1": IntervalTree()}
     ... )
     """
-    #: Genomic intervals representing accessible chromatin regions (e.g.,
-    #: from ATAC-seq or DNase-seq data). Fragments originating from these
-    #: regions have higher cleavage probability.
-    open_regions: IntervalTree  # type: ignore
+    #: Genomic intervals representing accessible chromatin regions (fragments
+    #: originating from these regions have higher cleavage probability).
+    open_regions: dict[str, IntervalTree]  # type: ignore
 
     #: Transcription factor binding sites that provide protection from
     #: nuclease cleavage. These regions typically show reduced fragmentation.
-    tf_binding_sites: IntervalTree  # type: ignore
+    tf_binding_sites: dict[str, IntervalTree]  # type: ignore
 
     #: CTCF binding sites that create specific chromatin architecture and
     #: affect local nuclease accessibility patterns.
-    ctcf_sites: IntervalTree  # type: ignore
+    ctcf_sites: dict[str, IntervalTree]  # type: ignore
 
 
 @dataclass
@@ -198,7 +194,7 @@ class NucleaseProfile:
     """
     Nuclease activity and sequence preference parameters.
 
-    This class defines the activity levels and sequence preferences of
+    This class defines the activity levels and sequence preferences of 3
     different nucleases involved in cfDNA fragmentation. The parameters are
     based on experimental literature and can be customized for different
     biological conditions or disease states.
@@ -232,9 +228,8 @@ class NucleaseProfile:
     ...     dffb_activity=2.0
     ... )
     """
-    #: Relative activity level of DNase I. Higher values increase overall
-    #: fragmentation in accessible chromatin regions. DNase I shows preference
-    #: for AT-rich accessible regions.
+    #: Relative activity level of DNase I. DNase I shows preference for AT-rich
+    #: accessible regions.
     dnase1_activity: float = 1.0
 
     #: Relative activity level of DNase I Like 3 (DNase1L3). This is the
@@ -255,45 +250,45 @@ class NucleaseProfile:
     #: preferences (strong CC dinucleotide preference).
     dnase1l3_motif_preference: dict[str, float] | None = None
 
+    #: Sequence motif preferences for DFFB. If None, uses default
+    #: preferences (slight A preference).
+    dffb_motif_preference: dict[str, float] | None = None
+
     def __post_init__(self) -> None:
         if self.dnase1_motif_preference is None:
             self.dnase1_motif_preference = {
                 "CG": 0.8, "GC": 0.8,  # Lower preference for CpG sites
-                "AT": 1.0, "TA": 1.0,  # Neutral AT preference
+                "AT": 1.2, "TA": 1.2,  # Clear AT preference
                 "AA": 1.1, "TT": 1.1   # Slight preference for AT-rich
             }
         if self.dnase1l3_motif_preference is None:
             self.dnase1l3_motif_preference = {
-                "CC": 1.5, "GG": 1.5,  # Strong CC/GG preference
+                "CC": 1.5,             # Strong CC preference
+                "GG": 1.2,             # Moderate GG preference
                 "CG": 1.2, "GC": 1.2,  # Moderate CpG preference
                 "CT": 1.1, "TC": 1.1   # Slight pyrimidine preference
+            }
+        if self.dffb_motif_preference is None:
+            self.dffb_motif_preference = {
+                "A": 1.1,              # Slight A preference
+                "T": 1.05,             # Slight T preference
+                "C": 0.95, "G": 0.95   # Slightly reduced C/G preference
             }
 
 
 class SequenceContextGenerator:
     """
-    Genomic sequence context provider for realistic cfDNA fragment simulation.
+    Genomic sequence context provider for cfDNA fragment simulation.
 
     This class interfaces with reference FASTA files to provide authentic
-    genomic sequence context for fragment end motif generation. It eliminates
-    the need for synthetic sequence generation while preserving biological
-    knowledge about nuclease cleavage preferences and sequence-dependent
-    fragmentation patterns.
-
-    The class implements efficient sequence caching and provides methods for
-    extracting sequence context around genomic positions, enabling realistic
-    simulation of cfDNA fragments with authentic end motifs derived from actual
-    genomic sequences.
+    genomic sequence context for fragment end motif generation. The class
+    implements sequence caching and provides methods for extracting sequence
+    context around genomic positions, enabling simulation of cfDNA fragments
+    with somewhat realistic end motifs.
 
     Notes
     -----
-    The FASTA file must be indexed with samtools faidx before use. The class
-    automatically handles edge cases such as chromosome boundaries and missing
-    sequences by padding with 'N' nucleotides.
-
-    Sequence caching is implemented to improve performance during large-scale
-    simulations, with automatic cache size management to prevent memory
-    overflow.
+    The FASTA file must be indexed with samtools faidx before use.
 
     Examples
     --------
@@ -325,16 +320,14 @@ class SequenceContextGenerator:
         self.logger.info(f"Loaded reference FASTA: {fasta_path}")
 
     def generate_sequence_context(
-        self, chrom: str, position: int, length: int = 20,
-        tissue_type: str = "normal"
+        self, chrom: str, position: int, length: int = 20
     ) -> str:
         """
         Extract genomic sequence context around a specified position.
 
-        This method retrieves authentic genomic sequence from the reference
-        FASTA file, centered around the specified position. It handles edge
-        cases at chromosome boundaries by padding with 'N' nucleotides when
-        necessary.
+        This method retrieves genomic sequence from the reference FASTA file,
+        centered around the specified position. It handles edge cases at
+        chromosome boundaries by padding with 'N' nucleotides when necessary.
 
         Parameters
         ----------
@@ -347,9 +340,6 @@ class SequenceContextGenerator:
         length : int, default=20
             Total length of sequence to extract, centered on the position.
             Must be positive.
-        tissue_type : str, default="normal"
-            Tissue type for context-specific adjustments. Currently ignored
-            but kept for API compatibility.
 
         Returns
         -------
@@ -411,12 +401,6 @@ class SequenceContextGenerator:
         int
             Length of the chromosome in base pairs. Returns 0 if chromosome
             is not found or an error occurs.
-
-        Examples
-        --------
-        >>> seq_gen = SequenceContextGenerator("reference.fasta")
-        >>> chr1_len = seq_gen.get_chromosome_length("chr1")
-        >>> print(f"Chromosome 1 length: {chr1_len:,} bp")
         """
         try:
             return self.fasta.get_reference_length(chrom)
@@ -432,12 +416,6 @@ class SequenceContextGenerator:
         list[str]
             List of chromosome names available in the FASTA file, in the
             order they appear in the file header.
-
-        Examples
-        --------
-        >>> seq_gen = SequenceContextGenerator("reference.fasta")
-        >>> chroms = seq_gen.get_available_chromosomes()
-        >>> print(f"Available chromosomes: {chroms[:5]}...")  # First 5
         """
         return list(self.fasta.references)
 
@@ -454,134 +432,10 @@ class SequenceContextGenerator:
         """
         self.close()
 
-    def get_cleavage_motif(
-        self, sequence_context: str, position: int,
-        nuclease_profile: NucleaseProfile, motif_length: int = 4
-    ) -> str:
-        """
-        Extract biologically realistic cleavage motif from sequence context.
-
-        This method generates cleavage motifs that reflect the sequence
-        preferences of different nucleases involved in cfDNA fragmentation.
-        The motifs are derived from actual genomic sequence when possible,
-        with nuclease-specific modifications applied based on experimental
-        literature.
-
-        Parameters
-        ----------
-        sequence_context : str
-            Genomic sequence context from which to extract the motif.
-            Should be longer than motif_length to provide sufficient context.
-        position : int
-            Position within the sequence_context to extract motif from.
-            Must be valid within the sequence bounds.
-        nuclease_profile : NucleaseProfile
-            Active nuclease profile defining cleavage preferences and
-            activity levels for different nucleases.
-        motif_length : int, default=4
-            Length of the cleavage motif to extract. Typically 4-6 nucleotides
-            for cfDNA end motif analysis.
-
-        Returns
-        -------
-        str
-            Cleavage motif string of specified length, potentially modified
-            based on nuclease preferences. Contains uppercase DNA nucleotides.
-
-        Notes
-        -----
-        If the position is invalid or sequence is insufficient, a synthetic
-        motif is generated based on nuclease preferences and genomic
-        nucleotide frequencies.
-
-        Examples
-        --------
-        >>> seq_gen = SequenceContextGenerator(\"reference.fasta\")
-        >>> profile = NucleaseProfile(dnase1l3_activity=1.5)
-        >>> motif = seq_gen.get_cleavage_motif(\"ATCGATCGATCG\", 4, profile, 4)
-        >>> print(f\"Cleavage motif: {motif}\")
-        """
-        if (position < 0 or
-                position + motif_length > len(sequence_context) or
-                len(sequence_context) < motif_length):
-            return self._generate_nuclease_preferred_motif(
-                motif_length, nuclease_profile
-            )
-
-        base_motif = sequence_context[position:position + motif_length]
-        return self._apply_nuclease_preferences(base_motif, nuclease_profile)
-
-    def _generate_nuclease_preferred_motif(
-        self, length: int, nuclease_profile: NucleaseProfile
-    ) -> str:
-        """
-        Generate motif based on nuclease cleavage preferences.
-        """
-        motif: list[str] = []
-
-        # @NOTE(ds): Nucleotide frequencies in human genome
-        # (Lander et al. 2001 Nature).
-        base_weights = {"A": 0.296, "C": 0.204, "G": 0.204, "T": 0.296}
-        if (nuclease_profile.dnase1l3_activity >
-                nuclease_profile.dnase1_activity):
-            base_weights["C"] *= 1.5
-            base_weights["G"] *= 1.3
-        elif (nuclease_profile.dnase1_activity >
-                nuclease_profile.dnase1l3_activity):
-            base_weights["A"] *= 1.2
-            base_weights["T"] *= 1.2
-
-        if nuclease_profile.dffb_activity > 1.0:
-            base_weights = {"A": 0.25, "C": 0.25, "G": 0.25, "T": 0.25}
-
-        for _ in range(length):
-            bases = list(base_weights.keys())
-            weights = list(base_weights.values())
-            total_weight = sum(weights)
-            probs = [w / total_weight for w in weights]
-            base = str(np.random.choice(bases, p=probs))  # type: ignore
-            motif.append(base)
-
-        return "".join(motif)
-
-    def _apply_nuclease_preferences(
-        self, motif: str, nuclease_profile: NucleaseProfile
-    ) -> str:
-        """
-        Apply nuclease-specific sequence preferences to motif.
-
-        Based on experimental cleavage site analysis:
-        - Serpas et al. (2019) PNAS: DNASE1L3 CC preference
-        - Han et al. (2020) AJHG: Comprehensive nuclease characterization
-        """
-        if len(motif) < 2:
-            return motif
-
-        # @NOTE(ds): DNASE1L3 strongly prefers CC dinucleotides.
-        if (nuclease_profile.dnase1l3_activity >
-                nuclease_profile.dnase1_activity):
-            if np.random.random() < 0.3:
-                if len(motif) >= 2:
-                    pos = np.random.randint(0, len(motif) - 1)
-                    motif_list = list(motif)
-                    motif_list[pos] = "C"
-                    motif_list[pos + 1] = "C"
-                    return "".join(motif_list)
-
-        if nuclease_profile.dffb_activity > 1.0:
-            if np.random.random() < 0.2:
-                boundary_motifs = ["CATG", "GATC", "ATAT", "GCGC"]
-                if len(motif) >= 4:
-                    return str(
-                        np.random.choice(boundary_motifs)  # type: ignore
-                    )
-
-        return motif
-
 
 class FragmentSimulator:
     """
-    Biologically realistic cfDNA fragment simulator for scientific research.
+    cfDNA fragment simulator.
 
     This simulator integrates multiple experimental observations to model
     cfDNA fragmentation:
@@ -589,17 +443,14 @@ class FragmentSimulator:
     1. **Nucleosome positioning**: Nucleosome maps with occupancy scores
     2. **Chromatin accessibility**: Tissue-specific chromatin states
     3. **Nuclease specificity**: Experimentally-determined preferences
-    4. **Sequence context**: Real genomic sequences from reference FASTA
+    4. **Sequence context**: Genomic sequences from reference FASTA
     5. **TF binding protection**: Transcription factor binding site shielding
-
-    Suitable e.g. for generating training data for machine learning models.
     """
     MONO_NUC_MEAN: Final[int] = 167
     MONO_NUC_STD: Final[int] = 10
+    MONO_FRACTION: Final[float] = 0.80
     DI_NUC_MEAN: Final[int] = 167*2
     DI_NUC_STD: Final[int] = 15
-    LINKER_MEAN: Final[int] = 20
-    LINKER_STD: Final[int] = 5
     PERIODICITY_AMPLITUDE: Final[float] = 0.1
     PERIODICITY_PHASE: Final[float] = 0.0
     MIN_FRAGMENT_SIZE: Final[int] = 40
@@ -621,6 +472,10 @@ class FragmentSimulator:
             nucleosome_map: Custom nucleosome positioning data
             chromatin_state: Chromatin accessibility information
             sequence_generator: Custom sequence context generator
+
+        Note:
+            The fasta file is ignored if a custom context generator is
+            provided.
         """
         self.logger: logging.Logger = logging.getLogger(LOGGER_NAME)
         self.fasta_path: str = fasta_path
@@ -638,11 +493,45 @@ class FragmentSimulator:
         self._sequence_cache: dict[tuple[str, int], str] = {}
         self._nucleosome_cache: dict[tuple[str, int], tuple[float, float]] = {}
 
+    def _get_cached_sequence_context(self, chrom: str, position: int) -> str:
+        """
+        Get sequence context with caching for performance optimization.
+
+        Fetches 1200bp sequence context centered around genomic position,
+        with intelligent cache management to balance memory usage and speed.
+
+        Args:
+            chrom: Chromosome name
+            position: Genomic position
+
+        Returns:
+            1200bp sequence context string
+        """
+        cache_key = (chrom, position // 1000 * 1000)
+
+        if cache_key in self._sequence_cache:
+            return self._sequence_cache[cache_key]
+
+        try:
+            context = self.sequence_generator.generate_sequence_context(
+                chrom, cache_key[1] + 600, length=1200
+            )
+            self._sequence_cache[cache_key] = context
+
+            if len(self._sequence_cache) > 10_000:
+                oldest_keys = list(self._sequence_cache.keys())[:4000]
+                for old_key in oldest_keys:
+                    del self._sequence_cache[old_key]
+
+            return context
+        except Exception:
+            return "N" * 1200
+
     def _default_nucleosome_model(self) -> NucleosomeMap:
         """
         Generate a default nucleosome map based on chromosome data from FASTA.
         Uses a simplified model with approximately 147 bp nucleosomes and
-        variable linkers.
+        variable linkers. Occupancy is drawn from Beta(5, 2).
         """
         self.logger.info("Generating default nucleosome model.")
 
@@ -658,7 +547,7 @@ class FragmentSimulator:
                 continue
 
             base_positions: npt.NDArray[np.int64] = np.arange(
-                100, chrom_len - 100, 185  # 147 bp nucleosome + ~38 bp linker
+                100, chrom_len - 100, 185  # 147 bp nucleosome + 38 bp linker
             )
             noise: npt.NDArray[np.float64] = np.random.normal(
                 0, 10, len(base_positions)
@@ -678,24 +567,38 @@ class FragmentSimulator:
         """
         self.logger.info("Generating default chromatin state.")
 
-        open_regions: IntervalTree = IntervalTree()  # type: ignore
-        tf_sites: IntervalTree = IntervalTree()  # type: ignore
-        ctcf_sites: IntervalTree = IntervalTree()  # type: ignore
+        open_regions_dict: dict[str, IntervalTree] = {}  # type: ignore
+        tf_sites_dict: dict[str, IntervalTree] = {}  # type: ignore
+        ctcf_sites_dict: dict[str, IntervalTree] = {}  # type: ignore
 
-        for _ in range(100):
-            start: int = np.random.randint(1000, 10000000)
-            end: int = start + np.random.randint(200, 1000)
-            open_regions.addi(start, end)  # type: ignore
+        available_chroms = self.sequence_generator.get_available_chromosomes()
+        for chrom in available_chroms:
+            chrom_length = self.sequence_generator.get_chromosome_length(chrom)
+            if chrom_length == 0:
+                continue
+
+            chrom_open = IntervalTree()  # type: ignore
+            for _ in range(1000):  # @NOTE(ds): arbitrary 1000 regions
+                start: int = np.random.randint(
+                    1000, min(chrom_length - 1000, 10000000)
+                )
+                end: int = start + np.random.randint(200, 1000)
+                if end < chrom_length:
+                    chrom_open.addi(start, end)  # type: ignore
+
+            open_regions_dict[chrom] = chrom_open  # type: ignore
+            tf_sites_dict[chrom] = IntervalTree()  # type: ignore
+            ctcf_sites_dict[chrom] = IntervalTree()  # type: ignore
 
         return ChromatinState(
-            open_regions=open_regions,  # type: ignore
-            tf_binding_sites=tf_sites,  # type: ignore
-            ctcf_sites=ctcf_sites  # type: ignore
+            open_regions=open_regions_dict,  # type: ignore
+            tf_binding_sites=tf_sites_dict,  # type: ignore
+            ctcf_sites=ctcf_sites_dict  # type: ignore
         )
 
     def _get_cleavage_probability(
         self, position: int, chrom: str, nuclease_profile: NucleaseProfile,
-        tissue_type: str = "healthy", tissue_factor: float | None = None
+        tissue_factor: float
     ) -> float:
         """
         Calculate biologically realistic cleavage probability at a genomic
@@ -711,36 +614,29 @@ class FragmentSimulator:
             position: Genomic position (0-based)
             chrom: Chromosome name
             nuclease_profile: Active nucleases and their preferences
-            tissue_type: Tissue type affecting chromatin accessibility
+            tissue_factor: Tissue-specific cleavage probability
 
         Returns:
             Cleavage probability between 0.0 and 1.0
         """
-        # Start with base accessibility from chromatin state
-        base_prob = 0.1  # Background cleavage probability
-
-        # Check if position is in accessible chromatin regions
+        base_prob = 0.1  # background cleavage probability
         if chrom in self.chromatin_state.open_regions:  # type: ignore
-            overlaps = (
+            overlaps: list[object] = (
                 self.chromatin_state.open_regions[  # type: ignore
                     chrom
-                ][position]
+                ].at(position)
             )
-            if overlaps:  # type: ignore
-                base_prob = 0.6  # Higher probability in open chromatin
+            if overlaps:
+                base_prob = 0.6  # probability for open chromatin
 
         nucleosome_factor = self._get_nucleosome_protection(position, chrom)
-        if tissue_factor is None:
-            tissue_factor = self._get_tissue_accessibility_factor(tissue_type)
-
         nuclease_factor = self._get_nuclease_activity_factor(
             position, chrom, nuclease_profile
         )
-        total_prob = (base_prob * nucleosome_factor * tissue_factor *
-                      nuclease_factor)
-
         tf_protection = self._get_tf_protection_factor(position, chrom)
-        total_prob *= tf_protection
+
+        total_prob = (base_prob * nucleosome_factor * tissue_factor *
+                      nuclease_factor * tf_protection)
         return min(max(total_prob, 0.001), 1.0)
 
     def _get_nucleosome_protection(self, position: int, chrom: str) -> float:
@@ -750,7 +646,7 @@ class FragmentSimulator:
         Optimized with caching and efficient spatial indexing.
         """
         if chrom not in self.nucleosome_map.positions:
-            return 0.3  # Default for unmapped chromosomes
+            return 0.3
 
         # @NOTE(ds): Cache nucleosome calculations in 100 bp windows.
         cache_key = (chrom, position // 100)
@@ -805,15 +701,11 @@ class FragmentSimulator:
     def _get_tissue_accessibility_factor(self, tissue_type: str) -> float:
         """
         Get tissue-specific chromatin accessibility factor.
-
-        Based on tissue-specific chromatin openness patterns from
-        ATAC-seq and DNase-seq data (ENCODE Consortium).
         """
         tissue_factors = {
             "healthy": 1.0,
             "hematopoietic": 1.2,  # More open chromatin
             "liver": 0.9,          # Slightly more compact
-            "placenta": 1.1,       # Moderately open
             "tumor": 1.4           # Highly accessible due to disrupted
         }
         return tissue_factors.get(tissue_type, 1.0)
@@ -822,71 +714,128 @@ class FragmentSimulator:
         self, position: int, chrom: str, nuclease_profile: NucleaseProfile
     ) -> float:
         """
-        Calculate nuclease-specific activity factor based on local sequence
+        Calculate nuclease-specific activity factor based on sequence
+        preferences.
+
+        Uses configured motif preferences from nuclease profile to determine
+        cleavage probability at genomic position based on local sequence
         context.
         """
+        context = self._get_cached_sequence_context(chrom, position)
         cache_key = (chrom, position // 1000 * 1000)
-
-        if cache_key in self._sequence_cache:
-            context = self._sequence_cache[cache_key]
-        else:
-            try:
-                context = self.sequence_generator.fasta.fetch(
-                    chrom, cache_key[1], cache_key[1] + 1200
-                )
-                self._sequence_cache[cache_key] = context
-                if len(self._sequence_cache) > 5000:
-                    oldest_keys = list(self._sequence_cache.keys())[:2000]
-                    for old_key in oldest_keys:
-                        del self._sequence_cache[old_key]
-            except Exception:
-                context = "N" * 1200
-
         offset = position - cache_key[1]
-        if offset >= 10 and offset < len(context) - 30:
+        if offset >= 10 and offset < len(context) - 10:
             local_context = context[offset-10:offset+10]
         else:
             if offset < 10:
-                local_context = (context[:20] if len(context) >= 20
-                                 else context)
+                local_context = context[:20] if len(context) >= 20 else context
             else:
-                local_context = (context[-20:] if len(context) >= 20
-                                 else context)
+                local_context = \
+                    context[-20:] if len(context) >= 20 else context
 
-        if len(local_context) > 0:
-            gc_content = ((local_context.count('G') +
-                           local_context.count('C')) / len(local_context))
-            cc_count = local_context.count('CC')
-            at_content = ((local_context.count('A') +
-                           local_context.count('T')) / len(local_context))
-        else:
-            gc_content = 0.42  # Human genome average
-            cc_count = 1
-            at_content = 0.58
+        if len(local_context) == 0:
+            return 1.0  # no sequence context available
 
-        activity = 0.0
-        if nuclease_profile.dnase1l3_activity > 0:
-            dnase1l3_factor = 1.0 + (cc_count * 0.3) + (gc_content * 0.2)
-            activity += nuclease_profile.dnase1l3_activity * dnase1l3_factor
+        total_nuclease_activity = (nuclease_profile.dnase1_activity +
+                                   nuclease_profile.dnase1l3_activity +
+                                   nuclease_profile.dffb_activity)
+        if total_nuclease_activity == 0:
+            return 1.0
 
-        if nuclease_profile.dnase1_activity > 0:
-            dnase1_factor = 1.0 + (at_content * 0.2)
-            activity += nuclease_profile.dnase1_activity * dnase1_factor
+        nuclease_factors = []
+        if (nuclease_profile.dnase1_activity > 0 and
+                nuclease_profile.dnase1_motif_preference):
+            dnase1_factor = self._calculate_sequence_preference_factor(
+                local_context, nuclease_profile.dnase1_motif_preference
+            )
+            nuclease_factors.append(
+                (dnase1_factor, nuclease_profile.dnase1_activity)
+            )
+
+        if (nuclease_profile.dnase1l3_activity > 0 and
+                nuclease_profile.dnase1l3_motif_preference):
+            dnase1l3_factor = self._calculate_sequence_preference_factor(
+                local_context, nuclease_profile.dnase1l3_motif_preference
+            )
+            nuclease_factors.append(
+                (dnase1l3_factor, nuclease_profile.dnase1l3_activity)
+            )
 
         if nuclease_profile.dffb_activity > 0:
-            nucleosome_factor = self._get_nucleosome_protection(position,
-                                                                chrom)
-            dffb_factor = 2.0 - nucleosome_factor
-            activity += nuclease_profile.dffb_activity * dffb_factor
+            if nuclease_profile.dffb_motif_preference:
+                dffb_sequence_factor = \
+                    self._calculate_sequence_preference_factor(
+                        local_context, nuclease_profile.dffb_motif_preference
+                    )
+            else:
+                dffb_sequence_factor = 1.0
 
-        total_nuclease = (nuclease_profile.dnase1_activity +
-                          nuclease_profile.dnase1l3_activity +
-                          nuclease_profile.dffb_activity)
+            # DFFB also prefers nucleosome linker regions.
+            nucleosome_protection = self._get_nucleosome_protection(
+                position, chrom
+            )
+            dffb_linker_preference = 2.0 - nucleosome_protection
 
-        if total_nuclease > 0:
-            return activity / total_nuclease
-        else:
+            dffb_factor = dffb_sequence_factor * dffb_linker_preference
+            nuclease_factors.append(
+                (dffb_factor, nuclease_profile.dffb_activity)
+            )
+
+        if not nuclease_factors:
             return 1.0
+
+        weighted_activity = sum(
+            factor * activity for factor, activity in nuclease_factors
+        )
+        return weighted_activity / total_nuclease_activity
+
+    def _calculate_sequence_preference_factor(
+        self, sequence: str, motif_preferences: dict[str, float]
+    ) -> float:
+        """
+        Calculate cleavage preference factor based on motifs present in
+        sequence.
+
+        Parameters
+        ----------
+        sequence : str
+            Local DNA sequence context
+        motif_preferences : dict[str, float]
+            Motif preferences where >1.0 = favored, <1.0 = disfavored
+
+        Returns
+        -------
+        float
+            Multiplicative factor for cleavage probability (1.0 = neutral)
+        """
+        if not motif_preferences or len(sequence) == 0:
+            return 1.0
+
+        preference_factor = 1.0
+        sequence_upper = sequence.upper()
+
+        for motif, preference in motif_preferences.items():
+            motif_upper = motif.upper()
+            if len(motif_upper) == 1:
+                motif_count = sequence_upper.count(motif_upper)
+                motif_frequency = motif_count / len(sequence_upper)
+                preference_factor *= (
+                    1.0 + (preference - 1.0) * motif_frequency
+                )
+            elif len(motif_upper) > 1:
+                motif_count = 0
+                for i in range(len(sequence_upper) - len(motif_upper) + 1):
+                    if sequence_upper[i:i + len(motif_upper)] == motif_upper:
+                        motif_count += 1
+
+                if motif_count > 0:
+                    # @NOTE(ds): Saturate at 3 occurrences.
+                    effect_strength = min(1.0, motif_count / 3.0)
+                    preference_factor *= (
+                        1.0 + (preference - 1.0) * effect_strength
+                    )
+
+        return max(0.1, preference_factor)
 
     def _get_tf_protection_factor(self, position: int, chrom: str) -> float:
         """
@@ -897,20 +846,18 @@ class FragmentSimulator:
         if chrom not in self.chromatin_state.tf_binding_sites:  # type: ignore
             return 1.0
 
-        overlaps = (
+        overlaps: list[object] = (
             self.chromatin_state.tf_binding_sites[  # type: ignore
                 chrom
-            ][position]
+            ].at(position)
         )
-        if overlaps:  # type: ignore
+        if overlaps:
             return 0.3
         else:
             return 1.0
 
     def _generate_fragment_sizes(
-        self,
-        num_fragments: int,
-        size_distribution: str = "normal",
+        self, num_fragments: int,
         fragment_size_params: dict[str, float] | None = None
     ) -> npt.NDArray[np.int64]:
         """
@@ -918,7 +865,6 @@ class FragmentSimulator:
 
         Args:
             num_fragments: Number of fragments to generate
-            size_distribution: Type of dist ("normal", "cancer")
             fragment_size_params: Optional dict of means and stds to use
 
         Returns:
@@ -927,43 +873,30 @@ class FragmentSimulator:
         if fragment_size_params:
             mono_mean = fragment_size_params["mean"]
             mono_std = fragment_size_params["std"]
-            mono_fraction = 1.0 - fragment_size_params.get(
-                "short_fraction", 0.25
-            )
+            mono_fraction = fragment_size_params.get("short_fraction", 0.25)
+
+            di_mean = fragment_size_params.get("di_mean", mono_mean*2)
+            di_std = fragment_size_params.get("di_std", mono_std)
+            size_shift = fragment_size_params.get("size_shift", 0)
         else:
             mono_mean = self.MONO_NUC_MEAN
             mono_std = self.MONO_NUC_STD
-            mono_fraction = 0.75
+            di_mean = self.DI_NUC_MEAN
+            di_std = self.DI_NUC_STD
+            mono_fraction = self.MONO_FRACTION
+            size_shift = 0
+
+        num_mono: int = int(num_fragments * mono_fraction)
+        num_di: int = num_fragments - num_mono
 
         sizes: npt.NDArray[np.float64]
-        if size_distribution == "normal":
-            num_mono: int = int(num_fragments * mono_fraction)
-            num_di: int = num_fragments - num_mono
-
-            mono_sizes: npt.NDArray[np.float64] = np.random.normal(
-                mono_mean, mono_std, num_mono
-            )
-            di_sizes: npt.NDArray[np.float64] = np.random.normal(
-                mono_mean * 2, mono_std * 1.5, num_di
-            )
-            sizes = np.concatenate([mono_sizes, di_sizes])  # type: ignore
-
-        elif size_distribution == "cancer":
-            mean_shift: int = -20
-            mono_sizes = np.random.normal(
-                mono_mean + mean_shift,
-                mono_std * 1.2,
-                int(num_fragments * 0.85)
-            )
-            di_sizes = np.random.normal(
-                mono_mean * 2 + mean_shift,
-                mono_std * 1.3,
-                int(num_fragments * 0.15)
-            )
-            sizes = np.concatenate([mono_sizes, di_sizes])  # type: ignore
-
-        else:
-            fail(f"Unknown size distribution: {size_distribution}")
+        mono_sizes: npt.NDArray[np.float64] = np.random.normal(
+            mono_mean+size_shift, mono_std, num_mono
+        )
+        di_sizes: npt.NDArray[np.float64] = np.random.normal(
+            di_mean+size_shift, di_std, num_di
+        )
+        sizes = np.concatenate([mono_sizes, di_sizes])  # type: ignore
 
         sizes = self._add_periodicity(sizes)
         sizes_int: npt.NDArray[np.int64] = np.clip(
@@ -985,39 +918,21 @@ class FragmentSimulator:
         return sizes * modulation  # type: ignore
 
     def _generate_end_motif(
-        self, chrom: str, position: int, nuclease_profile: NucleaseProfile,
-        tissue_type: str = "normal", motif_length: int = 4
+        self, chrom: str, position: int, motif_length: int = 4
     ) -> str:
         """
         Generate realistic end motif based on genomic sequence context and
         nuclease preferences. Optimized with sequence caching.
         """
+        context = self._get_cached_sequence_context(chrom, position)
         cache_key = (chrom, position // 1000 * 1000)
-
-        if cache_key in self._sequence_cache:
-            context = self._sequence_cache[cache_key]
-        else:
-            try:
-                context = self.sequence_generator.fasta.fetch(
-                    chrom, cache_key[1], cache_key[1] + 1200
-                )
-                self._sequence_cache[cache_key] = context
-                if len(self._sequence_cache) > 5000:
-                    oldest_keys = list(self._sequence_cache.keys())[:2000]
-                    for old_key in oldest_keys:
-                        del self._sequence_cache[old_key]
-            except Exception:
-                context = "N" * 1200
-
         offset = position - cache_key[1]
         if offset >= motif_length and offset < len(context) - motif_length:
             base_motif = context[offset:offset + motif_length]
         else:
-            base_motif = "ATCG"[:motif_length]
+            base_motif = "ATCGATCGATCG"[:motif_length]
 
-        return self.sequence_generator._apply_nuclease_preferences(
-            base_motif, nuclease_profile
-        )
+        return base_motif
 
     def simulate_fragments(
         self, chrom: str, start: int, end: int, num_fragments: int,
@@ -1051,16 +966,9 @@ class FragmentSimulator:
 
         if nuclease_profile is None:
             nuclease_profile = NucleaseProfile()
-        tissue_to_size_dist: dict[str, str] = {
-            "healthy": "normal",
-            "hematopoietic": "normal",
-            "liver": "normal",
-            "placenta": "normal",
-            "tumor": "cancer"
-        }
-        size_dist: str = tissue_to_size_dist.get(tissue_type, "normal")
+
         sizes: npt.NDArray[np.int64] = self._generate_fragment_sizes(
-            num_fragments, size_dist, fragment_size_params
+            num_fragments, fragment_size_params
         )
 
         max_size: int = int(sizes.max())  # type: ignore
@@ -1077,7 +985,6 @@ class FragmentSimulator:
         )
 
         fragment_list: FragmentList = FragmentList()
-
         tissue_factor = self._get_tissue_accessibility_factor(tissue_type)
         batch_size = 1000
         for batch_start in range(0, num_fragments, batch_size):
@@ -1088,7 +995,7 @@ class FragmentSimulator:
             cleave_probs = np.array([  # type: ignore
                 self._get_cleavage_probability(
                     int(pos), chrom, nuclease_profile,  # type: ignore
-                    tissue_type, tissue_factor
+                    tissue_factor
                 ) for pos in batch_positions  # type: ignore
             ])
 
@@ -1103,15 +1010,11 @@ class FragmentSimulator:
             ):
                 end5p: str = self._generate_end_motif(
                     chrom=chrom,
-                    position=int(pos),  # type: ignore
-                    nuclease_profile=nuclease_profile,
-                    tissue_type=tissue_type
+                    position=int(pos)  # type: ignore
                 )
                 end3p: str = self._generate_end_motif(
                     chrom=chrom,
-                    position=int(pos + size),  # type: ignore
-                    nuclease_profile=nuclease_profile,
-                    tissue_type=tissue_type
+                    position=int(pos + size)  # type: ignore
                 )
 
                 fragment: Fragment = Fragment.create_simulated(
