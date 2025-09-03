@@ -898,7 +898,7 @@ class FragmentSimulator:
         )
         sizes = np.concatenate([mono_sizes, di_sizes])  # type: ignore
 
-        sizes = self._add_periodicity(sizes)
+        sizes = self._add_periodicity(sizes, mono_mean)
         sizes_int: npt.NDArray[np.int64] = np.clip(
             sizes, self.MIN_FRAGMENT_SIZE, self.MAX_FRAGMENT_SIZE
         ).astype(np.int64)
@@ -906,15 +906,41 @@ class FragmentSimulator:
         return sizes_int
 
     def _add_periodicity(
-        self, sizes: npt.NDArray[np.float64]
+        self, sizes: npt.NDArray[np.float64], mono_mean: float
     ) -> npt.NDArray[np.float64]:
-        """Add 10 bp periodicity to fragment sizes."""
+        """
+        Add 10 bp periodicity centered around the mono-nucleosomal peak.
+
+        Applies biologically realistic 10 bp periodicity primarily to fragments
+        in the mono-nucleosomal range. The periodicity strength decreases with
+        distance from the configured mono-nucleosomal peak.
+
+        Args:
+            sizes: Fragment sizes to modulate
+            mono_mean: Mean of mono-nucleosomal peak (from configuration)
+
+        Returns:
+            Fragment sizes with added periodicity
+        """
+        # Calculate optimal phase to enhance the configured mono-nucleosomal
+        # peak. We want mono_mean to hit a sine wave maximum (pi/2).
+        optimal_phase = np.pi/2 - (2 * np.pi * mono_mean / 10) % (2 * np.pi)
         phase_factor: npt.NDArray[np.float64] = np.sin(
-                2 * np.pi * sizes / 10 + self.PERIODICITY_PHASE  # type: ignore
+            2 * np.pi * sizes / 10 + optimal_phase  # type: ignore
         )
+
+        # Weight periodicity by proximity to mono-nucleosomal range.
+        distance_from_mono = np.abs(sizes - mono_mean)  # type: ignore
+        periodicity_weight = np.exp(
+            -(distance_from_mono ** 2) / (2 * (50 ** 2))  # type: ignore
+        )
+
+        weighted_amplitude = \
+            self.PERIODICITY_AMPLITUDE * periodicity_weight  # type: ignore
         modulation: npt.NDArray[np.float64] = (
-            1 + self.PERIODICITY_AMPLITUDE * phase_factor  # type: ignore
+            1 + weighted_amplitude * phase_factor  # type: ignore
         )
+
         return sizes * modulation  # type: ignore
 
     def _generate_end_motif(

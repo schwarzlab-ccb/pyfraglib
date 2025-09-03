@@ -63,6 +63,56 @@ Simulations are configured through JSON files with the following structure:
 
 Since the API is still under development, this specification might slightly change in the future. Please have a look at the example configuration files to learn more about what is available.
 
+Probabilistic Fragment Size Model
+----------------------------------
+
+The simulator generates fragment size distributions by using a simplified, but biology-oriented probabilistic model. That fragment size model combines mono-nucleosomal and di-nucleosomal components with characteristic periodicity patterns observed in cfDNA.
+
+The fragment size distribution is modeled as a mixture of Gaussian components:
+
+.. math::
+   L \sim f_{\text{mono}} \cdot \mathcal{N}(\mu_{\text{mono}} + \Delta, \sigma_{\text{mono}}^2) + f_{\text{di}} \cdot \mathcal{N}(\mu_{\text{di}} + \Delta, \sigma_{\text{di}}^2)
+
+where :math:`L` is the fragment length, :math:`f_{\text{mono}}` and :math:`f_{\text{di}}` are the mixing fractions with :math:`f_{\text{mono}} + f_{\text{di}} = 1.0`.
+
+**Default Parameters:**
+
+.. math::
+   \begin{aligned}
+   \mu_{\text{mono}} &= 167 \text{ bp (mono-nucleosomal peak)} \\
+   \sigma_{\text{mono}} &= 10 \text{ bp} \\
+   \mu_{\text{di}} &= 334 \text{ bp (di-nucleosomal peak)} \\
+   \sigma_{\text{di}} &= 15 \text{ bp} \\
+   f_{\text{mono}} &= 0.80 \text{ (mono-nucleosomal fraction)} \\
+   f_{\text{di}} &= 0.20 \text{ (di-nucleosomal fraction)}
+   \end{aligned}
+
+The size shift parameter :math:`\Delta` allows modeling changes in fragment size distributions observed e.g. in cancer, where an increase in short fragments (with :math:`\Delta < 0`) can be observed.
+
+**10 bp Periodicity:** cfDNA fragments exhibit characteristic 10 bp periodicity due to nucleosome positioning and DNA helical structure. This periodicity is strongest for mono-nucleosomal fragments and weaker for larger fragments:
+
+.. math::
+   L_{\text{final}} = L \times \left[1 + A_{\text{weighted}} \times \sin\left(\frac{2\pi L}{10} + \phi_{\text{opt}}\right)\right]
+
+The weighted amplitude emphasizes periodicity around the mono-nucleosomal peak:
+
+.. math::
+   A_{\text{weighted}} = A_{\text{period}} \times \exp\left(-\frac{(L - \mu_{\text{mono}})^2}{2 \times 50^2}\right)
+
+The optimal phase :math:`\phi_{\text{opt}}` is calculated to enhance the configured mono-nucleosomal peak:
+
+.. math::
+   \phi_{\text{opt}} = \frac{\pi}{2} - \left(\frac{2\pi \mu_{\text{mono}}}{10}\right) \bmod 2\pi
+
+where :math:`A_{\text{period}} = 0.1` is the base periodicity amplitude and :math:`\mu_{\text{mono}}` is the configurable mono-nucleosomal mean.
+
+**Size Constraints:** Lastly, size constraints are applied as follows:
+
+.. math::
+   L_{\text{constrained}} = \text{clip}(L_{\text{final}}, L_{\text{min}}, L_{\text{max}})
+
+with default bounds :math:`L_{\text{min}} = 40` bp and :math:`L_{\text{max}} = 900` bp.
+
 Probabilistic Cleavage Model
 ----------------------------
 
