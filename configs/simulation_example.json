@@ -7,7 +7,9 @@
   "fragment_params": {
     "mean": 167,
     "std": 10,
-    "short_fraction": 0.25
+    "di_mean": 320,
+    "di_std": 20,
+    "short_fraction": 0.75
   },
   "nuclease_params": {
     "dnase1_activity": 1.0,
