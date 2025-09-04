@@ -22,10 +22,11 @@ more details. You should have received a copy of the GNU General Public
 License along with this program. If not, see <https://www.gnu.org/licenses/>.
 """
 from pyfraglib.simulator.fragment_simulator import FragmentSimulator, \
-                                                   NucleaseProfile
+                                                   NucleaseProfile, \
+                                                   SequenceContextGenerator
 from pyfraglib.simulator.tissue_mixture_simulator import TissueMixtureSimulator
 
 __all__ = [
-    "FragmentSimulator", "NucleaseProfile",
+    "FragmentSimulator", "NucleaseProfile", "SequenceContextGenerator",
     "TissueMixtureSimulator"
 ]

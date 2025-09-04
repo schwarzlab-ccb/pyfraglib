@@ -64,7 +64,8 @@ from pyfraglib.stats import fragments_per_chromosome_barplot, \
 from pyfraglib.scores import motif_diversity, windowed_protection_score, \
                              score_line_plot
 from pyfraglib.simulator import FragmentSimulator, NucleaseProfile, \
-                                    TissueMixtureSimulator
+                                TissueMixtureSimulator, \
+                                SequenceContextGenerator
 
 version_string: Final[str] = "pyfraglib v{} (running on Python v{})" \
     .format(pyfraglib.__version__, sys.version.split(" ")[0])
@@ -555,7 +556,8 @@ def simulate_basic(
     logger.info(
         "initializing basic simulator with FASTA: {}".format(fasta_path)
     )
-    simulator: FragmentSimulator = FragmentSimulator(fasta_path=fasta_path)
+    seq_gen = SequenceContextGenerator(fasta_path)
+    simulator: FragmentSimulator = FragmentSimulator(seq_gen)
     all_fragments: FragmentList = FragmentList()
 
     fragments_per_region = total_fragments // len(genomic_regions)
@@ -623,9 +625,8 @@ def simulate_tissue_mixture(
             fasta_path
         )
     )
-    simulator: TissueMixtureSimulator = TissueMixtureSimulator(
-        fasta_path=fasta_path
-    )
+    seq_gen: SequenceContextGenerator = SequenceContextGenerator(fasta_path)
+    simulator: TissueMixtureSimulator = TissueMixtureSimulator(seq_gen)
 
     logger.info(
         "simulating tissue mixture: {} with fractions {}".format(
@@ -685,9 +686,8 @@ def simulate_cancer_progression(
             fasta_path
         )
     )
-    simulator: TissueMixtureSimulator = TissueMixtureSimulator(
-        fasta_path=fasta_path
-    )
+    seq_gen = SequenceContextGenerator(fasta_path)
+    simulator: TissueMixtureSimulator = TissueMixtureSimulator(seq_gen)
 
     logger.info(
         "simulating cancer progression: {} timepoints".format(
