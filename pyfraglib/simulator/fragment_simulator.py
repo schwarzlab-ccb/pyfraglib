@@ -98,6 +98,7 @@ import numpy as np
 import numpy.typing as npt
 
 from dataclasses import dataclass
+from functools import lru_cache
 from intervaltree import IntervalTree
 from typing import Final
 from pyfraglib.fragment import Fragment, FragmentList
@@ -255,6 +256,20 @@ class NucleaseProfile:
     dffb_motif_preference: dict[str, float] | None = None
 
     def __post_init__(self) -> None:
+        if not (0.0 <= self.dnase1_activity):
+            fail(f"DNase I activity < 0 ({self.dnase1_activity})")
+        if not (0.0 <= self.dnase1l3_activity):
+            fail(f"DNase1L3 activity < 0 ({self.dnase1l3_activity})")
+        if not (0.0 <= self.dffb_activity):
+            fail(f"DFFB activity < 0 ({self.dffb_activity})")
+
+        # Validate that at least one nuclease is active
+        total_activity = (self.dnase1_activity +
+                          self.dnase1l3_activity +
+                          self.dffb_activity)
+        if total_activity <= 0.01:
+            fail("At least one nuclease must have activity > 0.01")
+
         if self.dnase1_motif_preference is None:
             self.dnase1_motif_preference = {
                 "CG": 0.8, "GC": 0.8,  # Lower preference for CpG sites
@@ -437,22 +452,23 @@ class FragmentSimulator:
     """
     cfDNA fragment simulator.
 
-    This simulator integrates multiple experimental observations to model
-    cfDNA fragmentation:
+    This simulator integrates experimental observations to model cfDNA
+    fragmentation:
 
     1. **Nucleosome positioning**: Nucleosome maps with occupancy scores
     2. **Chromatin accessibility**: Tissue-specific chromatin states
     3. **Nuclease specificity**: Experimentally-determined preferences
     4. **Sequence context**: Genomic sequences from reference FASTA
     5. **TF binding protection**: Transcription factor binding site shielding
+
+    Main references are Lo et al. 2021 Science, Cristiano et al. 2019 Nature.
     """
     MONO_NUC_MEAN: Final[int] = 167
     MONO_NUC_STD: Final[int] = 10
-    MONO_FRACTION: Final[float] = 0.80
+    MONO_FRACTION: Final[float] = 0.85
     DI_NUC_MEAN: Final[int] = 167*2
     DI_NUC_STD: Final[int] = 15
     PERIODICITY_AMPLITUDE: Final[float] = 0.1
-    PERIODICITY_PHASE: Final[float] = 0.0
     MIN_FRAGMENT_SIZE: Final[int] = 40
     MAX_FRAGMENT_SIZE: Final[int] = 900
 
@@ -489,41 +505,29 @@ class FragmentSimulator:
             chromatin_state or self._default_chromatin_state()
         )
 
-        self._prob_cache = {}
-        self._sequence_cache: dict[tuple[str, int], str] = {}
-        self._nucleosome_cache: dict[tuple[str, int], tuple[float, float]] = {}
+        self._prob_cache: dict[tuple[str, int], float] = {}
 
+    @lru_cache(maxsize=8192)  # type: ignore
     def _get_cached_sequence_context(self, chrom: str, position: int) -> str:
         """
-        Get sequence context with caching for performance optimization.
+        Get sequence context with LRU caching for performance.
 
-        Fetches 1200bp sequence context centered around genomic position,
-        with intelligent cache management to balance memory usage and speed.
+        Fetches 1200bp sequence context centered around genomic position.
 
         Args:
             chrom: Chromosome name
-            position: Genomic position
+            position: Genomic position (rounded to nearest 1kb for caching)
 
         Returns:
             1200bp sequence context string
         """
-        cache_key = (chrom, position // 1000 * 1000)
-
-        if cache_key in self._sequence_cache:
-            return self._sequence_cache[cache_key]
+        # Round position to nearest 1kb for cache efficiency.
+        rounded_pos = (position // 1000) * 1000
 
         try:
-            context = self.sequence_generator.generate_sequence_context(
-                chrom, cache_key[1] + 600, length=1200
+            return self.sequence_generator.generate_sequence_context(
+                chrom, rounded_pos + 600, length=1200
             )
-            self._sequence_cache[cache_key] = context
-
-            if len(self._sequence_cache) > 10_000:
-                oldest_keys = list(self._sequence_cache.keys())[:4000]
-                for old_key in oldest_keys:
-                    del self._sequence_cache[old_key]
-
-            return context
         except Exception:
             return "N" * 1200
 
@@ -555,7 +559,7 @@ class FragmentSimulator:
             positions[chrom] = \
                 base_positions + noise.astype(np.int64)  # type: ignore
             occupancy[chrom] = \
-                np.random.beta(5, 2, len(base_positions))  # type: ignore
+                np.random.beta(4, 3, len(base_positions))  # type: ignore
 
         return NucleosomeMap(positions=positions, occupancy=occupancy)
 
@@ -578,7 +582,7 @@ class FragmentSimulator:
                 continue
 
             chrom_open = IntervalTree()  # type: ignore
-            for _ in range(1000):  # @NOTE(ds): arbitrary 1000 regions
+            for _ in range(1000):
                 start: int = np.random.randint(
                     1000, min(chrom_length - 1000, 10000000)
                 )
@@ -601,33 +605,27 @@ class FragmentSimulator:
         tissue_factor: float
     ) -> float:
         """
-        Calculate biologically realistic cleavage probability at a genomic
-        position.
+        Calculate realistic cleavage probability at a genomic position.
 
-        Integrates multiple biological factors:
-        - Nucleosome positioning and occupancy
-        - Chromatin accessibility state
-        - Tissue-specific chromatin properties
-        - Nuclease-specific preferences (DNASE1, DNASE1L3, DFFB)
+        Uses a multiplicative model integrating multiple biological factors.
 
         Args:
             position: Genomic position (0-based)
             chrom: Chromosome name
             nuclease_profile: Active nucleases and their preferences
-            tissue_factor: Tissue-specific cleavage probability
+            tissue_factor: Tissue-specific cleavage factor
 
         Returns:
-            Cleavage probability between 0.0 and 1.0
+            Cleavage probability between 0.001 and 1.0
         """
-        base_prob = 0.1  # background cleavage probability
+        base_prob = 0.1  # default is closed chromatin
         if chrom in self.chromatin_state.open_regions:  # type: ignore
-            overlaps: list[object] = (
+            overlaps: list[object] = \
                 self.chromatin_state.open_regions[  # type: ignore
                     chrom
                 ].at(position)
-            )
             if overlaps:
-                base_prob = 0.6  # probability for open chromatin
+                base_prob = 0.6
 
         nucleosome_factor = self._get_nucleosome_protection(position, chrom)
         nuclease_factor = self._get_nuclease_activity_factor(
@@ -637,66 +635,71 @@ class FragmentSimulator:
 
         total_prob = (base_prob * nucleosome_factor * tissue_factor *
                       nuclease_factor * tf_protection)
+
         return min(max(total_prob, 0.001), 1.0)
 
     def _get_nucleosome_protection(self, position: int, chrom: str) -> float:
         """
         Calculate nucleosome protection factor at a genomic position.
 
-        Optimized with caching and efficient spatial indexing.
+        Optimized with caching.
         """
         if chrom not in self.nucleosome_map.positions:
-            return 0.3
+            return 1.0  # no protection
 
-        # @NOTE(ds): Cache nucleosome calculations in 100 bp windows.
-        cache_key = (chrom, position // 100)
-        if cache_key in self._nucleosome_cache:
-            cached_distance, cached_occupancy = (
-                self._nucleosome_cache[cache_key])
-        else:
-            nucleosome_positions = self.nucleosome_map.positions[chrom]
-            nucleosome_occupancy = self.nucleosome_map.occupancy[chrom]
+        actual_distance, cached_occupancy = \
+            self._get_nearest_nucleosome_info(chrom, position)
 
-            nearest_idx = np.searchsorted(
-                nucleosome_positions, cache_key[1] * 100
-            )
-            candidates = []
-            if nearest_idx > 0:
-                candidates.append(nearest_idx - 1)
-            if nearest_idx < len(nucleosome_positions):
-                candidates.append(nearest_idx)
-
-            if not candidates:
-                cached_distance, cached_occupancy = 200, 0.5
-            else:
-                center_pos = cache_key[1] * 100
-                distances = np.abs(  # type: ignore
-                    nucleosome_positions[candidates]  # type: ignore
-                    - center_pos
-                )
-                best_candidate_idx = np.argmin(distances)  # type: ignore
-                best_idx = candidates[best_candidate_idx]
-                cached_distance = distances[best_candidate_idx]  # type: ignore
-                cached_occupancy = nucleosome_occupancy[best_idx]
-
-            self._nucleosome_cache[cache_key] = \
-                cached_distance, cached_occupancy
-
-            if len(self._nucleosome_cache) > 50000:
-                old_keys = list(self._nucleosome_cache.keys())[:12500]
-                for old_key in old_keys:
-                    del self._nucleosome_cache[old_key]
-
-        actual_distance = abs(cached_distance +
-                              (position - cache_key[1] * 100))
-        if actual_distance <= 73:
-            protection = 0.05 + (1.0 - cached_occupancy) * 0.2
+        # @NOTE(ds): Nucleosome protection: LOWER values = HIGHER protection
+        # (these are multiplicative factors, so <1.0 reduces cleavage
+        # probability).
+        if actual_distance <= 73:  # nucleosome core
+            return 0.05 + (1.0 - cached_occupancy) * 0.15
         elif actual_distance <= 120:
-            protection = 0.3 + (1.0 - cached_occupancy) * 0.4
-        else:
-            protection = 0.8 + (1.0 - cached_occupancy) * 0.2
+            return 0.20 + (1.0 - cached_occupancy) * 0.30
+        else:  # linker region
+            return 0.70 + (1.0 - cached_occupancy) * 0.30
 
-        return protection
+    @lru_cache(maxsize=16384)  # type: ignore
+    def _get_nearest_nucleosome_info(
+        self, chrom: str, position: int
+    ) -> tuple[float, float]:
+        """
+        Get distance and occupancy for nearest nucleosome to genomic position.
+
+        Uses LRU caching with 100bp resolution for performance.
+
+        Returns:
+            Tuple of (distance_to_nearest_nucleosome, occupancy_score)
+        """
+        cache_pos = (position // 100) * 100
+
+        nucleosome_positions = self.nucleosome_map.positions[chrom]
+        nucleosome_occupancy = self.nucleosome_map.occupancy[chrom]
+
+        nearest_idx = np.searchsorted(nucleosome_positions, cache_pos)
+        candidates = []
+        if nearest_idx > 0:
+            candidates.append(nearest_idx - 1)
+        if nearest_idx < len(nucleosome_positions):
+            candidates.append(nearest_idx)
+
+        if not candidates:
+            return 100.0, 0.5
+
+        distances = np.abs(  # type: ignore
+            nucleosome_positions[candidates] - cache_pos  # type: ignore
+        )
+        best_candidate_idx = np.argmin(distances)  # type: ignore
+        best_idx = candidates[best_candidate_idx]
+
+        cached_distance: float = \
+            float(distances[best_candidate_idx])  # type: ignore
+        cached_occupancy: float = \
+            float(nucleosome_occupancy[best_idx])  # type: ignore
+        actual_distance = abs(cached_distance + (position - cache_pos))
+
+        return actual_distance, cached_occupancy
 
     def _get_tissue_accessibility_factor(self, tissue_type: str) -> float:
         """
@@ -706,7 +709,7 @@ class FragmentSimulator:
             "healthy": 1.0,
             "hematopoietic": 1.2,  # More open chromatin
             "liver": 0.9,          # Slightly more compact
-            "tumor": 1.4           # Highly accessible due to disrupted
+            "tumor": 1.4           # Highly accessible
         }
         return tissue_factors.get(tissue_type, 1.0)
 
@@ -770,12 +773,10 @@ class FragmentSimulator:
             else:
                 dffb_sequence_factor = 1.0
 
-            # DFFB also prefers nucleosome linker regions.
             nucleosome_protection = self._get_nucleosome_protection(
                 position, chrom
             )
-            dffb_linker_preference = 2.0 - nucleosome_protection
-
+            dffb_linker_preference = 0.5 + 1.5 * nucleosome_protection
             dffb_factor = dffb_sequence_factor * dffb_linker_preference
             nuclease_factors.append(
                 (dffb_factor, nuclease_profile.dffb_activity)
@@ -829,7 +830,7 @@ class FragmentSimulator:
                         motif_count += 1
 
                 if motif_count > 0:
-                    # @NOTE(ds): Saturate at 3 occurrences.
+                    # We saturate motif effects at 3 occurrences.
                     effect_strength = min(1.0, motif_count / 3.0)
                     preference_factor *= (
                         1.0 + (preference - 1.0) * effect_strength
@@ -996,18 +997,21 @@ class FragmentSimulator:
         sizes: npt.NDArray[np.int64] = self._generate_fragment_sizes(
             num_fragments, fragment_size_params
         )
-
         max_size: int = int(sizes.max())  # type: ignore
-        effective_end = max(start + max_size + 1, end - max_size)
-        if effective_end <= start:
+        max_start_pos = max(start, end - max_size)
+        if max_start_pos <= start:
             self.logger.warning(
-                f"Region {chrom}:{start}-{end} too small for fragment size "
-                f"{max_size}"
+                f"Region {chrom}:{start}-{end} too small for largest fragment "
+                f"size {max_size} bp. Using minimal range."
             )
-            effective_end = start + max_size + 1
+            max_start_pos = min(start + 1, end - 1)
+
+        if max_start_pos <= start or end - start < 10:
+            self.logger.error(f"Region {chrom}:{start}-{end} is too small")
+            return FragmentList()
 
         positions: npt.NDArray[np.int64] = np.random.randint(
-            start, effective_end, num_fragments
+            start, max_start_pos, num_fragments
         )
 
         fragment_list: FragmentList = FragmentList()

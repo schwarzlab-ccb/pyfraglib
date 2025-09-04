@@ -849,7 +849,7 @@ class TissueMixtureSimulator(FragmentSimulator):
 
         modified_fragments = FragmentList()
         for fragment in fragments:
-            # @NOTE(ds): We apply cancer signatures to all fragments.
+            # Apply cancer signatures to simulate tumor-derived cfDNA characteristics
             if np.random.random() < tumor_fraction:
                 new_length = int(fragment.length + size_shift
                                  * np.random.random())
