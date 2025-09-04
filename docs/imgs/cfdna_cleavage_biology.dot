@@ -1,0 +1,147 @@
+// This file is part of `pyfraglib`, a software suite to calculate fragmentomics
+// features from cfDNA and perform downstream analyses.
+//
+// Copyright (C) 2024 Daniel Schütte, daniel.schuette@iccb-cologne.org
+//
+// This program is free software: you can redistribute it and/or modify it under
+// the terms of the GNU General Public License as published by the Free Software
+// Foundation, either version 3 of the License, or (at your option) any later
+// version. This program is distributed in the hope that it will be useful, but
+// WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+// FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License for
+// more details. You should have received a copy of the GNU General Public
+// License along with this program. If not, see <https://www.gnu.org/licenses/>.
+
+digraph cfDNA_Cleavage {
+    graph [
+        rankdir=LR,
+        bgcolor="white", // transparent
+        fontname="Arial",
+        fontsize=14,
+        margin=0.0,
+        compound=true,
+        penwidth=0,
+        style="invis"
+    ];
+
+    node [
+        fontname="Arial",
+        fontsize=11,
+        shape=box,
+        style=filled
+    ];
+
+    edge [
+        fontname="Arial",
+        fontsize=10
+    ];
+
+    subgraph cluster_intracellular {
+        label="INTRACELLULAR";
+        fontsize=16;
+        fontname="Arial Bold";
+        style=filled;
+        fillcolor="#e8f4f8";
+        color="#2c5aa0";
+        penwidth=3;
+        margin=15;
+
+        subgraph cluster_nucleus {
+            label="NUCLEUS";
+            fontsize=12;
+            style=filled;
+            fillcolor="#4169e1";
+            color="#4169e1";
+            margin=10;
+
+            chromatin [
+                label="Chromatin",
+                fontsize=18,
+                fillcolor="#ffffff"
+            ];
+        }
+
+        apoptosis [
+            label="Apoptosis",
+            fillcolor="#ffffff",
+            shape=ellipse
+        ];
+
+        necrosis [
+            label="Necrosis",
+            fillcolor="#ffffff",
+            shape=ellipse
+        ];
+
+        dffb_nuclease [
+            label="DFFB\n• Linker preference\n• A-rich ends",
+            fillcolor="#ffd700"
+        ];
+    }
+
+    subgraph cluster_extracellular {
+        label="EXTRACELLULAR";
+        fontsize=16;
+        fontname="Arial Bold";
+        style=filled;
+        fillcolor="#f0fff0";
+        color="#228b22";
+        penwidth=3;
+        margin=15;
+
+        extracellular_cfdna1 [
+            label="cfDNA",
+            fontsize=18,
+            fillcolor="#ffffff"
+        ];
+
+        dnase1_nuclease [
+            label="DNase I\n• Secreted enzyme\n• AT-rich preference\n• T-rich ends",
+            fillcolor="#98fb98"
+        ];
+
+        extracellular_cfdna2 [
+            label="cfDNA",
+            fontsize=18,
+            fillcolor="#ffffff"
+        ];
+    }
+
+    subgraph cluster_bloodstream {
+        label="BLOODSTREAM";
+        fontsize=16;
+        fontname="Arial Bold";
+        style=filled;
+        fillcolor="#fff0f5";
+        color="#dc143c";
+        penwidth=3;
+        margin=15;
+
+        plasma_cfdna [
+            label="cfDNA",
+            fontsize=18,
+            fillcolor="#ffffff"
+        ];
+
+        dnase1l3_nuclease [
+            label="DNase1L3\n• Primary plasma nuclease\n• CC preference\n• Major cfDNA processor",
+            fillcolor="#ff69b4"
+        ];
+
+        final_fragments [
+            label="Final cfDNA",
+            fontsize=18,
+            fillcolor="#ffffff"
+        ];
+    }
+
+    apoptosis -> dffb_nuclease [label="activates"];
+    necrosis -> extracellular_cfdna1 [label="uncontrolled release"];
+    dffb_nuclease -> chromatin [label="cleaves"];
+    chromatin -> extracellular_cfdna1 [label="controlled release"];
+    extracellular_cfdna1 -> dnase1_nuclease;
+    dnase1_nuclease -> extracellular_cfdna2 [label="cleaves"];
+    extracellular_cfdna2 -> plasma_cfdna [label="enters circulation"];
+    plasma_cfdna -> dnase1l3_nuclease;
+    dnase1l3_nuclease -> final_fragments [label="cleaves"];
+}
