@@ -1034,15 +1034,12 @@ class FragmentSimulator:
         if nuclease_profile is None:
             nuclease_profile = NucleaseProfile()
 
-        sizes: npt.NDArray[np.int64] = self._generate_fragment_sizes(
-            num_fragments, fragment_size_params
-        )
-        max_size: int = int(sizes.max())  # type: ignore
-        max_start_pos = max(start, end - max_size)
+        max_possible_size = self.MAX_FRAGMENT_SIZE
+        max_start_pos = max(start, end - max_possible_size)
         if max_start_pos <= start:
             self.logger.warning(
                 f"Region {chrom}:{start}-{end} too small for largest fragment "
-                f"size {max_size} bp. Using minimal range."
+                f"size {max_possible_size} bp. Extending region to the right."
             )
             max_start_pos = min(start + 1, end - 1)
 
@@ -1050,29 +1047,32 @@ class FragmentSimulator:
             self.logger.error(f"Region {chrom}:{start}-{end} is too small")
             return FragmentList()
 
-        positions: npt.NDArray[np.int64] = np.random.randint(
-            start, max_start_pos, num_fragments
-        )
-
         fragment_list: FragmentList = FragmentList()
         tissue_factor = self._get_tissue_accessibility_factor(tissue_type)
-        batch_size = 1000
-        for batch_start in range(0, num_fragments, batch_size):
-            batch_end = min(batch_start + batch_size, num_fragments)
-            batch_positions = positions[batch_start:batch_end]  # type: ignore
-            batch_sizes = sizes[batch_start:batch_end]  # type: ignore
+
+        fragments_generated = 0
+        max_attempts = num_fragments * 10  # safety limit
+        attempts = 0
+        while fragments_generated < num_fragments and attempts < max_attempts:
+            remaining_fragments = num_fragments - fragments_generated
+            candidates_to_generate = min(remaining_fragments * 3, 1000)
+            batch_positions: npt.NDArray[np.int64] = np.random.randint(
+                start, max_start_pos, candidates_to_generate
+            )
+            batch_sizes = self._generate_fragment_sizes(
+                candidates_to_generate, fragment_size_params
+            )
 
             cleave_probs = np.array([  # type: ignore
                 self._get_cleavage_probability(
                     int(pos), chrom, nuclease_profile,  # type: ignore
                     tissue_factor
-                ) for pos in batch_positions  # type: ignore
+                ) for pos in batch_positions
             ])
 
             random_vals = \
                 np.random.random(len(batch_positions))  # type: ignore
             accepted_mask = random_vals <= cleave_probs  # type: ignore
-
             accepted_positions = batch_positions[accepted_mask]  # type: ignore
             accepted_sizes = batch_sizes[accepted_mask]  # type: ignore
             for pos, size in zip(  # type: ignore
@@ -1102,7 +1102,24 @@ class FragmentSimulator:
 
                 fragment_list.append(fragment)
 
+            fragments_generated += len(accepted_positions)  # type: ignore
+            attempts += candidates_to_generate
+
+            if attempts % 5000 == 0:
+                self.logger.debug(
+                    f"Generated {fragments_generated}/{num_fragments} "
+                    f"fragments after {attempts} attempts"
+                )
+
+        if fragments_generated < num_fragments:
+            self.logger.warning(
+                f"Could only generate {fragments_generated}/{num_fragments} "
+                f"fragments after {attempts} attempts. Region may have very "
+                f"low cleavage probability."
+            )
+
         self.logger.info(
-            f"Generated {fragment_list.length()} fragments."
+            f"Generated {fragment_list.length()} fragments "
+            f"(requested: {num_fragments})."
         )
         return fragment_list
