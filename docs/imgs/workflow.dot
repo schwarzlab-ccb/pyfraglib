@@ -16,36 +16,85 @@ digraph Workflow {
     // Sometimes, we want a transparent figure for presentations, etc.
     // > bgcolor="transparent";
 
-    A0 -> B [label="extract",fontcolor=darkred,style=bold];
-    A1 -> B [label="extract --nanopore",fontcolor=darkred,style=bold];
-    AA -> B [label="--with-vcf",fontcolor=darkred,style=dashed];
+    // Organize layout with subgraphs
+    subgraph cluster_data_sources {
+        label="Data Sources";
+        style=dotted;
+        fontsize=16;
 
-    A0 [label="paired-end BAM file",shape=box,fontsize=20];
-    A1 [label="single-end BAM file",shape=box,fontsize=20];
-    AA [label="VCF file",shape=box,fontsize=20,style=dashed];
+        A0 [label="paired-end\nBAM file",shape=box,fontsize=14,color=blue];
+        A1 [label="single-end\nBAM file",shape=box,fontsize=14,color=blue];
+        AA [label="VCF file\n(optional)",shape=box,fontsize=14,style=dashed,color=blue];
+
+        // Simulation inputs
+        FASTA [label="Reference\nFASTA",shape=box,fontsize=14,color=orange];
+        BED_SIM [label="BED file\n(regions)",shape=box,fontsize=14,color=orange];
+        CONFIG_SIM [label="Simulation\nJSON config",shape=box,fontsize=14,color=orange];
+    }
+
+    SIM [label="simulate",shape=circle,fontsize=14,color=orange];
+    SIM_BASIC [label="Basic\nSimulation",shape=box,fontsize=12,color=orange];
+    SIM_TISSUE [label="Tissue Mixture\nSimulation",shape=box,fontsize=12,color=orange];
+    SIM_CANCER [label="Cancer Progression\nSimulation",shape=box,fontsize=12,color=orange];
     B [label="FRAG file",shape=box,fontsize=20];
 
-    B -> C [label="stats",fontcolor=darkred,style=bold];
-    B -> D [label="lengths",fontcolor=darkred,style=bold];
-    DD -> D [fontcolor=darkred,style=bold];
-    B -> E [label="scores",fontcolor=darkred,style=bold];
-    EE -> E [fontcolor=darkred,style=bold];
+    C [label="stats\nanalysis",shape=circle,fontsize=14];
+    D [label="length\nanalysis",shape=circle,fontsize=14];
+    E [label="fragmentomics\nscoring",shape=circle,fontsize=14];
+
+    subgraph cluster_outputs {
+        label="Analysis Outputs";
+        style=dotted;
+        fontsize=16;
+
+        // Stats outputs
+        I [label="Fragment\nEnd Motif Plots",shape=box,fontsize=11];
+        J [label="Summary\nStatistics",shape=box,fontsize=11];
+
+        // Length outputs
+        H [label="Gaussian Mixture\nModel + Plots",shape=box,fontsize=11];
+
+        // Score outputs
+        F [label="Motif Diversity\nScores",shape=box,fontsize=11];
+        G [label="Windowed Protection\nScore (WPS)",shape=box,fontsize=11];
+        GG [label="Fragment Coverage\n+ Depth",shape=box,fontsize=11];
+    }
+
+    // Data extraction workflow
+    A0 -> B [label="extract",fontcolor=blue,style=bold,penwidth=2,color=blue];
+    A1 -> B [label="extract\n--nanopore",fontcolor=blue,style=bold,penwidth=2,color=blue];
+    AA -> B [label="--with-vcf",fontcolor=blue,style=dashed,color=blue];
+
+    // Simulation workflow
+    FASTA -> SIM [color=orange,penwidth=2];
+    BED_SIM -> SIM [color=orange,penwidth=2];
+    CONFIG_SIM -> SIM [color=orange,penwidth=2];
+
+    SIM -> SIM_BASIC [label="basic mode",color=orange];
+    SIM -> SIM_TISSUE [label="tissue_mixture mode",color=orange];
+    SIM -> SIM_CANCER [label="cancer_progression mode",color=orange];
+
+    SIM_BASIC -> B [color=orange,penwidth=2];
+    SIM_TISSUE -> B [color=orange,penwidth=2];
+    SIM_CANCER -> B [color=orange,penwidth=2];
+
+    // Analysis workflows
+    B -> C [label="stats",style=bold,penwidth=2];
+    B -> D [label="lengths",style=bold,penwidth=2];
+    B -> E [label="scores",style=bold,penwidth=2];
+
+    // Configuration inputs for analysis
+    DD [label="GMM\nJSON config",shape=box,fontsize=14];
+    EE [label="Target Regions\nBED file",shape=box,fontsize=14];
+
+    DD -> D [style=bold];
+    EE -> E [style=bold];
+
+    // Analysis outputs
+    C -> I;
+    C -> J;
+    D -> H;
     E -> F;
     E -> G;
     E -> GG;
-    D -> H;
-    C -> I;
-    C -> J;
-
-    C [label="overview\nstats",shape=circle,fontsize=12];
-    D [label="length\ndistribution",shape=circle,fontsize=12];
-    DD [label="JSON config",shape=box,fontsize=20];
-    E [label="fragmentomics\nscores",shape=circle,fontsize=12];
-    EE [label="BED file",shape=box,fontsize=20];
-    F [label="motif diversity\nscore",shape=box,fontsize=10];
-    G [label="windowed protection\nscore",shape=box,fontsize=10];
-    GG [label="fragment depth\nper site",shape=box,fontsize=10];
-    H [label="Gaussian mixture\nmodel",shape=box,fontsize=10];
-    I [label="global endmotif\nplot",shape=box,fontsize=10];
-    J [label="stdout",shape=box,fontsize=10];
 }
