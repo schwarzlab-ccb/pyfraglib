@@ -8,15 +8,15 @@ digraph SimulationArchitecture {
 
     // Configuration and data classes
     subgraph cluster_config {
-        label="Configuration & Data Structures";
+        label="Configuration & Data Structures (with Validation)";
         style=filled;
         fillcolor=lightgray;
 
         Config [label="JSON Configuration", fillcolor=lightyellow];
-        NucleaseProfile [label="NucleaseProfile\n• Dnase1\n• Dnase1l3\n• DFFB"];
-        TissueProfile [label="TissueProfile\n• fragment_size_distribution\n• nucleosome_spacing\n• chromatin_openness\n• end_motif_preferences\n• methylation_level"];
-        NucleosomeMap [label="NucleosomeMap\n• positions\n• occupancy"];
-        ChromatinState [label="ChromatinState\n• open_regions\n• tf_binding_sites\n• ctcf_sites"];
+        NucleaseProfile [label="NucleaseProfile\n• DNase1\n• DNase1L3\n• DFFB"];
+        TissueProfile [label="TissueProfile\n• fragment size distribution\n• nucleosome spacing\n• chromatin openness\n• end motif preferences\n• methylation level"];
+        NucleosomeMap [label="NucleosomeMap"];
+        ChromatinState [label="ChromatinState\n• open regions\n• tf binding sites\n• ctcf sites"];
     }
 
     // Core simulation classes
@@ -25,9 +25,9 @@ digraph SimulationArchitecture {
         style=filled;
         fillcolor=lightcyan;
 
-        SequenceGenerator [label="SequenceContextGenerator"];
-        FragmentSimulator [label="FragmentSimulator"];
-        TissueMixtureSimulator [label="TissueMixtureSimulator\n(extends FragmentSimulator)"];
+        SequenceGenerator [label="SequenceContextGenerator\n• FASTA file interface\n• LRU cache (1kb resolution)"];
+        FragmentSimulator [label="FragmentSimulator\n• Probabilistic cleavage model\n• Probabilistic fragment length model"];
+        TissueMixtureSimulator [label="TissueMixtureSimulator\n(extends FragmentSimulator)\n• Multi-tissue mixing\n• Cancer progression simulation"];
     }
 
     // Output classes
@@ -47,8 +47,8 @@ digraph SimulationArchitecture {
         style=filled;
         fillcolor=lavender;
 
-        BasicMode [label="Basic Mode\n• Single tissue simulation\n• Uses FragmentSimulator", shape=diamond];
-        TissueMixture [label="Tissue Mixture Mode\n• Multi-tissue simulation\n• Proportional mixing", shape=diamond];
+        BasicMode [label="Basic Mode\n• Single tissue simulation", shape=diamond];
+        TissueMixture [label="Tissue Mixture Mode\n• Proportional mixing", shape=diamond];
         CancerProgression [label="Cancer Progression Mode\n• Longitudinal simulation\n• Size shift & enrichment", shape=diamond];
     }
 
@@ -58,9 +58,9 @@ digraph SimulationArchitecture {
         style=filled;
         fillcolor=mistyrose;
 
-        Hematopoietic [label="hematopoietic\n• Mean: 167bp, Std: 10bp\n• Spacing: 185bp\n• Openness: 0.7"];
-        Liver [label="liver\n• Mean: 165bp, Std: 12bp\n• Spacing: 190bp\n• Openness: 0.5"];
-        Tumor [label="tumor\n• Mean: 150bp, Std: 18bp\n• Spacing: 175bp\n• Openness: 0.8"];
+        Hematopoietic [label="hematopoietic"];
+        Liver [label="liver"];
+        Tumor [label="tumor"];
     }
 
     // Relationships and data flow

@@ -39,6 +39,18 @@ Simulation Modes
 
 Please refer to the API documentation to learn more about the specific parameters available.
 
+Architecture
+------------
+
+The simulation module is implemented as a multi-layered architecture. The following diagram shows the key components and their relationships:
+
+.. figure:: ../../imgs/simulation_architecture.png
+   :align: center
+   :alt: cfDNA Fragment Simulation Architecture
+   :figclass: align-center
+
+   **Figure 1: cfDNA Fragment Simulation Architecture.**
+
 Configuration
 -------------
 
@@ -49,11 +61,11 @@ Simulations are configured through JSON files with the following structure:
    {
        "fasta_path": "/path/to/reference.fasta",
        "output_name": "simulation_output",
-       "regions": [
-           {"chr": "chr1", "start": 1000000, "end": 2000000}
-       ],
+       "regions": "/path/to/regions.bed",
        "num_fragments": 50000,
        "simulation_mode": "tissue_mixture",
+       "mean": 167,
+       "std": 10,
        "tissue_fractions": {
            "hematopoietic": 0.7,
            "liver": 0.2,
@@ -83,8 +95,8 @@ where :math:`L` is the fragment length, :math:`f_{\text{mono}}` and :math:`f_{\t
    \sigma_{\text{mono}} &= 10 \text{ bp} \\
    \mu_{\text{di}} &= 334 \text{ bp (di-nucleosomal peak)} \\
    \sigma_{\text{di}} &= 15 \text{ bp} \\
-   f_{\text{mono}} &= 0.80 \text{ (mono-nucleosomal fraction)} \\
-   f_{\text{di}} &= 0.20 \text{ (di-nucleosomal fraction)}
+   f_{\text{mono}} &= 0.85 \text{ (mono-nucleosomal fraction)} \\
+   f_{\text{di}} &= 0.15 \text{ (di-nucleosomal fraction)}
    \end{aligned}
 
 The size shift parameter :math:`\Delta` allows modeling changes in fragment size distributions observed e.g. in cancer, where an increase in short fragments (with :math:`\Delta < 0`) can be observed.
@@ -131,13 +143,13 @@ where each factor represents a different biological process influencing DNA acce
    0.1 & \text{if position } i \notin \text{ open chromatin regions}
    \end{cases}
 
-Nucleosome positioning provides distance-dependent protection:
+Nucleosome positioning provides distance-dependent protection (multiplicative factors where values <1.0 reduce cleavage probability):
 
 .. math::
    F_{\text{nucleosome}}(i) = \begin{cases}
-   0.05 + (1 - O_j) \times 0.2 & \text{if } d_{ij} \leq 73 \text{ bp (core)} \\
-   0.3 + (1 - O_j) \times 0.4 & \text{if } 73 < d_{ij} \leq 120 \text{ bp (edge)} \\
-   0.8 + (1 - O_j) \times 0.2 & \text{if } d_{ij} > 120 \text{ bp (linker)}
+   0.05 + (1 - O_j) \times 0.15 & \text{if } d_{ij} \leq 73 \text{ bp (core)} \\
+   0.20 + (1 - O_j) \times 0.30 & \text{if } 73 < d_{ij} \leq 120 \text{ bp (edge)} \\
+   0.70 + (1 - O_j) \times 0.30 & \text{if } d_{ij} > 120 \text{ bp (linker)}
    \end{cases}
 
 where :math:`d_{ij}` is the distance from position :math:`i` to the nearest nucleosome center :math:`j`, :math:`O_j` is the occupancy score of nucleosome :math:`j` (range: 0-1). Different tissues exhibit characteristic chromatin accessibility patterns:
