@@ -52,11 +52,14 @@ Example Usage
 .. code-block:: python
 
     from pyfraglib.simulator.fragment_simulator import (
-        FragmentSimulator, NucleaseProfile
+        FragmentSimulator, NucleaseProfile, SequenceContextGenerator
     )
 
-    # Initialize simulator with reference genome
-    simulator = FragmentSimulator("/path/to/reference.fasta")
+    # Initialize sequence generator with reference genome
+    seq_gen = SequenceContextGenerator("/path/to/reference.fasta")
+
+    # Initialize simulator with sequence generator
+    simulator = FragmentSimulator(seq_gen)
 
     # Define nuclease activity profile
     nuclease_profile = NucleaseProfile(
@@ -77,6 +80,9 @@ Example Usage
 
     # Process generated fragments
     print(f"Generated {fragments.length()} cfDNA fragments")
+
+    # Clean up
+    seq_gen.close()
 
 License
 -------
@@ -475,29 +481,23 @@ class FragmentSimulator:
     _prob_cache: dict[tuple[str, int], float]
 
     def __init__(
-        self, fasta_path: str,
+        self, sequence_generator: SequenceContextGenerator,
         nucleosome_map: NucleosomeMap | None = None,
-        chromatin_state: ChromatinState | None = None,
-        sequence_generator: SequenceContextGenerator | None = None
+        chromatin_state: ChromatinState | None = None
     ) -> None:
         """
         Initialize the fragment simulator.
 
         Args:
-            fasta_path: Path to reference FASTA file (must be indexed)
-            nucleosome_map: Custom nucleosome positioning data
-            chromatin_state: Chromatin accessibility information
-            sequence_generator: Custom sequence context generator
-
-        Note:
-            The fasta file is ignored if a custom context generator is
-            provided.
+            sequence_generator: Sequence context generator (must be constructed
+                with indexed FASTA file)
+            nucleosome_map: Custom nucleosome positioning data. If None,
+                generates default nucleosome map.
+            chromatin_state: Chromatin accessibility information. If None,
+                generates default chromatin state.
         """
         self.logger: logging.Logger = logging.getLogger(LOGGER_NAME)
-        self.fasta_path: str = fasta_path
-        self.sequence_generator: SequenceContextGenerator = (
-            sequence_generator or SequenceContextGenerator(fasta_path)
-        )
+        self.sequence_generator: SequenceContextGenerator = sequence_generator
         self.nucleosome_map: NucleosomeMap = (
             nucleosome_map or self._default_nucleosome_model()
         )
@@ -521,9 +521,7 @@ class FragmentSimulator:
         Returns:
             1200bp sequence context string
         """
-        # Round position to nearest 1kb for cache efficiency.
         rounded_pos = (position // 1000) * 1000
-
         try:
             return self.sequence_generator.generate_sequence_context(
                 chrom, rounded_pos + 600, length=1200
@@ -531,22 +529,48 @@ class FragmentSimulator:
         except Exception:
             return "N" * 1200
 
-    def _default_nucleosome_model(self) -> NucleosomeMap:
+    @staticmethod
+    def generate_nucleosome_map(
+        sequence_generator: SequenceContextGenerator,
+        beta_alpha: float = 4.0,
+        beta_beta: float = 3.0
+    ) -> NucleosomeMap:
         """
-        Generate a default nucleosome map based on chromosome data from FASTA.
-        Uses a simplified model with approximately 147 bp nucleosomes and
-        variable linkers. Occupancy is drawn from Beta(5, 2).
-        """
-        self.logger.info("Generating default nucleosome model.")
+        Generate a nucleosome map with customizable chromatin state.
 
+        This static method creates a nucleosome map using beta distribution
+        parameters to control chromatin accessibility. Can be used by both
+        the base simulator and tissue-specific simulators.
+
+        Parameters
+        ----------
+        sequence_generator : SequenceContextGenerator
+            Sequence generator to get chromosome information.
+        beta_alpha : float, default=4.0
+            Alpha parameter for beta distribution. Higher values increase
+            nucleosome occupancy (more compact chromatin).
+        beta_beta : float, default=3.0
+            Beta parameter for beta distribution. Higher values decrease
+            nucleosome occupancy (more open chromatin).
+
+        Returns
+        -------
+        NucleosomeMap
+            Nucleosome map with specified chromatin characteristics.
+
+        Notes
+        -----
+        Common beta parameter combinations:
+        - Open chromatin: (2, 5) - low occupancy, high accessibility
+        - Normal chromatin: (4, 3) - balanced occupancy
+        - Compact chromatin: (6, 2) - high occupancy, low accessibility
+        """
         positions: dict[str, npt.NDArray[np.int64]] = {}
         occupancy: dict[str, npt.NDArray[np.float64]] = {}
 
-        available_chroms = self.sequence_generator.get_available_chromosomes()
+        available_chroms = sequence_generator.get_available_chromosomes()
         for chrom in available_chroms:
-            chrom_len: int = (
-                self.sequence_generator.get_chromosome_length(chrom)
-            )
+            chrom_len: int = sequence_generator.get_chromosome_length(chrom)
             if chrom_len < 10_000:  # Skip very short contigs
                 continue
 
@@ -558,10 +582,18 @@ class FragmentSimulator:
             )
             positions[chrom] = \
                 base_positions + noise.astype(np.int64)  # type: ignore
-            occupancy[chrom] = \
-                np.random.beta(4, 3, len(base_positions))  # type: ignore
+            occupancy[chrom] = np.random.beta(  # type: ignore
+                beta_alpha, beta_beta, len(base_positions)
+            )
 
         return NucleosomeMap(positions=positions, occupancy=occupancy)
+
+    def _default_nucleosome_model(self) -> NucleosomeMap:
+        """
+        Generate a default nucleosome map using standard parameters.
+        """
+        self.logger.info("Generating default nucleosome model.")
+        return self.generate_nucleosome_map(self.sequence_generator)
 
     def _default_chromatin_state(self) -> ChromatinState:
         """
@@ -870,12 +902,20 @@ class FragmentSimulator:
 
         Returns:
             Array of fragment sizes
+
+        Note:
+            Users can provide the following fragment size parameters:
+            - "mean": mononucleosomal mean
+            - "std": mononucleosomal standard deviation
+            - "mono_fraction": mononucleosomal fraction
+            - "di_mean": dinucleosomal mean
+            - "di_std": dinucleosomal standard deviation
+            - "size_shift": size shift (applied to both peaks)
         """
         if fragment_size_params:
             mono_mean = fragment_size_params["mean"]
             mono_std = fragment_size_params["std"]
-            mono_fraction = fragment_size_params.get("short_fraction", 0.25)
-
+            mono_fraction = fragment_size_params.get("mono_fraction", 0.25)
             di_mean = fragment_size_params.get("di_mean", mono_mean*2)
             di_std = fragment_size_params.get("di_std", mono_std)
             size_shift = fragment_size_params.get("size_shift", 0)
