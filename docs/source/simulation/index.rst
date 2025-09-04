@@ -13,8 +13,10 @@ The API integrates with the rest of the ``pyfraglib`` ecosystem:
 .. code-block:: python
 
    from pyfraglib import FragmentSimulator
+   from pyfraglib.simulator.fragment_simulator import SequenceContextGenerator
 
-   simulator = FragmentSimulator(fasta_path="reference.fasta")
+   seq_gen = SequenceContextGenerator("reference.fasta")
+   simulator = FragmentSimulator(seq_gen)
 
    fragments = simulator.simulate_fragments(
        chrom="chr1", start=1_000_000, end=1_100_000,

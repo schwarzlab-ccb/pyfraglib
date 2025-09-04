@@ -130,18 +130,17 @@ A key features of ``pyfraglib`` is its simulation module. You can generate synth
 .. code-block:: python
 
    from pyfraglib import FragmentSimulator
+   from pyfraglib.simulator.fragment_simulator import SequenceContextGenerator
 
-   # Create simulator
-   simulator = FragmentSimulator(
-       fasta_path="reference.fasta",
-       output_name="synthetic_sample"
-   )
+   # Create sequence generator and simulator
+   seq_gen = SequenceContextGenerator("reference.fasta")
+   simulator = FragmentSimulator(seq_gen)
 
    # Define regions to simulate
    regions = [("chr1", 1000000, 2000000)]
 
    # Generate fragments
-   fragments = simulator.simulate_fragments(regions, n_fragments=10000)
+   fragments = simulator.simulate_fragments(regions, num_fragments=10000)
 
    # Save results
    fragments.to_frag_file("synthetic_sample", "output/")
