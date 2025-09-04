@@ -663,13 +663,6 @@ def simulate_cancer_progression(
             "fragments_per_timepoint"
         ]  # type: ignore
         bed_file: str = config["bed_file"]  # type: ignore
-        size_shift: float = float(
-            config.get("size_shift", -15.0)  # type: ignore
-        )
-        short_enrichment: float = float(
-            config.get("short_enrichment", 0.2)  # type: ignore
-        )
-
         if not os.path.exists(bed_file):
             fail("BED file '{}' does not exist".format(bed_file), logger)
 
@@ -701,9 +694,7 @@ def simulate_cancer_progression(
             tumor_fractions=tumor_fractions,
             time_points=time_points,
             fragments_per_timepoint=fragments_per_timepoint,
-            genomic_regions=genomic_regions,
-            size_shift=size_shift,
-            short_enrichment=short_enrichment
+            genomic_regions=genomic_regions
         )
     )
 

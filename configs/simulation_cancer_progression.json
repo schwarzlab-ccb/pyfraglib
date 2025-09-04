@@ -6,7 +6,5 @@
   "tumor_fractions": [0.0, 0.05, 0.15, 0.30, 0.50],
   "time_points": ["baseline", "3months", "6months", "12months", "18months"],
   "fragments_per_timepoint": 8000,
-  "size_shift": -20.0,
-  "short_enrichment": 0.25,
   "bed_file": "data/ref/loci_covered_by_panel.bed"
 }
