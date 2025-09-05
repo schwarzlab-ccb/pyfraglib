@@ -3,13 +3,13 @@
   "fasta_path": "./data/ref/Homo_sapiens.GRCh37.dna.primary_assembly.fa",
   "tissue_type": "healthy",
   "bed_file": "data/ref/loci_covered_by_panel.bed",
-  "total_fragments": 8000,
+  "total_fragments": 1000000,
   "fragment_params": {
     "mean": 167,
-    "std": 10,
+    "std": 20,
     "di_mean": 320,
-    "di_std": 20,
-    "short_fraction": 0.75
+    "di_std": 45,
+    "mono_fraction": 0.75
   },
   "nuclease_params": {
     "dnase1_activity": 1.0,

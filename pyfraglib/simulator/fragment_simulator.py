@@ -915,7 +915,7 @@ class FragmentSimulator:
         if fragment_size_params:
             mono_mean = fragment_size_params["mean"]
             mono_std = fragment_size_params["std"]
-            mono_fraction = fragment_size_params.get("mono_fraction", 0.25)
+            mono_fraction = fragment_size_params.get("mono_fraction", 0.85)
             di_mean = fragment_size_params.get("di_mean", mono_mean*2)
             di_std = fragment_size_params.get("di_std", mono_std)
             size_shift = fragment_size_params.get("size_shift", 0)
@@ -1051,7 +1051,7 @@ class FragmentSimulator:
         tissue_factor = self._get_tissue_accessibility_factor(tissue_type)
 
         fragments_generated = 0
-        max_attempts = num_fragments * 10  # safety limit
+        max_attempts = num_fragments * 1_000  # safety limit
         attempts = 0
         while fragments_generated < num_fragments and attempts < max_attempts:
             remaining_fragments = num_fragments - fragments_generated
