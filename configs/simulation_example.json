@@ -1,9 +1,10 @@
 {
+  "simulation_mode": "basic",
   "output_name": "simulated_sample",
   "fasta_path": "./data/ref/Homo_sapiens.GRCh37.dna.primary_assembly.fa",
   "tissue_type": "healthy",
-  "bed_file": "data/ref/loci_covered_by_panel.bed",
-  "total_fragments": 1000000,
+  "bed_file": "data/ref/example_loci.bed",
+  "total_fragments": 100000,
   "fragment_params": {
     "mean": 167,
     "std": 20,
