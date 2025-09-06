@@ -37,8 +37,8 @@ Core parts of the simulator are based on the following assumptions:
 
 2. **Fragment Size Patterns**:
 
-   - Mono-nucleosomal peak (~167 bp) with 10 bp periodicity
-   - Di-nucleosomal components (~334 bp)
+   - Left-skewed mono-nucleosomal peak (~167 bp) with 10 bp periodicity
+   - Symmetric di-nucleosomal components (~334 bp)
      (reviewed in Lo et al. 2021 Science)
 
 3. **Chromatin Context**:
@@ -106,6 +106,7 @@ import numpy.typing as npt
 from dataclasses import dataclass
 from functools import lru_cache
 from intervaltree import IntervalTree
+from scipy.stats import skewnorm
 from typing import Final
 from pyfraglib.fragment import Fragment, FragmentList
 from pyfraglib.core import fail
@@ -472,9 +473,10 @@ class FragmentSimulator:
     MONO_NUC_MEAN: Final[int] = 167
     MONO_NUC_STD: Final[int] = 10
     MONO_FRACTION: Final[float] = 0.85
+    MONO_SKEW: Final[float] = -3.0
     DI_NUC_MEAN: Final[int] = 167*2
     DI_NUC_STD: Final[int] = 15
-    PERIODICITY_AMPLITUDE: Final[float] = 0.1
+    PERIODICITY_AMPLITUDE: Final[float] = 10.0
     MIN_FRAGMENT_SIZE: Final[int] = 40
     MAX_FRAGMENT_SIZE: Final[int] = 900
 
@@ -907,39 +909,55 @@ class FragmentSimulator:
             Users can provide the following fragment size parameters:
             - "mean": mononucleosomal mean
             - "std": mononucleosomal standard deviation
+            - "mono_skew": mononucleosomal skewness (default: -3.0)
             - "mono_fraction": mononucleosomal fraction
             - "di_mean": dinucleosomal mean
             - "di_std": dinucleosomal standard deviation
             - "size_shift": size shift (applied to both peaks)
+            - "periodicity_amplitude": strength of 10bp periodicity modulation
         """
         if fragment_size_params:
             mono_mean = fragment_size_params["mean"]
             mono_std = fragment_size_params["std"]
             mono_fraction = fragment_size_params.get("mono_fraction", 0.85)
+            mono_skew = fragment_size_params.get("mono_skew", self.MONO_SKEW)
             di_mean = fragment_size_params.get("di_mean", mono_mean*2)
             di_std = fragment_size_params.get("di_std", mono_std)
             size_shift = fragment_size_params.get("size_shift", 0)
+            periodicity_amplitude = fragment_size_params.get(
+                "periodicity_amplitude", self.PERIODICITY_AMPLITUDE
+            )
         else:
             mono_mean = self.MONO_NUC_MEAN
             mono_std = self.MONO_NUC_STD
+            mono_skew = self.MONO_SKEW
             di_mean = self.DI_NUC_MEAN
             di_std = self.DI_NUC_STD
             mono_fraction = self.MONO_FRACTION
             size_shift = 0
+            periodicity_amplitude = self.PERIODICITY_AMPLITUDE
 
         num_mono: int = int(num_fragments * mono_fraction)
         num_di: int = num_fragments - num_mono
 
         sizes: npt.NDArray[np.float64]
-        mono_sizes: npt.NDArray[np.float64] = np.random.normal(
-            mono_mean+size_shift, mono_std, num_mono
+
+        # Adjust loc so the mode (peak) is approximately at mono_mean
+        delta = mono_skew / np.sqrt(1 + mono_skew**2)  # type: ignore
+        mode_offset = mono_std * delta * np.sqrt(2/np.pi)  # type: ignore
+        adjusted_loc = mono_mean + size_shift - mode_offset  # type: ignore
+
+        mono_sizes: npt.NDArray[np.float64] = skewnorm.rvs(  # type: ignore
+            a=mono_skew, loc=adjusted_loc,  # type: ignore
+            scale=mono_std, size=num_mono
         )
         di_sizes: npt.NDArray[np.float64] = np.random.normal(
             di_mean+size_shift, di_std, num_di
         )
         sizes = np.concatenate([mono_sizes, di_sizes])  # type: ignore
 
-        sizes = self._add_periodicity(sizes, mono_mean)
+        sizes = self._add_periodicity(sizes, mono_mean, periodicity_amplitude)
+
         sizes_int: npt.NDArray[np.int64] = np.clip(
             sizes, self.MIN_FRAGMENT_SIZE, self.MAX_FRAGMENT_SIZE
         ).astype(np.int64)
@@ -947,14 +965,15 @@ class FragmentSimulator:
         return sizes_int
 
     def _add_periodicity(
-        self, sizes: npt.NDArray[np.float64], mono_mean: float
+        self, sizes: npt.NDArray[np.float64], mono_mean: float,
+        periodicity_amplitude: float
     ) -> npt.NDArray[np.float64]:
         """
-        Add 10 bp periodicity centered around the mono-nucleosomal peak.
+        Add 10 bp periodicity to fragments shorter than mono-nucleosomal peak.
 
-        Applies biologically realistic 10 bp periodicity primarily to fragments
-        in the mono-nucleosomal range. The periodicity strength decreases with
-        distance from the configured mono-nucleosomal peak.
+        Applies 10 bp periodicity only to fragments shorter than the
+        mono-nucleosomal peak, with amplitude decreasing from minimum fragment
+        size to the mono peak.
 
         Args:
             sizes: Fragment sizes to modulate
@@ -963,26 +982,36 @@ class FragmentSimulator:
         Returns:
             Fragment sizes with added periodicity
         """
-        # Calculate optimal phase to enhance the configured mono-nucleosomal
-        # peak. We want mono_mean to hit a sine wave maximum (pi/2).
-        optimal_phase = np.pi/2 - (2 * np.pi * mono_mean / 10) % (2 * np.pi)
-        phase_factor: npt.NDArray[np.float64] = np.sin(
-            2 * np.pi * sizes / 10 + optimal_phase  # type: ignore
-        )
+        mask = sizes <= mono_mean
+        modified_sizes = sizes.copy()
 
-        # Weight periodicity by proximity to mono-nucleosomal range.
-        distance_from_mono = np.abs(sizes - mono_mean)  # type: ignore
-        periodicity_weight = np.exp(
-            -(distance_from_mono ** 2) / (2 * (50 ** 2))  # type: ignore
-        )
+        if np.any(mask):
+            fragments_to_modify = sizes[mask]  # type: ignore
+            amplitude_gradient = (
+                (mono_mean - fragments_to_modify) /  # type: ignore
+                (mono_mean - self.MIN_FRAGMENT_SIZE) *
+                periodicity_amplitude
+            )
+            amplitude_gradient = \
+                np.maximum(amplitude_gradient, 0)  # type: ignore
+            nearest_10bp = \
+                np.round(fragments_to_modify / 10) * 10  # type: ignore
+            offset_from_10bp = \
+                fragments_to_modify - nearest_10bp  # type: ignore
+            gaussian_width = 8.0
+            attraction_strength = np.exp(
+                -0.5 * (offset_from_10bp / gaussian_width) ** 2  # type: ignore
+            )
+            push_toward_10bp = (
+                -offset_from_10bp *  # type: ignore
+                attraction_strength *  # type: ignore
+                amplitude_gradient  # type: ignore
+            )
 
-        weighted_amplitude = \
-            self.PERIODICITY_AMPLITUDE * periodicity_weight  # type: ignore
-        modulation: npt.NDArray[np.float64] = (
-            1 + weighted_amplitude * phase_factor  # type: ignore
-        )
+            modified_sizes[mask] = \
+                fragments_to_modify + push_toward_10bp  # type: ignore
 
-        return sizes * modulation  # type: ignore
+        return modified_sizes
 
     def _generate_end_motif(
         self, chrom: str, position: int, motif_length: int = 4

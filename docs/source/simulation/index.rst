@@ -82,12 +82,23 @@ Probabilistic Fragment Size Model
 
 The simulator generates fragment size distributions by using a simplified, but biology-oriented probabilistic model. That fragment size model combines mono-nucleosomal and di-nucleosomal components with characteristic periodicity patterns observed in cfDNA.
 
-The fragment size distribution is modeled as a mixture of Gaussian components:
+The fragment size distribution is modeled as a mixture of skewed and normal components:
 
 .. math::
-   L \sim f_{\text{mono}} \cdot \mathcal{N}(\mu_{\text{mono}} + \Delta, \sigma_{\text{mono}}^2) + f_{\text{di}} \cdot \mathcal{N}(\mu_{\text{di}} + \Delta, \sigma_{\text{di}}^2)
+   L \sim f_{\text{mono}} \cdot \text{SkewNormal}(\text{loc}_{\text{adj}}, \sigma_{\text{mono}}^2, \alpha_{\text{mono}}) + f_{\text{di}} \cdot \mathcal{N}(\mu_{\text{di}} + \Delta, \sigma_{\text{di}}^2)
 
-where :math:`L` is the fragment length, :math:`f_{\text{mono}}` and :math:`f_{\text{di}}` are the mixing fractions with :math:`f_{\text{mono}} + f_{\text{di}} = 1.0`.
+where :math:`L` is the fragment length, :math:`f_{\text{mono}}` and :math:`f_{\text{di}}` are the mixing fractions with :math:`f_{\text{mono}} + f_{\text{di}} = 1.0`, and :math:`\alpha_{\text{mono}}` is the skewness parameter for the mono-nucleosomal peak (negative values create left-skewed distributions).
+
+**Location Parameter Adjustment:** To ensure the peak (mode) of the skew-normal distribution occurs at the user-configured mean :math:`\mu_{\text{mono}}`, the location parameter is automatically adjusted:
+
+.. math::
+   \begin{aligned}
+   \delta &= \frac{\alpha_{\text{mono}}}{\sqrt{1 + \alpha_{\text{mono}}^2}} \\
+   \text{mode}_{\text{offset}} &= \sigma_{\text{mono}} \times \delta \times \sqrt{\frac{2}{\pi}} \\
+   \text{loc}_{\text{adj}} &= \mu_{\text{mono}} + \Delta - \text{mode}_{\text{offset}}
+   \end{aligned}
+
+This adjustment ensures that when users specify a mono-nucleosomal mean of 167 bp, the distribution peak appears at approximately 167 bp rather than having the peak shifted due to skewness.
 
 **Default Parameters:**
 
@@ -95,6 +106,7 @@ where :math:`L` is the fragment length, :math:`f_{\text{mono}}` and :math:`f_{\t
    \begin{aligned}
    \mu_{\text{mono}} &= 167 \text{ bp (mono-nucleosomal peak)} \\
    \sigma_{\text{mono}} &= 10 \text{ bp} \\
+   \alpha_{\text{mono}} &= -3.0 \text{ (left-skewed)} \\
    \mu_{\text{di}} &= 334 \text{ bp (di-nucleosomal peak)} \\
    \sigma_{\text{di}} &= 15 \text{ bp} \\
    f_{\text{mono}} &= 0.85 \text{ (mono-nucleosomal fraction)} \\
@@ -103,22 +115,22 @@ where :math:`L` is the fragment length, :math:`f_{\text{mono}}` and :math:`f_{\t
 
 The size shift parameter :math:`\Delta` allows modeling changes in fragment size distributions observed e.g. in cancer, where an increase in short fragments (with :math:`\Delta < 0`) can be observed.
 
-**10 bp Periodicity:** cfDNA fragments exhibit characteristic 10 bp periodicity due to nucleosome positioning and DNA helical structure. This periodicity is strongest for mono-nucleosomal fragments and weaker for larger fragments:
+**10 bp Periodicity:** cfDNA fragments exhibit characteristic 10 bp periodicity due to nucleosome positioning and DNA helical structure. The periodicity is applied only to fragments shorter than the mono-nucleosomal peak, with amplitude decreasing toward the peak:
 
 .. math::
-   L_{\text{final}} = L \times \left[1 + A_{\text{weighted}} \times \sin\left(\frac{2\pi L}{10} + \phi_{\text{opt}}\right)\right]
+   L_{\text{final}} = L + P_{\text{push}} \quad \text{for } L \leq \mu_{\text{mono}}
 
-The weighted amplitude emphasizes periodicity around the mono-nucleosomal peak:
-
-.. math::
-   A_{\text{weighted}} = A_{\text{period}} \times \exp\left(-\frac{(L - \mu_{\text{mono}})^2}{2 \times 50^2}\right)
-
-The optimal phase :math:`\phi_{\text{opt}}` is calculated to enhance the configured mono-nucleosomal peak:
+The periodicity works by attracting fragments toward the nearest 10 bp multiple using Gaussian attraction:
 
 .. math::
-   \phi_{\text{opt}} = \frac{\pi}{2} - \left(\frac{2\pi \mu_{\text{mono}}}{10}\right) \bmod 2\pi
+   P_{\text{push}} = -\Delta L \times \exp\left(-\frac{\Delta L^2}{2\sigma_{\text{gaussian}}^2}\right) \times A_{\text{gradient}}
 
-where :math:`A_{\text{period}} = 0.1` is the base periodicity amplitude and :math:`\mu_{\text{mono}}` is the configurable mono-nucleosomal mean.
+where :math:`\Delta L = L - \text{round}(L/10) \times 10` is the offset from the nearest 10 bp multiple, and the amplitude gradient decreases toward the mono-nucleosomal peak:
+
+.. math::
+   A_{\text{gradient}} = \frac{\mu_{\text{mono}} - L}{\mu_{\text{mono}} - L_{\text{min}}} \times A_{\text{period}}
+
+The Gaussian width :math:`\sigma_{\text{gaussian}} = 5.0` controls the smoothness of the periodicity, and :math:`A_{\text{period}}` is the configurable periodicity amplitude with default value 10.0.
 
 **Size Constraints:** Lastly, size constraints are applied as follows:
 

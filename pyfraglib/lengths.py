@@ -40,7 +40,8 @@ from pyfraglib.math import fit_gmm, plot_gmm, goodness_of_fit_stats
 
 
 def fragment_length_plot(
-    fragments: FragmentList, out_dir: str, name: str
+    fragments: FragmentList, out_dir: str, name: str,
+    kde_bandwidth: float = 0.3
 ) -> None:
     """
     Create kernel density estimation plots for fragment length distributions.
@@ -57,6 +58,7 @@ def fragment_length_plot(
             Directory will be created if it doesn't exist.
         name: Base name for the output file. The plot will be saved as
             ``{name}_frags_len_kde.png``.
+        kde_bandwidth: Bandwidth parameter for the KDE plot.
 
     Returns:
         None. The function saves a PNG plot to the specified output directory.
@@ -94,7 +96,7 @@ def fragment_length_plot(
     outpath: str = \
         os.path.join(out_dir, "{}_frags_len_kde.png".format(name))
 
-    sns.kdeplot(frag_lengths_wt, bw_adjust=1,
+    sns.kdeplot(frag_lengths_wt, bw_adjust=kde_bandwidth,
                 label="wildtype, n={}".format(len(frag_lengths_wt)))
     sns.kdeplot(frag_lengths_mut, bw_adjust=1,
                 label="mutated, n={}".format(len(frag_lengths_mut)))
