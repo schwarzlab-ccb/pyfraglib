@@ -63,6 +63,10 @@ autodoc_default_options = {
     "exclude-members": "__weakref__"
 }
 
+autodoc_type_aliases = {
+    "SequenceContextGenerator": "pyfraglib.simulator.SequenceContextGenerator"
+}
+suppress_warnings = ["ref.python"]
 autodoc_mock_imports: list[object] = []  # for missing modules
 autodoc_warningiserror = False  # don't show warnings about missing modules
 keep_warnings = True  # keep going on warnings
