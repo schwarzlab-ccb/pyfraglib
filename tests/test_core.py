@@ -133,7 +133,8 @@ class TestUtilityFunctions(unittest.TestCase):
     def test_detect_cpus_without_slurm(self) -> None:
         """Test CPU detection without SLURM environment variable."""
         cpus = detect_cpus()
-        self.assertEqual(cpus, 1)
+        cpus_without_slurm = os.cpu_count() if os.cpu_count is not None else 1
+        self.assertEqual(cpus, cpus_without_slurm)
 
 
 class TestExceptions(unittest.TestCase):

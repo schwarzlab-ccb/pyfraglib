@@ -52,9 +52,11 @@ import pyfraglib
 
 import pandas as pd
 
+from functools import partial
+from multiprocessing import Pool
 from typing import Final, NoReturn, Optional
 from pyfraglib import Fragment, FragmentList
-from pyfraglib.core import CodeUnreachableError, parse_bed_file
+from pyfraglib.core import CodeUnreachableError, parse_bed_file, detect_cpus
 from pyfraglib.fragfile import FragFile
 from pyfraglib.lengths import fragment_length_plot, fragment_length_gmm
 from pyfraglib.stats import fragments_per_chromosome_barplot, \
@@ -513,6 +515,26 @@ def simulate(out_dir: str, args: argparse.Namespace) -> None:
         )
 
 
+def simulate_region(
+    region_data: tuple[str, int, int], fasta_path: str,
+    tissue_type: str, nuclease_profile: "NucleaseProfile",
+    fragment_size_params: dict[str, float] | None, fragments_per_region: int
+) -> "FragmentList":
+    """Simulate fragments for a single genomic region."""
+    chrom, start, end = region_data
+    if fragments_per_region == 0:
+        return FragmentList()
+
+    seq_gen = SequenceContextGenerator(fasta_path)
+    simulator: FragmentSimulator = FragmentSimulator(seq_gen)
+    return simulator.simulate_fragments(
+        chrom=chrom, start=start, end=end,
+        num_fragments=fragments_per_region,
+        tissue_type=tissue_type, nuclease_profile=nuclease_profile,
+        fragment_size_params=fragment_size_params
+    )
+
+
 def simulate_basic(
     config: dict[str, object], output_name: str, fasta_path: str, out_dir: str
 ) -> None:
@@ -554,40 +576,35 @@ def simulate_basic(
         )
 
     logger.info(
-        "initializing basic simulator with FASTA: {}".format(fasta_path)
+        "running basic simulator with FASTA: {}".format(fasta_path)
     )
-    seq_gen = SequenceContextGenerator(fasta_path)
-    simulator: FragmentSimulator = FragmentSimulator(seq_gen)
     all_fragments: FragmentList = FragmentList()
-
     fragments_per_region = total_fragments // len(genomic_regions)
+    fragment_size_params: dict[str, float] | None = None
+    if fragment_params:
+        fragment_size_params = {}
+        for k, v in fragment_params.items():
+            if isinstance(v, (int, float, str)):
+                fragment_size_params[k] = float(v)
 
-    for chrom, start, end in genomic_regions:
-        if fragments_per_region == 0:
-            continue
-        logger.info(
-            "simulating {} fragments from {}:{}-{}".format(
-                fragments_per_region, chrom, start, end
-            )
+    logger.info(
+        "simulating {} fragments across {} regions in parallel".format(
+            total_fragments, len(genomic_regions)
         )
+    )
 
-        fragment_size_params: dict[str, float] | None = None
-        if fragment_params:
-            fragment_size_params = {}
-            for k, v in fragment_params.items():
-                if isinstance(v, (int, float, str)):
-                    fragment_size_params[k] = float(v)
-
-        fragment_list: FragmentList = simulator.simulate_fragments(
-            chrom=chrom, start=start, end=end,
-            num_fragments=fragments_per_region,
-            tissue_type=tissue_type, nuclease_profile=nuclease_profile,
-            fragment_size_params=fragment_size_params
+    with Pool(processes=detect_cpus()) as pool:
+        partial_simulate = partial(
+            simulate_region, fasta_path=fasta_path, tissue_type=tissue_type,
+            nuclease_profile=nuclease_profile,
+            fragment_size_params=fragment_size_params,
+            fragments_per_region=fragments_per_region
         )
+        region_results = pool.map(partial_simulate, genomic_regions)
 
+    for fragment_list in region_results:
         for fragment in fragment_list:
             all_fragments.append(fragment)
-
     logger.info(
         "saving {} simulated fragments to {}.frag".format(
             all_fragments.length(), output_name

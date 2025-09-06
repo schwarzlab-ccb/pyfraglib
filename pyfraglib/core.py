@@ -340,7 +340,12 @@ def detect_cpus() -> int:
     Return the number of CPUs currently available.
     """
     logger: logging.Logger = get_logger()
-    num_cores: Final[int] = int(os.environ.get("SLURM_CPUS_PER_TASK", 1))
+    num_cores: int
+    if "SLURM_CPUS_PER_TASK" in os.environ:
+        num_cores = int(os.environ["SLURM_CPUS_PER_TASK"])
+    else:
+        cpu_count: int | None = os.cpu_count()
+        num_cores = cpu_count if cpu_count is not None else 1
 
     logger.info("{} core(s) detected".format(num_cores))
 
