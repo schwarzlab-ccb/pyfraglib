@@ -1014,11 +1014,15 @@ class FragmentSimulator:
         return modified_sizes
 
     def _generate_end_motif(
-        self, chrom: str, position: int, motif_length: int = 4
+        self, chrom: str, position: int, motif_length: int = 4,
+        end_type: str = "5p"
     ) -> str:
         """
         Generate end motif based on genomic sequence context. This method
         is deterministic and not part of the probabilistic cleavage model.
+        To be consistent with the existing literature, we treat 5' and 3'
+        ends differently. For now, we randomly permute 3' ends to imitate
+        the observation that they exhibit less strong cleavage patterns.
         """
         context = self._get_cached_sequence_context(chrom, position)
         cache_start_idx = position // 1000 * 1000
@@ -1028,7 +1032,16 @@ class FragmentSimulator:
         else:
             base_motif = "ATCGATCGATCG"[:motif_length]
 
-        return base_motif
+        if end_type == "5p":
+            return base_motif
+        elif end_type == "3p":
+            bases_array: npt.NDArray[object] = (  # type: ignore
+                np.array(list(base_motif))
+            )
+            np.random.shuffle(bases_array)
+            return "".join(bases_array)
+        else:
+            raise ValueError(f"unknown end motif type {end_type}")
 
     def simulate_fragments(
         self, chrom: str, start: int, end: int, num_fragments: int,
@@ -1109,11 +1122,13 @@ class FragmentSimulator:
             ):
                 end5p: str = self._generate_end_motif(
                     chrom=chrom,
-                    position=int(pos)  # type: ignore
+                    position=int(pos),  # type: ignore
+                    end_type="5p"
                 )
                 end3p: str = self._generate_end_motif(
                     chrom=chrom,
-                    position=int(pos + size)  # type: ignore
+                    position=int(pos + size),  # type: ignore
+                    end_type="3p"
                 )
 
                 fragment: Fragment = Fragment.create_simulated(
