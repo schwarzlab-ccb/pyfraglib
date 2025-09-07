@@ -15,8 +15,8 @@
     "periodicity_amplitude": 1.0
   },
   "nuclease_params": {
-    "dnase1_activity": 0.5,
-    "dnase1l3_activity": 5.0,
-    "dffb_activity": 0.5
+    "dnase1_activity": 2.0,
+    "dnase1l3_activity": 0.1,
+    "dffb_activity": 5.0
   }
 }

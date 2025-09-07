@@ -285,10 +285,13 @@ class NucleaseProfile:
             }
         if self.dnase1l3_motif_preference is None:
             self.dnase1l3_motif_preference = {
-                "CC": 1.5,             # Strong CC preference
-                "GG": 1.2,             # Moderate GG preference
-                "CG": 1.2, "GC": 1.2,  # Moderate CpG preference
-                "CT": 1.1, "TC": 1.1   # Slight pyrimidine preference
+                "CC": 8.0,             # Extremely strong CC preference
+                "C": 4.5,              # Very strong single C preference
+                "CG": 3.5, "GC": 3.5,  # Very strong CpG preference
+                "CT": 2.8, "TC": 2.8,  # Strong pyrimidine preference
+                "GG": 1.0,             # No GG preference
+                "AT": 0.6, "TA": 0.6,  # Reduced AT preference
+                "A": 0.7, "T": 0.7     # Reduced A/T preference
             }
         if self.dffb_motif_preference is None:
             self.dffb_motif_preference = {
@@ -761,14 +764,22 @@ class FragmentSimulator:
         context = self._get_cached_sequence_context(chrom, position)
         cache_start_pos = position // 1000 * 1000
         offset = position - cache_start_pos
-        if offset >= 10 and offset < len(context) - 10:
-            local_context = context[offset-10:offset+10]
+
+        context_size: Final[int] = 10
+        half_context: Final[int] = context_size//5
+        if offset >= half_context and offset < len(context) - half_context:
+            local_context = context[offset-half_context:offset+half_context]
         else:
-            if offset < 10:
-                local_context = context[:20] if len(context) >= 20 else context
+            if offset < context_size:
+                local_context = (
+                    context[:context_size]
+                    if len(context) >= context_size else context
+                )
             else:
-                local_context = \
-                    context[-20:] if len(context) >= 20 else context
+                local_context = (
+                    context[-context_size:]
+                    if len(context) >= context_size else context
+                )
 
         if len(local_context) == 0:
             return 1.0  # no sequence context available
