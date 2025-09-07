@@ -759,8 +759,8 @@ class FragmentSimulator:
         context.
         """
         context = self._get_cached_sequence_context(chrom, position)
-        cache_key = (chrom, position // 1000 * 1000)
-        offset = position - cache_key[1]
+        cache_start_pos = position // 1000 * 1000
+        offset = position - cache_start_pos
         if offset >= 10 and offset < len(context) - 10:
             local_context = context[offset-10:offset+10]
         else:
@@ -1017,12 +1017,12 @@ class FragmentSimulator:
         self, chrom: str, position: int, motif_length: int = 4
     ) -> str:
         """
-        Generate realistic end motif based on genomic sequence context and
-        nuclease preferences. Optimized with sequence caching.
+        Generate end motif based on genomic sequence context. This method
+        is deterministic and not part of the probabilistic cleavage model.
         """
         context = self._get_cached_sequence_context(chrom, position)
-        cache_key = (chrom, position // 1000 * 1000)
-        offset = position - cache_key[1]
+        cache_start_idx = position // 1000 * 1000
+        offset = position - cache_start_idx
         if offset >= motif_length and offset < len(context) - motif_length:
             base_motif = context[offset:offset + motif_length]
         else:
