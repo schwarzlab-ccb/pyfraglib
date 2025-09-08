@@ -1,0 +1,27 @@
+digraph pyfraglib_api {
+    rankdir=TB;
+    bgcolor="white";
+    node [shape=box, style=filled, fontname="Arial", fontsize=12];
+    edge [fontname="Arial", fontsize=10, color=black];
+
+    Fragment [fillcolor=lightcyan, shape=record,
+             label="Fragment|• chrom: str\l• start_pos: int\l• end_pos: int\l• length: int\l• end5p: str\l• end3p: str\l• is_mutated: bool\l• is_bogus: bool\l|\l• from_bam() [static]\l• utility methods\l"];
+
+    FragmentList [fillcolor=lightgreen, shape=record,
+                 label="FragmentList|• fragments: List[Fragment]\l• sample_name: str\l|• to_frag_file()\l• __iter__()\l• utility methods\l"];
+
+    FragmentCollection [fillcolor=lightpink, shape=record,
+                       label="FragmentCollection|• fragment_lists: Dict[str, FragmentList]\l• sample_names: List[str]\l|• add_fragment_list()\l• __iter__()\l• utility methods\l"];
+
+    FragFile [fillcolor=lightyellow, shape=record,
+             label="FragFile|• file_path: str\l|• load()\l• save()\l• __iter__()\l• get_fragment_list()\l"];
+
+    FragmentList -> Fragment [label="composes", penwidth=2];
+    FragmentCollection -> FragmentList [label="composes", penwidth=2];
+    FragFile -> Fragment [label="deserializes", style=dashed, penwidth=2];
+    FragFile -> FragmentList [label="deserializes", style=dashed, penwidth=2];
+
+    Fragment -> FragmentList [label="from_bam()", style=bold, penwidth=2];
+    Fragment -> FragFile [label="serializes", style=dotted, penwidth=2];
+    FragmentList -> FragFile [label="serializes", style=dotted, penwidth=2];
+}
