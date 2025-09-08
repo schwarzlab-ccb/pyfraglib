@@ -12,11 +12,11 @@
     "di_std": 50,
     "mono_fraction": 0.75,
     "mono_skew": -5,
-    "periodicity_amplitude": 1.0
+    "periodicity_amplitude": 0.2
   },
   "nuclease_params": {
-    "dnase1_activity": 2.0,
-    "dnase1l3_activity": 0.1,
-    "dffb_activity": 5.0
+    "dnase1_activity": 0.5,
+    "dnase1l3_activity": 8.0,
+    "dffb_activity": 0.5
   }
 }
