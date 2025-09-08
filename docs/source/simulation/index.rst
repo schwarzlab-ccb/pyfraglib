@@ -191,7 +191,7 @@ where :math:`k \in \{\text{DNase1}, \text{DNase1L3}, \text{DFFB}\}`, :math:`A_k`
 **DFFB** combines sequence preferences with nucleosome linker preference:
 
 .. math::
-   P_{\text{DFFB}}(i) = \left[\prod_{m} \left(1 + (\text{pref}_m - 1) \times \text{freq}_m(s_i)\right)\right] \times \left(2.0 - F_{\text{nucleosome}}(i)\right)
+   P_{\text{DFFB}}(i) = \left[\prod_{m} \left(1 + (\text{pref}_m - 1) \times \text{freq}_m(s_i)\right)\right] \times \left(0.5 + 1.5 \times F_{\text{nucleosome}}(i)\right)
 
 where :math:`m` represents different motifs (e.g., "CC", "AT", "A", "T"), :math:`\text{pref}_m` is the preference value for motif :math:`m` (>1.0 favored, <1.0 disfavored), :math:`\text{freq}_m(s_i)` is the frequency/occurrence of motif :math:`m` in the local sequence context :math:`s_i`, :math:`s_i` is the 20bp sequence window centered at position :math:`i`. Transcription factor binding sites provide protection from nuclease cleavage:
 
