@@ -146,11 +146,12 @@ TISSUE_PROFILES = {
         name="hematopoietic",
         fragment_size_distribution={
             "mean": 167, "std": 10, "mono_fraction": 0.85,
-            "di_mean": 2*167, "di_std": 30
+            "di_mean": 2*167, "di_std": 30, "mono_skew": -5,
+            "periodicity_amplitude": 0.8
         },
         nuclease_activities={
-            "dnase1_activity": 1.2,  # Higher due to open chromatin
-            "dnase1l3_activity": 1.3,  # High baseline cfDNA nuclease
+            "dnase1_activity": 2.0,  # Higher due to open chromatin
+            "dnase1l3_activity": 8.0,  # High baseline cfDNA nuclease
             "dffb_activity": 0.2      # Low apoptotic activity
         },
         chromatin_beta_params=(3.5, 3.5)  # Balanced, accessible chromatin
@@ -159,12 +160,13 @@ TISSUE_PROFILES = {
         name="liver",
         fragment_size_distribution={
             "mean": 165, "std": 12, "mono_fraction": 0.80,
-            "di_mean": 2*165, "di_std": 35
+            "di_mean": 2*165, "di_std": 35, "mono_skew": -5,
+            "periodicity_amplitude": 0.8
         },
         nuclease_activities={
             "dnase1_activity": 0.8,   # Lower due to compact chromatin
-            "dnase1l3_activity": 1.4,  # High methylation-enhanced activity
-            "dffb_activity": 0.5      # Moderate tissue damage
+            "dnase1l3_activity": 6.0,  # High methylation-enhanced activity
+            "dffb_activity": 1.5      # Moderate tissue damage
         },
         chromatin_beta_params=(5.0, 2.5)  # Compact, well-organized chromatin
     ),
@@ -172,12 +174,13 @@ TISSUE_PROFILES = {
         name="tumor",
         fragment_size_distribution={
             "mean": 150, "std": 18, "mono_fraction": 0.92,
-            "di_mean": 2*150, "di_std": 30
+            "di_mean": 2*150, "di_std": 30, "mono_skew": -4,
+            "periodicity_amplitude": 0.1
         },
         nuclease_activities={
-            "dnase1_activity": 1.4,   # Very high due to open chromatin
-            "dnase1l3_activity": 0.9,  # Reduced due to lower methylation
-            "dffb_activity": 2.0      # High apoptotic/necrotic activity
+            "dnase1_activity": 2.5,   # High due to open chromatin
+            "dnase1l3_activity": 0.5,  # Reduced due to lower methylation
+            "dffb_activity": 5.0      # Very high apoptotic/necrotic activity
         },
         chromatin_beta_params=(2.0, 5.0)  # Very open, disrupted chromatin
     )
@@ -406,7 +409,11 @@ class TissueMixtureSimulator(FragmentSimulator):
             "std": tissue.fragment_size_distribution["std"],
             "di_mean": tissue.fragment_size_distribution["di_mean"],
             "di_std": tissue.fragment_size_distribution["di_std"],
-            "mono_fraction": tissue.fragment_size_distribution["mono_fraction"]
+            "mono_fraction":
+                tissue.fragment_size_distribution["mono_fraction"],
+            "mono_skew": tissue.fragment_size_distribution["mono_skew"],
+            "periodicity_amplitude":
+                tissue.fragment_size_distribution["periodicity_amplitude"],
         }
 
         fragments = tissue_simulator.simulate_fragments(
