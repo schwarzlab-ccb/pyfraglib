@@ -119,19 +119,21 @@ def create_argparser() -> argparse.ArgumentParser:
         via argparse's subparsers). Subcommands have a bunch of additional, but
         individual options which determine their behavior only.
     """
+    parent_parser: argparse.ArgumentParser = \
+        argparse.ArgumentParser(add_help=False)
+    parent_parser.add_argument(
+        "-o", "--out-dir", type=str, dest="out_dir", default="pyfrag_out",
+        help="Directory that output is saved to. The type of output depends "
+        "on the subcommand. Dir is created if it does not exist.")
+    parent_parser.add_argument(
+        "-v", "--verbose", action="store_true", dest="is_verbose",
+        default=False, help="Set log level so that debugging info is printed.")
+
     argparser: argparse.ArgumentParser = argparse.ArgumentParser(
         prog="pyfrag", description="Use a subset of `pyfraglib's "
         "capabilities from the command line.",
         epilog="{}. Licensed under GPLv3. See repository at `{}' for more "
         "info.".format(version_string, pyfraglib.__repo_url__))
-    argparser.add_argument(
-        "-o", "--out-dir", type=str, dest="out_dir", default="pyfrag_out",
-        help="Directory that output is saved to. The type of output depends "
-        "on the subcommand. Dir is created if it does not exist.")
-    argparser.add_argument(
-        "-v", "--verbose", action="store_true", dest="is_verbose",
-        default=False, help="Set log level so that debugging info is printed.")
-
     subparsers: argparse._SubParsersAction[argparse.ArgumentParser] = \
         argparser.add_subparsers(
             required=True, help="Select from a number of utilities. "
@@ -142,7 +144,9 @@ def create_argparser() -> argparse.ArgumentParser:
 
     argparser_extract: argparse.ArgumentParser = subparsers.add_parser(
         "extract", help="Extract fragment information from BAM file(s). "
-        "Results are written to disk in the `.frag' file format.")
+        "Results are written to disk in the `.frag' file format.",
+        parents=[parent_parser]
+    )
     argparser_extract.add_argument(
         "-d", "--bam-dir", type=str, dest="bam_dir", required=False,
         help="Input BAM files to be analyzed in batch mode. Must not be "
@@ -165,7 +169,7 @@ def create_argparser() -> argparse.ArgumentParser:
 
     argparser_stats: argparse.ArgumentParser = subparsers.add_parser(
         "stats", help="Given (a) `.frag' file(s), extract descriptive "
-        "statistics and save them to disk.")
+        "statistics and save them to disk.", parents=[parent_parser])
     argparser_stats.add_argument(
         "-d", "--frag-dir", type=str, dest="frag_dir", required=False,
         help="Input FRAG files to be analyzed in batch mode. Must not be "
@@ -182,7 +186,8 @@ def create_argparser() -> argparse.ArgumentParser:
 
     argparser_lengths: argparse.ArgumentParser = subparsers.add_parser(
         "lengths", help="Given (a) `.frag' file(s), read fragment length "
-        "data and create a number of plots that are saved to disk.")
+        "data and create a number of plots that are saved to disk.",
+        parents=[parent_parser])
     argparser_lengths.add_argument(
         "-d", "--frag-dir", type=str, dest="frag_dir", required=False,
         help="Input FRAG files to be analyzed in batch mode. Must not be "
@@ -199,7 +204,8 @@ def create_argparser() -> argparse.ArgumentParser:
 
     argparser_scores: argparse.ArgumentParser = subparsers.add_parser(
         "scores", help="Given (a) `.frag' file(s), calculate a variety of "
-        "fragmentomics scores and save the results to disk.")
+        "fragmentomics scores and save the results to disk.",
+        parents=[parent_parser])
     argparser_scores.add_argument(
         "-d", "--frag-dir", type=str, dest="frag_dir", required=False,
         help="Input FRAG files to be analyzed in batch mode. Must not be "
@@ -220,7 +226,8 @@ def create_argparser() -> argparse.ArgumentParser:
 
     argparser_simulate: argparse.ArgumentParser = subparsers.add_parser(
         "simulate", help="Simulate synthetic cfDNA fragments based on "
-        "biological parameters. Results are written to a `.frag' file.")
+        "biological parameters. Results are written to a `.frag' file.",
+        parents=[parent_parser])
     argparser_simulate.add_argument(
         "-c", "--config", type=str, dest="config_file", required=True,
         help="JSON configuration file containing simulation parameters. "
