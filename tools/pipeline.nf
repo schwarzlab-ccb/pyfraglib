@@ -67,7 +67,7 @@ process pyfraglib_extract {
     conda activate !{params.conda_env}
     set -eu
 
-    pyfrag.py -o . extract -f !{bam_path} --with-vcf
+    pyfrag.py extract -o . -f !{bam_path} --with-vcf
     """
 }
 
@@ -94,7 +94,7 @@ process pyfraglib_stats {
     conda activate !{params.conda_env}
     set -eu
 
-    pyfrag.py -o . stats -f !{frag_file}
+    pyfrag.py stats -o . -f !{frag_file}
     """
 }
 
@@ -121,7 +121,7 @@ process pyfraglib_lengths {
     conda activate !{params.conda_env}
     set -eu
 
-    pyfrag.py -o . lengths -f !{frag_file} -c !{params.gmm_config_file}
+    pyfrag.py lengths -o . -f !{frag_file} -c !{params.gmm_config_file}
     """
 }
 
@@ -148,7 +148,7 @@ process pyfraglib_scores {
     conda activate !{params.conda_env}
     set -eu
 
-    pyfrag.py -o . scores -f !{frag_file} -b !{params.bed_file}
+    pyfrag.py scores -o . -f !{frag_file} -b !{params.bed_file}
     """
 }
 

@@ -24,9 +24,9 @@ fi
 
 BASE_NAME=DED005_unmutated_only_0.01
 
-pyfrag.py -o frag_out/ extract -f data/"${BASE_NAME}".bam --with-vcf &&
-pyfrag.py -o plot_out/ stats -f frag_out/"${BASE_NAME}".frag &&
-pyfrag.py -o plot_out/ lengths -f frag_out/"${BASE_NAME}".frag -c \
+pyfrag.py extract -o frag_out/ -f data/"${BASE_NAME}".bam --with-vcf &&
+pyfrag.py stats -o plot_out/ -f frag_out/"${BASE_NAME}".frag &&
+pyfrag.py lengths -o plot_out/ -f frag_out/"${BASE_NAME}".frag -c \
     configs/gmm_3.json &&
-pyfrag.py -o scores_out/ scores -f frag_out/"${BASE_NAME}".frag -b \
+pyfrag.py scores -o scores_out/ -f frag_out/"${BASE_NAME}".frag -b \
     data/ref/loci_covered_by_panel.bed.gz
