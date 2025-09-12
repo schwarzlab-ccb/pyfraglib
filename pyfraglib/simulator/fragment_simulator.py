@@ -110,6 +110,7 @@ from scipy.stats import skewnorm
 from typing import Final
 from pyfraglib.fragment import Fragment, FragmentList
 from pyfraglib.core import fail
+from pyfraglib.math import find_skew_normal_mean_from_mode
 
 LOGGER_NAME: Final[str] = "pyfraglib.simulator"
 
@@ -969,14 +970,11 @@ class FragmentSimulator:
 
         sizes: npt.NDArray[np.float64]
 
-        # Adjust loc so the mode (peak) is approximately at mono_mean
-        delta = mono_skew / np.sqrt(1 + mono_skew**2)  # type: ignore
-        mode_offset = mono_std * delta * np.sqrt(2/np.pi)  # type: ignore
-        adjusted_loc = mono_mean + size_shift - mode_offset  # type: ignore
-
+        adjusted_loc, scale = find_skew_normal_mean_from_mode(
+            mono_mean + size_shift, mono_skew, mono_std**2
+        )
         mono_sizes: npt.NDArray[np.float64] = skewnorm.rvs(  # type: ignore
-            a=mono_skew, loc=adjusted_loc,  # type: ignore
-            scale=mono_std, size=num_mono
+            a=mono_skew, loc=adjusted_loc, scale=scale, size=num_mono
         )
         di_sizes: npt.NDArray[np.float64] = np.random.normal(
             di_mean+size_shift, di_std, num_di

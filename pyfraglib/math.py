@@ -30,11 +30,67 @@ import numpy.typing as npt
 
 from pyfraglib.core import fail
 from pyfraglib import get_logger
-from scipy.optimize import LinearConstraint, minimize
-from scipy.stats import norm, ks_1samp, wasserstein_distance, entropy
+from scipy.optimize import LinearConstraint, minimize, minimize_scalar
+from scipy.stats import norm, ks_1samp, wasserstein_distance, entropy, \
+                        skewnorm
 from typing import Final
 
 LARGE_DATASET_THRESHOLD: Final[int] = 1_000_000
+
+
+def find_skew_normal_mean_from_mode(
+    target_mode: float, skewness: float, variance: float
+) -> tuple[float, float]:
+    """
+    Find the mean (location parameter) of a skew normal distribution
+    given the desired mode, skewness parameter alpha, and scale (not
+    variance!).
+
+    Parameters:
+    -----------
+    target_mode : float
+        Desired mode of the distribution
+    skewness : float
+        Skewness parameter (shape parameter, sometimes called alpha)
+    variance : float
+        Desired variance of the distribution
+
+    Returns:
+    --------
+    tuple: (location_param, scale_param)
+        location_param: the location parameter found
+        scale_param: the scale parameter used
+    """
+    delta: float = float(
+        skewness / np.sqrt(1 + skewness**2)  # type: ignore
+    )
+    scale: float = float(
+        np.sqrt(variance / (1 - 2 * delta**2 / np.pi))  # type: ignore
+    )
+
+    def _mode_objective(loc: float) -> float:
+        """
+        Objective function is squared difference between actual and
+        target modes.
+        """
+        dist = skewnorm(a=skewness, loc=loc, scale=scale)
+
+        def _neg_pdf(x: float) -> float:
+            return float(-dist.pdf(x))
+
+        result = minimize_scalar(
+            _neg_pdf, bounds=(loc-3*scale, loc+3*scale),  # type: ignore
+            method="bounded"
+        )
+        actual_mode: float = float(result.x)
+        return (actual_mode - target_mode)**2
+
+    result = minimize_scalar(
+        _mode_objective,  # type: ignore
+        bounds=(target_mode-5*scale, target_mode+5*scale), method="bounded"
+    )
+    optimal_loc: float = float(result.x)
+    return optimal_loc, scale
 
 
 def gaussian_mixture(

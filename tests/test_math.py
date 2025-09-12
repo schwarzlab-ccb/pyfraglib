@@ -20,10 +20,13 @@ import numpy as np
 import numpy.typing as npt
 
 from unittest.mock import patch, MagicMock
+from scipy.optimize import minimize_scalar
+from scipy.stats import skewnorm
 from pyfraglib.math import gaussian_mixture, mixture_cdf, \
                            mixture_cdf_wrapper, negative_log_likelihood, \
                            read_gmm_config, fit_gmm, \
                            jensen_shannon_divergence, goodness_of_fit_stats, \
+                           find_skew_normal_mean_from_mode, \
                            plot_gmm, hessian, LARGE_DATASET_THRESHOLD
 
 
@@ -273,6 +276,73 @@ class TestGMMFitting(unittest.TestCase):
         hess = hessian(params, n, data)
         self.assertEqual(hess.shape, (3, 3))
         self.assertTrue(np.all(hess == 0))  # type: ignore
+
+
+class TestSkewNormalFitting(unittest.TestCase):
+    """Test fitting of skew normal parameters."""
+
+    def test_skew_normal_fitting_no_alpha(self) -> None:
+        """Test correct fitting with no alpha."""
+        target_mode: float = 167
+        alpha: float = 0
+        variance: float = 300
+
+        def _neg_pdf(x: float) -> float:
+            return float(-dist.pdf(x))
+
+        loc, scale = find_skew_normal_mean_from_mode(
+            target_mode, alpha, variance
+        )
+        dist = skewnorm(a=alpha, loc=loc, scale=scale)
+        result = minimize_scalar(
+            _neg_pdf,  # type: ignore
+            bounds=(loc-3*scale, loc+3*scale), method="bounded"
+        )
+
+        self.assertAlmostEqual(float(result.x), target_mode)
+        self.assertAlmostEqual(float(dist.var()), variance)
+
+    def test_skew_normal_fitting_low_alpha(self) -> None:
+        """Test correct fitting with low alpha."""
+        target_mode: float = 167
+        alpha: float = -1
+        variance: float = 300
+
+        def _neg_pdf(x: float) -> float:
+            return float(-dist.pdf(x))
+
+        loc, scale = find_skew_normal_mean_from_mode(
+            target_mode, alpha, variance
+        )
+        dist = skewnorm(a=alpha, loc=loc, scale=scale)
+        result = minimize_scalar(
+            _neg_pdf,  # type: ignore
+            bounds=(loc-3*scale, loc+3*scale), method="bounded"
+        )
+
+        self.assertAlmostEqual(float(result.x), target_mode)
+        self.assertAlmostEqual(float(dist.var()), variance)
+
+    def test_skew_normal_fitting_high_alpha(self) -> None:
+        """Test correct fitting with high alpha."""
+        target_mode: float = 167
+        alpha: float = -9
+        variance: float = 300
+
+        def _neg_pdf(x: float) -> float:
+            return float(-dist.pdf(x))
+
+        loc, scale = find_skew_normal_mean_from_mode(
+            target_mode, alpha, variance
+        )
+        dist = skewnorm(a=alpha, loc=loc, scale=scale)
+        result = minimize_scalar(
+            _neg_pdf,  # type: ignore
+            bounds=(loc-3*scale, loc+3*scale), method="bounded"
+        )
+
+        self.assertAlmostEqual(float(result.x), target_mode)
+        self.assertAlmostEqual(float(dist.var()), variance)
 
 
 class TestDivergenceMetrics(unittest.TestCase):
