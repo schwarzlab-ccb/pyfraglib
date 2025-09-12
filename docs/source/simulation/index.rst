@@ -80,14 +80,14 @@ Since the API is still under development, this specification might slightly chan
 Probabilistic Fragment Size Model
 ----------------------------------
 
-The simulator generates fragment size distributions by using a simplified, but biology-oriented probabilistic model. That fragment size model combines mono-nucleosomal and di-nucleosomal components with characteristic periodicity patterns observed in cfDNA.
+The simulator generates fragment size distributions by using a simplified, but biology-oriented probabilistic model. That fragment size model combines mono-, di-, and tri-nucleosomal components with characteristic periodicity patterns observed in cfDNA.
 
 The fragment size distribution is modeled as a mixture of skewed and normal components:
 
 .. math::
-   L \sim f_{\text{mono}} \cdot \text{SkewNormal}(\text{loc}_{\text{adj}}, \sigma_{\text{mono}}^2, \alpha_{\text{mono}}) + f_{\text{di}} \cdot \mathcal{N}(\mu_{\text{di}} + \Delta, \sigma_{\text{di}}^2)
+   L \sim f_{\text{mono}} \cdot \text{SkewNormal}(\text{loc}_{\text{adj}}, \sigma_{\text{mono}}^2, \alpha_{\text{mono}}) + f_{\text{di}} \cdot \mathcal{N}(\mu_{\text{di}} + \Delta, \sigma_{\text{di}}^2) + f_{\text{tri}} \cdot \mathcal{N}(\mu_{\text{tri}} + \Delta, \sigma_{\text{tri}}^2
 
-where :math:`L` is the fragment length, :math:`f_{\text{mono}}` and :math:`f_{\text{di}}` are the mixing fractions with :math:`f_{\text{mono}} + f_{\text{di}} = 1.0`, and :math:`\alpha_{\text{mono}}` is the skewness parameter for the mono-nucleosomal peak (negative values create left-skewed distributions).
+where :math:`L` is the fragment length, :math:`f_{\text{mono}}`, :math:`f_{\text{di}}`, and :math:`f_{\text{tri}}` are the mixing fractions with :math:`f_{\text{mono}} + f_{\text{di}} + f_{\text{tri}} = 1.0`, and :math:`\alpha_{\text{mono}}` is the skewness parameter for the mono-nucleosomal peak (negative values create left-skewed distributions).
 
 **Location Parameter Adjustment:** To ensure the peak (mode) of the skew-normal distribution occurs at the user-configured mean :math:`\mu_{\text{mono}}`, the location parameter is automatically adjusted:
 
@@ -98,7 +98,7 @@ where :math:`L` is the fragment length, :math:`f_{\text{mono}}` and :math:`f_{\t
    \text{loc}_{\text{adj}} &= \mu_{\text{mono}} + \Delta - \text{mode}_{\text{offset}}
    \end{aligned}
 
-This adjustment ensures that when users specify a mono-nucleosomal mean of 167 bp, the distribution peak appears at approximately 167 bp rather than having the peak shifted due to skewness.
+This adjustment ensures that when users specify a mono-nucleosomal mean of 167 bp, the distribution peak appears at approximately 167 bp rather than having the peak heavily shifted due to skewness.
 
 **Default Parameters:**
 
@@ -109,8 +109,11 @@ This adjustment ensures that when users specify a mono-nucleosomal mean of 167 b
    \alpha_{\text{mono}} &= -3.0 \text{ (left-skewed)} \\
    \mu_{\text{di}} &= 334 \text{ bp (di-nucleosomal peak)} \\
    \sigma_{\text{di}} &= 15 \text{ bp} \\
-   f_{\text{mono}} &= 0.85 \text{ (mono-nucleosomal fraction)} \\
-   f_{\text{di}} &= 0.15 \text{ (di-nucleosomal fraction)}
+   \mu_{\text{tri}} &= 501 \text{ bp (di-nucleosomal peak)} \\
+   \sigma_{\text{tri}} &= 35 \text{ bp} \\
+   f_{\text{mono}} &= 0.80 \text{ (mono-nucleosomal fraction)} \\
+   f_{\text{di}} &= 0.15 \text{ (di-nucleosomal fraction)} \\
+   f_{\text{tri}} &= 0.15 \text{ (di-nucleosomal fraction)}
    \end{aligned}
 
 The size shift parameter :math:`\Delta` allows modeling changes in fragment size distributions observed e.g. in cancer, where an increase in short fragments (with :math:`\Delta < 0`) can be observed.

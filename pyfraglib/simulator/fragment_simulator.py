@@ -475,10 +475,13 @@ class FragmentSimulator:
     """
     MONO_NUC_MEAN: Final[int] = 167
     MONO_NUC_STD: Final[int] = 10
-    MONO_FRACTION: Final[float] = 0.85
+    MONO_FRACTION: Final[float] = 0.80
     MONO_SKEW: Final[float] = -3.0
     DI_NUC_MEAN: Final[int] = 167*2
     DI_NUC_STD: Final[int] = 15
+    DI_FRACTION: Final[float] = 0.15
+    TRI_NUC_MEAN: Final[int] = 167*3
+    TRI_NUC_STD: Final[int] = 35
     PERIODICITY_AMPLITUDE: Final[float] = 10.0
     MIN_FRAGMENT_SIZE: Final[int] = 40
     MAX_FRAGMENT_SIZE: Final[int] = 900
@@ -924,7 +927,10 @@ class FragmentSimulator:
             - "mono_fraction": mononucleosomal fraction
             - "di_mean": dinucleosomal mean
             - "di_std": dinucleosomal standard deviation
-            - "size_shift": size shift (applied to both peaks)
+            - "di_fraction": dinucleosomal fraction
+            - "tri_mean": trinucleosomal mean
+            - "tri_std": trinucleosomal standard deviation
+            - "size_shift": size shift (applied to all peaks)
             - "periodicity_amplitude": strength of 10bp periodicity modulation
         """
         if fragment_size_params:
@@ -934,6 +940,9 @@ class FragmentSimulator:
             mono_skew = fragment_size_params.get("mono_skew", self.MONO_SKEW)
             di_mean = fragment_size_params.get("di_mean", mono_mean*2)
             di_std = fragment_size_params.get("di_std", mono_std)
+            di_fraction = fragment_size_params.get("di_fraction", 0.15)
+            tri_mean = fragment_size_params.get("tri_mean", mono_mean*3)
+            tri_std = fragment_size_params.get("tri_std", mono_std)
             size_shift = fragment_size_params.get("size_shift", 0)
             periodicity_amplitude = fragment_size_params.get(
                 "periodicity_amplitude", self.PERIODICITY_AMPLITUDE
@@ -942,14 +951,21 @@ class FragmentSimulator:
             mono_mean = self.MONO_NUC_MEAN
             mono_std = self.MONO_NUC_STD
             mono_skew = self.MONO_SKEW
+            mono_fraction = self.MONO_FRACTION
             di_mean = self.DI_NUC_MEAN
             di_std = self.DI_NUC_STD
-            mono_fraction = self.MONO_FRACTION
+            di_fraction = self.DI_FRACTION
+            tri_mean = self.TRI_NUC_MEAN
+            tri_std = self.TRI_NUC_STD
             size_shift = 0
             periodicity_amplitude = self.PERIODICITY_AMPLITUDE
 
+        if mono_fraction + di_fraction > 1.0:
+            fail("mono- and di-nucleosomal fraction summing to >1")
+
         num_mono: int = int(num_fragments * mono_fraction)
-        num_di: int = num_fragments - num_mono
+        num_di: int = int(num_fragments * di_fraction)
+        num_tri: int = num_fragments - num_mono - num_di
 
         sizes: npt.NDArray[np.float64]
 
@@ -965,7 +981,12 @@ class FragmentSimulator:
         di_sizes: npt.NDArray[np.float64] = np.random.normal(
             di_mean+size_shift, di_std, num_di
         )
-        sizes = np.concatenate([mono_sizes, di_sizes])  # type: ignore
+        tri_sizes: npt.NDArray[np.float64] = np.random.normal(
+            tri_mean+size_shift, tri_std, num_tri
+        )
+        sizes = np.concatenate(
+            [mono_sizes, di_sizes, tri_sizes]  # type: ignore
+        )
 
         sizes = self._add_periodicity(sizes, mono_mean, periodicity_amplitude)
 
