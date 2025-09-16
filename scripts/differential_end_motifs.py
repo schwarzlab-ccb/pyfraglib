@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 Differential End Motif Analysis
-==============================
+===============================
 
 This script performs differential analysis of fragment end motifs between two
 groups of cfDNA samples. It identifies motifs that are significantly
