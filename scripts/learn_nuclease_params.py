@@ -31,6 +31,7 @@ import numpy as np
 import pandas as pd
 
 from typing import Final, NoReturn
+from functools import partial
 from pyfraglib import FragmentSimulator, NucleaseProfile, FragmentList
 from pyfraglib.simulator.fragment_simulator import SequenceContextGenerator
 from pyfraglib.core import detect_cpus
@@ -40,9 +41,6 @@ version_string: Final[str] = \
         pyfraglib.__version__, sys.version.split(" ")[0]
     )
 LOGGER_NAME: Final[str] = "learn_nuclease_params"
-
-FASTA_PATH: str = ""
-OBSERVED_MOTIFS: dict[str, float] = {}
 
 
 def fail(msg: str, logger: logging.Logger) -> NoReturn:
@@ -95,7 +93,9 @@ def load_observed_motifs(
     return motif_freqs
 
 
-def simulate_motifs(params: dict[str, object]) -> dict[str, float]:
+def simulate_motifs(
+    params: dict[str, object], fasta_path: str
+) -> dict[str, float]:
     """
     Simulate fragment 5' end motifs given nuclease parameters.
 
@@ -144,12 +144,12 @@ def simulate_motifs(params: dict[str, object]) -> dict[str, float]:
         dffb_motif_preference=dffb_motif_preference
     )
 
-    seq_gen: SequenceContextGenerator = SequenceContextGenerator(FASTA_PATH)
+    seq_gen: SequenceContextGenerator = SequenceContextGenerator(fasta_path)
     try:
         simulator: FragmentSimulator = FragmentSimulator(seq_gen)
         fragments: FragmentList = simulator.simulate_fragments(
             chrom="1", start=100_000, end=200_000_000,
-            num_fragments=20000, tissue_type="healthy",
+            num_fragments=50000, tissue_type="healthy",
             nuclease_profile=nuclease_profile
         )
 
@@ -189,18 +189,22 @@ def calculate_distance(
     return float(np.sqrt(distance))  # type: ignore
 
 
-def abc_model(params: dict[str, object]) -> dict[str, float]:
+def abc_model(
+    params: dict[str, object], fasta_path: str
+) -> dict[str, float]:
     """
     ABC model function that simulates motifs given parameters.
     """
-    return simulate_motifs(params)
+    return simulate_motifs(params, fasta_path)
 
 
-def abc_distance(simulated: dict[str, float]) -> float:
+def abc_distance(
+    simulated: dict[str, float], observed: dict[str, float]
+) -> float:
     """
     ABC distance function that compares simulated to observed data.
     """
-    return calculate_distance(simulated, OBSERVED_MOTIFS)
+    return calculate_distance(simulated, observed)
 
 
 def optimize(
@@ -216,11 +220,8 @@ def optimize(
         output_dir: Directory for output files
         logger: Logger instance
     """
-    global FASTA_PATH, OBSERVED_MOTIFS
-
-    OBSERVED_MOTIFS = load_observed_motifs(motif_data_path, logger)
-    FASTA_PATH = fasta_path
-    logger.info(f"Loaded {len(OBSERVED_MOTIFS)} motifs from observed data")
+    observed_motifs = load_observed_motifs(motif_data_path, logger)
+    logger.info(f"Loaded {len(observed_motifs)} motifs from observed data")
 
     prior = pyabc.Distribution(  # type: ignore
         dnase1_activity=(
@@ -307,17 +308,17 @@ def optimize(
     )
 
     abc = pyabc.ABCSMC(  # type: ignore
-        models=abc_model,
+        models=partial(abc_model, fasta_path=fasta_path),
         parameter_priors=prior,  # type: ignore
         distance_function=abc_distance,
-        population_size=100,
+        population_size=10,
         transitions=pyabc.LocalTransition(k_fraction=0.3),  # type: ignore
         sampler=sampler  # type: ignore
     )
 
     db_path = os.path.join(output_dir, "abc_results.db")
     logger.info(f"Initializing ABC database: {db_path}")
-    history = abc.new(f"sqlite:///{db_path}", OBSERVED_MOTIFS)  # type: ignore
+    history = abc.new(f"sqlite:///{db_path}", observed_motifs)  # type: ignore
 
     logger.info("Running ABC-SMC inference...")
     history = abc.run(  # type: ignore
@@ -326,26 +327,24 @@ def optimize(
         min_acceptance_rate=0.01  # Stop if acceptance rate too low
     )
 
-    logger.info("ABC-SMC completed.")
     df: pd.DataFrame
     df, w = history.get_distribution()  # type: ignore
     results_path = os.path.join(output_dir, "abc_results.csv")
     df.to_csv(results_path, index=False)
     logger.info(f"Results saved to {results_path}")
 
-    print("\n=== ABC-SMC Results Summary ===")
-    print(f"Final population size: {len(df)}")
-    print("Best parameters (highest weight):")
-    best_idx = w.argmax()  # type: ignore
-    best_params = df.iloc[best_idx]  # type: ignore
-    for param, value in best_params.items():  # type: ignore
-        print(f"  {param}: {value:.4f}")  # type: ignore
-    print("\nWeighted parameter means:")
-    for col in df.columns:
-        weighted_mean = np.average(df[col], weights=w)  # type: ignore
-        print(f"  {col}: {weighted_mean:.4f}")  # type: ignore
-    print(f"\nDetailed results available in: {results_path}")
-    print(f"ABC database available in: {db_path}")
+    import pyabc.visualization as vis  # type: ignore
+    import matplotlib.pyplot as plt
+
+    fig, ax = plt.subplots()
+    for param in df.columns:
+        vis.plot_kde_1d_highlevel(  # type: ignore
+            history, param=param,  # type: ignore
+            xmin=min(df[param]), xmax=max(df[param]),  # type: ignore
+            ax=ax
+        )
+    ax.legend()
+    fig.savefig(os.path.join(output_dir, "param_evolution.png"))
 
 
 def create_argparser() -> argparse.ArgumentParser:
