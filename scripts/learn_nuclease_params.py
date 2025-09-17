@@ -311,27 +311,61 @@ def optimize(
         models=partial(abc_model, fasta_path=fasta_path),
         parameter_priors=prior,  # type: ignore
         distance_function=abc_distance,
-        population_size=10,
+        population_size=200,
         transitions=pyabc.LocalTransition(k_fraction=0.3),  # type: ignore
         sampler=sampler  # type: ignore
     )
 
     db_path = os.path.join(output_dir, "abc_results.db")
     logger.info(f"Initializing ABC database: {db_path}")
-    history = abc.new(f"sqlite:///{db_path}", observed_motifs)  # type: ignore
+    history: pyabc.History = abc.new(  # type: ignore
+        f"sqlite:///{db_path}", observed_motifs
+    )
 
     logger.info("Running ABC-SMC inference...")
     history = abc.run(  # type: ignore
-        minimum_epsilon=0.1,  # Stop when distance < 0.1
-        max_nr_populations=10,  # Maximum 10 generations
-        min_acceptance_rate=0.01  # Stop if acceptance rate too low
+        minimum_epsilon=0.01,
+        max_nr_populations=100,
+        min_acceptance_rate=0.01
     )
+    logger.info(f"Run results saved to ABC database: {db_path}")
 
+    logger.info(f"Saving posterior estimates and plots to {output_dir}")
+    save_posterior_estimates(history, output_dir)  # type: ignore
+    visualize_history(history, output_dir)  # type: ignore
+
+
+def save_posterior_estimates(history: object, output_dir: str) -> None:
+    """
+    Calculate posterior estimates for mean and median from ABC-SMC run results
+    and save them to disk.
+    """
     df: pd.DataFrame
     df, w = history.get_distribution()  # type: ignore
-    results_path = os.path.join(output_dir, "abc_results.csv")
-    df.to_csv(results_path, index=False)
-    logger.info(f"Results saved to {results_path}")
+
+    estimates: dict[str, dict[str, float]] = {}
+    col: str
+    for col in df.columns:
+        mean: float = float(np.average(df[col], weights=w))  # type: ignore
+        sorted_idx = np.argsort(df[col])  # type: ignore
+        cum_weights = np.cumsum(w[sorted_idx])  # type: ignore
+        median: float = float(
+            df[col].iloc[  # type: ignore
+                sorted_idx[np.searchsorted(cum_weights, 0.5)]  # type: ignore
+            ]
+        )
+        estimates[col] = {"mean": mean, "median": median}
+
+    est_df = pd.DataFrame(estimates).T
+    est_df.to_csv(os.path.join(output_dir, "abc_estimates.csv"))
+
+
+def visualize_history(history: object, output_dir: str) -> None:
+    """
+    Visualize ABC-SMC run results.
+    """
+    df: pd.DataFrame
+    df, w = history.get_distribution()  # type: ignore
 
 
 def create_argparser() -> argparse.ArgumentParser:
