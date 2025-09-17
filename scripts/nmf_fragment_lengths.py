@@ -439,8 +439,6 @@ def main() -> None:
     else:
         level = logging.INFO
     logger.setLevel(level)
-    logger.info("starting NMF fragment length analysis")
-    logger.info(version_string)
 
     n_components: int = args.n_components
     if n_components < 1:

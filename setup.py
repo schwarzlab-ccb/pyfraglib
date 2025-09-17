@@ -51,7 +51,7 @@ setup(
         "pandas==2.2.2", "intervaltree==3.1.0", "scipy==1.14.1",
         "scipy-stubs==1.14.1.4", "tqdm==4.67.0", "types-tqdm==4.67.0.20241119",
         "mypy==1.13.0", "flake8==7.1.1", "statsmodels==0.14.4",
-        "scikit-learn==1.5.2"
+        "scikit-learn==1.5.2", "pyabc==0.12.16"
     ]),
     package_data={"pyfraglib": ["py.typed"]},
     scripts=[
@@ -60,7 +60,8 @@ setup(
         "scripts/download_tss_annos.py",
         "scripts/extract_mutated_reads.py",
         "scripts/nmf_fragment_lengths.py",
-        "scripts/differential_end_motifs.py"
+        "scripts/differential_end_motifs.py",
+        "scripts/learn_nuclease_params.py"
     ],
 
     keywords=["cfDNA", "fragmentomics"],
