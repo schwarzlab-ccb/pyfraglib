@@ -333,19 +333,6 @@ def optimize(
     df.to_csv(results_path, index=False)
     logger.info(f"Results saved to {results_path}")
 
-    import pyabc.visualization as vis  # type: ignore
-    import matplotlib.pyplot as plt
-
-    fig, ax = plt.subplots()
-    for param in df.columns:
-        vis.plot_kde_1d_highlevel(  # type: ignore
-            history, param=param,  # type: ignore
-            xmin=min(df[param]), xmax=max(df[param]),  # type: ignore
-            ax=ax
-        )
-    ax.legend()
-    fig.savefig(os.path.join(output_dir, "param_evolution.png"))
-
 
 def create_argparser() -> argparse.ArgumentParser:
     """
