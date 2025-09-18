@@ -308,12 +308,15 @@ def optimize(
         n_procs=n_cores
     )
 
+    transition = pyabc.LocalTransition(  # type: ignore
+        k_fraction=0.3, scaling=0.5
+    )
     abc = pyabc.ABCSMC(  # type: ignore
         models=partial(abc_model, fasta_path=fasta_path),
         parameter_priors=prior,  # type: ignore
         distance_function=abc_distance,
         population_size=pop_size,
-        transitions=pyabc.LocalTransition(k_fraction=0.3),  # type: ignore
+        transitions=transition,  # type: ignore
         sampler=sampler  # type: ignore
     )
 
