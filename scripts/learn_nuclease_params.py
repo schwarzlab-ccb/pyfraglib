@@ -24,6 +24,7 @@ import argparse
 import logging
 import os
 import sys
+import pickle
 import pyabc  # type: ignore
 import pyfraglib
 
@@ -41,7 +42,39 @@ version_string: Final[str] = \
         pyfraglib.__version__, sys.version.split(" ")[0]
     )
 LOGGER_NAME: Final[str] = "learn_nuclease_params"
-EPS: Final[float] = 1e-8
+EPS: Final[float] = 1e-4
+
+
+def bounded_normal_prior(  # type: ignore
+    mean: float, std: float, low: float = 0.0, high: float = 2.0
+) -> pyabc.RV:
+    a, b = (low - mean) / std, (high - mean) / std
+    return pyabc.RV(  # type: ignore
+        "truncnorm", a=a, b=b, loc=mean, scale=std
+    )
+
+
+class RandomWalkTransition(pyabc.transition.Transition):  # type: ignore
+    def __init__(self, step_size: float = 0.01) -> None:
+        super().__init__()
+        self.step_size: float = step_size
+
+    def rvs(  # type: ignore
+        self, source_parameter, source_pdf_val, target_pdf_val, t, **kwargs
+    ) -> dict[str, object]:
+        """Simple random walk that doesn't depend on other particles."""
+        perturbed: dict[str, object] = {}
+        for key, val in source_parameter.items():  # type: ignore
+            noise = np.random.normal(0, val * self.step_size)  # type: ignore
+            perturbed[key] = max(val + noise, EPS)  # type: ignore
+            return perturbed
+
+    def pdf(  # type: ignore
+        self, source_parameter, target_parameter, source_pdf_val,
+        target_pdf_val, t
+    ) -> float:
+        """Return constant probability."""
+        return 1.0
 
 
 def fail(msg: str, logger: logging.Logger) -> NoReturn:
@@ -88,7 +121,7 @@ def load_observed_motifs(
         fail("No motif counts found in data", logger)
 
     motif_freqs: dict[str, float] = {
-        motif: count / total_count
+        motif: (count / total_count) * 1000
         for motif, count in motif_counts.items()
     }
     return motif_freqs
@@ -106,41 +139,66 @@ def simulate_motifs(
     Returns:
         Dict mapping motif sequences to simulated frequencies
     """
+    dnase1_cg_pref: float = \
+        max(params["dnase1_cg_pref"], EPS)  # type: ignore
+    dnase1_at_pref: float = \
+        max(params["dnase1_at_pref"], EPS)  # type: ignore
+    dnase1_aa_pref: float = \
+        max(params["dnase1_aa_pref"], EPS)  # type: ignore
     dnase1_motif_preference: dict[str, float] = {
-        "CG": max(params["dnase1_cg_pref"], EPS),  # type: ignore
-        "GC": max(params["dnase1_gc_pref"], EPS),  # type: ignore
-        "AT": max(params["dnase1_at_pref"], EPS),  # type: ignore
-        "TA": max(params["dnase1_ta_pref"], EPS),  # type: ignore
-        "AA": max(params["dnase1_aa_pref"], EPS),  # type: ignore
-        "TT": max(params["dnase1_tt_pref"], EPS)   # type: ignore
+        "CG": dnase1_cg_pref,
+        "GC": dnase1_cg_pref,
+        "AT": dnase1_at_pref,
+        "TA": dnase1_at_pref,
+        "AA": dnase1_aa_pref,
+        "TT": dnase1_aa_pref
     }
 
+    dnase1l3_cc_pref: float = \
+        max(params["dnase1l3_cc_pref"], EPS)  # type: ignore
+    dnase1l3_c_pref: float = \
+        max(params["dnase1l3_c_pref"], EPS)  # type: ignore
+    dnase1l3_cg_pref: float = \
+        max(params["dnase1l3_cg_pref"], EPS)  # type: ignore
+    dnase1l3_ct_pref: float = \
+        max(params["dnase1l3_ct_pref"], EPS)  # type: ignore
+    dnase1l3_gg_pref: float = \
+        max(params["dnase1l3_gg_pref"], EPS)  # type: ignore
+    dnase1l3_at_pref: float = \
+        max(params["dnase1l3_at_pref"], EPS)  # type: ignore
+    dnase1l3_a_pref: float = \
+        max(params["dnase1l3_a_pref"], EPS)  # type: ignore
     dnase1l3_motif_preference: dict[str, float] = {
-        "CC": max(params["dnase1l3_cc_pref"], EPS),  # type: ignore
-        "C": max(params["dnase1l3_c_pref"], EPS),    # type: ignore
-        "CG": max(params["dnase1l3_cg_pref"], EPS),  # type: ignore
-        "GC": max(params["dnase1l3_gc_pref"], EPS),  # type: ignore
-        "CT": max(params["dnase1l3_ct_pref"], EPS),  # type: ignore
-        "TC": max(params["dnase1l3_tc_pref"], EPS),  # type: ignore
-        "GG": max(params["dnase1l3_gg_pref"], EPS),  # type: ignore
-        "AT": max(params["dnase1l3_at_pref"], EPS),  # type: ignore
-        "TA": max(params["dnase1l3_ta_pref"], EPS),  # type: ignore
-        "A": max(params["dnase1l3_a_pref"], EPS),    # type: ignore
-        "T": max(params["dnase1l3_t_pref"], EPS)     # type: ignore
+        "CC": dnase1l3_cc_pref,
+        "C": dnase1l3_c_pref,
+        "CG": dnase1l3_cg_pref,
+        "GC": dnase1l3_cg_pref,
+        "CT": dnase1l3_ct_pref,
+        "TC": dnase1l3_ct_pref,
+        "GG": dnase1l3_gg_pref,
+        "AT": dnase1l3_at_pref,
+        "TA": dnase1l3_at_pref,
+        "A": dnase1l3_a_pref,
+        "T": dnase1l3_a_pref
     }
 
+    dffb_a_pref: float = \
+        max(params["dffb_a_pref"], EPS)  # type: ignore
+    dffb_c_pref: float = \
+        max(params["dffb_c_pref"], EPS)  # type: ignore
     dffb_motif_preference: dict[str, float] = {
-        "A": max(params["dffb_a_pref"], EPS),  # type: ignore
-        "T": max(params["dffb_t_pref"], EPS),  # type: ignore
-        "C": max(params["dffb_c_pref"], EPS),  # type: ignore
-        "G": max(params["dffb_g_pref"], EPS)   # type: ignore
+        "A": dffb_a_pref,
+        "T": dffb_a_pref,
+        "C": dffb_c_pref,
+        "G": dffb_c_pref
     }
 
     dnase1_activity: float = \
         max(params["dnase1_activity"], EPS)  # type: ignore
     dnase1l3_activity: float = \
         max(params["dnase1l3_activity"], EPS)  # type: ignore
-    dffb_activity: float = max(params["dffb_activity"], EPS)  # type: ignore
+    dffb_activity: float = \
+        max(params["dffb_activity"], EPS)  # type: ignore
     nuclease_profile = NucleaseProfile(
         dnase1_activity=dnase1_activity,
         dnase1l3_activity=dnase1l3_activity,
@@ -165,7 +223,7 @@ def simulate_motifs(
 
         total_count: int = sum(motifs_5p.values())
         motif_freqs: dict[str, float] = {
-            motif: count / total_count
+            motif: (count / total_count) * 1000
             for motif, count in motifs_5p.items()
         }
         return motif_freqs
@@ -174,11 +232,11 @@ def simulate_motifs(
 
 
 def calculate_distance(
-    simulated: dict[str, float], observed: dict[str, float]
+    simulated: dict[str, float], observed: dict[str, float],
+    dist: str = "L1"
 ) -> float:
     """
-    Calculate L2-like distance between simulated and observed motif
-    frequencies.
+    Calculate distance between simulated and observed motif frequencies.
 
     Note:
         The only difference to L2 is that we skip taking the square root.
@@ -186,17 +244,23 @@ def calculate_distance(
     Args:
         simulated: Simulated motif frequencies
         observed: Observed motif frequencies from data
+        dist: either "L1" or "L2" (only L2-like without sqrt)
 
     Returns:
-        Euclidean distance
+        The requested distance metric
     """
     all_motifs = set(simulated.keys()) | set(observed.keys())
     distance: float = 0.0
     for motif in all_motifs:
         sim_freq = simulated.get(motif, 0.0)
         obs_freq = observed.get(motif, 0.0)
-        distance += (sim_freq - obs_freq) ** 2
-    return distance
+        if dist == "L1":
+            distance += abs(sim_freq - obs_freq)
+        elif dist == "L2":
+            distance += (sim_freq - obs_freq) ** 2
+        else:
+            raise ValueError(f"unknown distance {dist} requested")
+    return max(distance, EPS)
 
 
 def abc_model(
@@ -236,79 +300,52 @@ def optimize(
 
     prior = pyabc.Distribution(  # type: ignore
         dnase1_activity=(
-            pyabc.RV("lognorm", s=0.5, scale=1.0)  # type: ignore
+            pyabc.RV("uniform", loc=0.0, scale=1.0)  # type: ignore
         ),
         dnase1l3_activity=(
-            pyabc.RV("lognorm", s=0.5, scale=1.2)  # type: ignore
+            pyabc.RV("uniform", loc=0.0, scale=1.0)  # type: ignore
         ),
         dffb_activity=(
-            pyabc.RV("lognorm", s=0.8, scale=0.3)  # type: ignore
+            pyabc.RV("uniform", loc=0.0, scale=1.0)  # type: ignore
         ),
 
         dnase1_cg_pref=(
-            pyabc.RV("lognorm", s=0.3, scale=0.8)  # type: ignore
-        ),
-        dnase1_gc_pref=(
-            pyabc.RV("lognorm", s=0.3, scale=0.8)  # type: ignore
+            bounded_normal_prior(0.8, 0.2)  # type: ignore
         ),
         dnase1_at_pref=(
-            pyabc.RV("lognorm", s=0.25, scale=1.2)  # type: ignore
-        ),
-        dnase1_ta_pref=(
-            pyabc.RV("lognorm", s=0.25, scale=1.2)  # type: ignore
+            bounded_normal_prior(1.2, 0.2)  # type: ignore
         ),
         dnase1_aa_pref=(
-            pyabc.RV("lognorm", s=0.2, scale=1.1)  # type: ignore
-        ),
-        dnase1_tt_pref=(
-            pyabc.RV("lognorm", s=0.2, scale=1.1)  # type: ignore
+            bounded_normal_prior(1.1, 0.2)  # type: ignore
         ),
 
         dnase1l3_cc_pref=(
-            pyabc.RV("lognorm", s=0.4, scale=8.0)  # type: ignore
+            bounded_normal_prior(6.0, 1.5, high=10.0)  # type: ignore
         ),
         dnase1l3_c_pref=(
-            pyabc.RV("lognorm", s=0.35, scale=4.5)  # type: ignore
+            bounded_normal_prior(3.0, 1.2, high=7.0)  # type: ignore
         ),
         dnase1l3_cg_pref=(
-            pyabc.RV("lognorm", s=0.3, scale=3.5)  # type: ignore
-        ),
-        dnase1l3_gc_pref=(
-            pyabc.RV("lognorm", s=0.3, scale=3.5)  # type: ignore
+            bounded_normal_prior(2.0, 1.1, high=6.0)  # type: ignore
         ),
         dnase1l3_ct_pref=(
-            pyabc.RV("lognorm", s=0.3, scale=2.8)  # type: ignore
-        ),
-        dnase1l3_tc_pref=(
-            pyabc.RV("lognorm", s=0.3, scale=2.8)  # type: ignore
+            bounded_normal_prior(2.0, 1.0, high=5.0)  # type: ignore
         ),
         dnase1l3_gg_pref=(
-            pyabc.RV("lognorm", s=0.2, scale=1.0)  # type: ignore
+            bounded_normal_prior(1.5, 0.6, high=4.0)  # type: ignore
         ),
         dnase1l3_at_pref=(
-            pyabc.RV("lognorm", s=0.25, scale=0.6)  # type: ignore
-        ),
-        dnase1l3_ta_pref=(
-            pyabc.RV("lognorm", s=0.25, scale=0.6)  # type: ignore
+            bounded_normal_prior(0.6, 0.2)  # type: ignore
         ),
         dnase1l3_a_pref=(
-            pyabc.RV("lognorm", s=0.2, scale=0.7)  # type: ignore
-        ),
-        dnase1l3_t_pref=(
-            pyabc.RV("lognorm", s=0.2, scale=0.7)  # type: ignore
+            bounded_normal_prior(0.7, 0.2)  # type: ignore
         ),
 
         dffb_a_pref=(
-            pyabc.RV("lognorm", s=0.15, scale=1.1)  # type: ignore
-        ),
-        dffb_t_pref=(
-            pyabc.RV("lognorm", s=0.15, scale=1.05)  # type: ignore
+            bounded_normal_prior(1.1, 0.2)  # type: ignore
         ),
         dffb_c_pref=(
-            pyabc.RV("lognorm", s=0.1, scale=0.95)  # type: ignore
-        ),
-        dffb_g_pref=(
-            pyabc.RV("lognorm", s=0.1, scale=0.95)  # type: ignore
+            bounded_normal_prior(0.9, 0.2)  # type: ignore
         )
     )
 
@@ -317,8 +354,11 @@ def optimize(
     sampler = pyabc.sampler.MulticoreEvalParallelSampler(  # type: ignore
         n_procs=n_cores
     )
-    transition = pyabc.LocalTransition(  # type: ignore
-        k_fraction=0.3, scaling=0.2
+    # transition = pyabc.LocalTransition(  # type: ignore
+    #     scaling=0.01, k_fraction=0.8
+    # )
+    transition = pyabc.MultivariateNormalTransition(  # type: ignore
+        scaling=1.5
     )
     abc = pyabc.ABCSMC(  # type: ignore
         models=partial(abc_model, fasta_path=fasta_path),
@@ -326,22 +366,24 @@ def optimize(
         distance_function=abc_distance,
         population_size=pop_size,
         transitions=transition,  # type: ignore
-        sampler=sampler  # type: ignore
+        sampler=sampler,  # type: ignore
+        eps=pyabc.QuantileEpsilon(alpha=0.9)  # type: ignore
     )
 
-    db_path: str = os.path.join(output_dir, "abc_results.db")
-    logger.info(f"Initializing ABC database: {db_path}")
     history: pyabc.History = abc.new(  # type: ignore
-        f"sqlite:///{db_path}", observed_motifs
+        "sqlite://", observed_motifs
     )
 
     logger.info("Running ABC-SMC inference...")
     history = abc.run(  # type: ignore
-        minimum_epsilon=0.001,
-        max_nr_populations=100,
-        min_acceptance_rate=0.005
+        minimum_epsilon=0.01,
+        max_nr_populations=20,
+        min_acceptance_rate=0.01
     )
 
+    db_path: str = os.path.join(output_dir, "abc_results.pkl")
+    with open(db_path, "wb") as f:
+        pickle.dump(history, f)  # type: ignore
     logger.info(f"Run results saved to ABC database: {db_path}")
     logger.info(
         f"Completed generations: {history.max_t + 1}"  # type: ignore
@@ -351,7 +393,7 @@ def optimize(
         save_posterior_estimates(history, output_dir)  # type: ignore
         visualize_history(history, output_dir)  # type: ignore
     except Exception as e:
-        logger.warn(f"Error accessing history: {e}. SQLite missing?")
+        logger.warning(f"Error accessing history: {e}. SQLite missing?")
 
 
 def save_posterior_estimates(history: object, output_dir: str) -> None:
