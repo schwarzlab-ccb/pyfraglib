@@ -209,13 +209,14 @@ def abc_distance(
 
 def optimize(
     motif_data_path: str, fasta_path: str, output_dir: str,
-    logger: logging.Logger
+    pop_size: int, logger: logging.Logger
 ) -> None:
     """
     Run ABC-SMC parameter estimation.
 
     Args:
         motif_data_path: Path to CSV file with observed motif data
+        pop_size: Population size per iteration
         fasta_path: Path to reference FASTA file
         output_dir: Directory for output files
         logger: Logger instance
@@ -311,7 +312,7 @@ def optimize(
         models=partial(abc_model, fasta_path=fasta_path),
         parameter_priors=prior,  # type: ignore
         distance_function=abc_distance,
-        population_size=200,
+        population_size=pop_size,
         transitions=pyabc.LocalTransition(k_fraction=0.3),  # type: ignore
         sampler=sampler  # type: ignore
     )
@@ -386,6 +387,10 @@ def create_argparser() -> argparse.ArgumentParser:
         "data (e.g., sample_k4_end_motifs.csv)")
 
     parser.add_argument(
+        "-s", "--pop-size", type=int, dest="pop_size", required=False,
+        default=10, help="Per-generation population size to use")
+
+    parser.add_argument(
         "-f", "--fasta", type=str, dest="fasta_path", required=True,
         help="Path to reference FASTA file (must be indexed)")
 
@@ -420,6 +425,7 @@ def main() -> None:
 
     motif_data_path: str = args.motif_data
     fasta_path: str = args.fasta_path
+    pop_size: int = args.pop_size
     output_dir: str = args.output_dir
 
     if not os.path.exists(motif_data_path):
@@ -446,7 +452,7 @@ def main() -> None:
     logger.info(f"Output directory: {output_dir}")
 
     try:
-        optimize(motif_data_path, fasta_path, output_dir, logger)
+        optimize(motif_data_path, fasta_path, output_dir, pop_size, logger)
         logger.info("Parameter estimation completed successfully")
     except Exception as e:
         fail(f"Parameter estimation failed: {e}", logger)
