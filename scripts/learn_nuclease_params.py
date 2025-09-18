@@ -41,6 +41,7 @@ version_string: Final[str] = \
         pyfraglib.__version__, sys.version.split(" ")[0]
     )
 LOGGER_NAME: Final[str] = "learn_nuclease_params"
+EPS: Final[float] = 1e-8
 
 
 def fail(msg: str, logger: logging.Logger) -> NoReturn:
@@ -106,40 +107,40 @@ def simulate_motifs(
         Dict mapping motif sequences to simulated frequencies
     """
     dnase1_motif_preference: dict[str, float] = {
-        "CG": max(params["dnase1_cg_pref"], 0.0),  # type: ignore
-        "GC": max(params["dnase1_gc_pref"], 0.0),  # type: ignore
-        "AT": max(params["dnase1_at_pref"], 0.0),  # type: ignore
-        "TA": max(params["dnase1_ta_pref"], 0.0),  # type: ignore
-        "AA": max(params["dnase1_aa_pref"], 0.0),  # type: ignore
-        "TT": max(params["dnase1_tt_pref"], 0.0)   # type: ignore
+        "CG": max(params["dnase1_cg_pref"], EPS),  # type: ignore
+        "GC": max(params["dnase1_gc_pref"], EPS),  # type: ignore
+        "AT": max(params["dnase1_at_pref"], EPS),  # type: ignore
+        "TA": max(params["dnase1_ta_pref"], EPS),  # type: ignore
+        "AA": max(params["dnase1_aa_pref"], EPS),  # type: ignore
+        "TT": max(params["dnase1_tt_pref"], EPS)   # type: ignore
     }
 
     dnase1l3_motif_preference: dict[str, float] = {
-        "CC": max(params["dnase1l3_cc_pref"], 0.0),  # type: ignore
-        "C": max(params["dnase1l3_c_pref"], 0.0),    # type: ignore
-        "CG": max(params["dnase1l3_cg_pref"], 0.0),  # type: ignore
-        "GC": max(params["dnase1l3_gc_pref"], 0.0),  # type: ignore
-        "CT": max(params["dnase1l3_ct_pref"], 0.0),  # type: ignore
-        "TC": max(params["dnase1l3_tc_pref"], 0.0),  # type: ignore
-        "GG": max(params["dnase1l3_gg_pref"], 0.0),  # type: ignore
-        "AT": max(params["dnase1l3_at_pref"], 0.0),  # type: ignore
-        "TA": max(params["dnase1l3_ta_pref"], 0.0),  # type: ignore
-        "A": max(params["dnase1l3_a_pref"], 0.0),    # type: ignore
-        "T": max(params["dnase1l3_t_pref"], 0.0)     # type: ignore
+        "CC": max(params["dnase1l3_cc_pref"], EPS),  # type: ignore
+        "C": max(params["dnase1l3_c_pref"], EPS),    # type: ignore
+        "CG": max(params["dnase1l3_cg_pref"], EPS),  # type: ignore
+        "GC": max(params["dnase1l3_gc_pref"], EPS),  # type: ignore
+        "CT": max(params["dnase1l3_ct_pref"], EPS),  # type: ignore
+        "TC": max(params["dnase1l3_tc_pref"], EPS),  # type: ignore
+        "GG": max(params["dnase1l3_gg_pref"], EPS),  # type: ignore
+        "AT": max(params["dnase1l3_at_pref"], EPS),  # type: ignore
+        "TA": max(params["dnase1l3_ta_pref"], EPS),  # type: ignore
+        "A": max(params["dnase1l3_a_pref"], EPS),    # type: ignore
+        "T": max(params["dnase1l3_t_pref"], EPS)     # type: ignore
     }
 
     dffb_motif_preference: dict[str, float] = {
-        "A": max(params["dffb_a_pref"], 0.0),  # type: ignore
-        "T": max(params["dffb_t_pref"], 0.0),  # type: ignore
-        "C": max(params["dffb_c_pref"], 0.0),  # type: ignore
-        "G": max(params["dffb_g_pref"], 0.0)   # type: ignore
+        "A": max(params["dffb_a_pref"], EPS),  # type: ignore
+        "T": max(params["dffb_t_pref"], EPS),  # type: ignore
+        "C": max(params["dffb_c_pref"], EPS),  # type: ignore
+        "G": max(params["dffb_g_pref"], EPS)   # type: ignore
     }
 
     dnase1_activity: float = \
-        max(params["dnase1_activity"], 0.0)  # type: ignore
+        max(params["dnase1_activity"], EPS)  # type: ignore
     dnase1l3_activity: float = \
-        max(params["dnase1l3_activity"], 0.0)  # type: ignore
-    dffb_activity: float = max(params["dffb_activity"], 0.0)  # type: ignore
+        max(params["dnase1l3_activity"], EPS)  # type: ignore
+    dffb_activity: float = max(params["dffb_activity"], EPS)  # type: ignore
     nuclease_profile = NucleaseProfile(
         dnase1_activity=dnase1_activity,
         dnase1l3_activity=dnase1l3_activity,
@@ -176,7 +177,11 @@ def calculate_distance(
     simulated: dict[str, float], observed: dict[str, float]
 ) -> float:
     """
-    Calculate L2 distance between simulated and observed motif frequencies.
+    Calculate L2-like distance between simulated and observed motif
+    frequencies.
+
+    Note:
+        The only difference to L2 is that we skip taking the square root.
 
     Args:
         simulated: Simulated motif frequencies
@@ -186,12 +191,12 @@ def calculate_distance(
         Euclidean distance
     """
     all_motifs = set(simulated.keys()) | set(observed.keys())
-    distance = 0.0
+    distance: float = 0.0
     for motif in all_motifs:
         sim_freq = simulated.get(motif, 0.0)
         obs_freq = observed.get(motif, 0.0)
         distance += (sim_freq - obs_freq) ** 2
-    return float(np.sqrt(distance))  # type: ignore
+    return distance
 
 
 def abc_model(
@@ -312,12 +317,8 @@ def optimize(
     sampler = pyabc.sampler.MulticoreEvalParallelSampler(  # type: ignore
         n_procs=n_cores
     )
-
-    # transition = pyabc.LocalTransition(  # type: ignore
-    #     k_fraction=0.3, scaling=0.2
-    # )
-    transition = pyabc.MultivariateNormalTransition(  # type: ignore
-        scaling=0.2
+    transition = pyabc.LocalTransition(  # type: ignore
+        k_fraction=0.3, scaling=0.2
     )
     abc = pyabc.ABCSMC(  # type: ignore
         models=partial(abc_model, fasta_path=fasta_path),
@@ -328,7 +329,7 @@ def optimize(
         sampler=sampler  # type: ignore
     )
 
-    db_path = os.path.join(output_dir, "abc_results.db")
+    db_path: str = os.path.join(output_dir, "abc_results.db")
     logger.info(f"Initializing ABC database: {db_path}")
     history: pyabc.History = abc.new(  # type: ignore
         f"sqlite:///{db_path}", observed_motifs
@@ -336,15 +337,21 @@ def optimize(
 
     logger.info("Running ABC-SMC inference...")
     history = abc.run(  # type: ignore
-        minimum_epsilon=0.01,
+        minimum_epsilon=0.001,
         max_nr_populations=100,
-        min_acceptance_rate=0.01
+        min_acceptance_rate=0.005
     )
-    logger.info(f"Run results saved to ABC database: {db_path}")
 
+    logger.info(f"Run results saved to ABC database: {db_path}")
+    logger.info(
+        f"Completed generations: {history.max_t + 1}"  # type: ignore
+    )
     logger.info(f"Saving posterior estimates and plots to {output_dir}")
-    save_posterior_estimates(history, output_dir)  # type: ignore
-    visualize_history(history, output_dir)  # type: ignore
+    try:
+        save_posterior_estimates(history, output_dir)  # type: ignore
+        visualize_history(history, output_dir)  # type: ignore
+    except Exception as e:
+        logger.warn(f"Error accessing history: {e}. SQLite missing?")
 
 
 def save_posterior_estimates(history: object, output_dir: str) -> None:
