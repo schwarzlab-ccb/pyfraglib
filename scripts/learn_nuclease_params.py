@@ -105,40 +105,45 @@ def simulate_motifs(
     Returns:
         Dict mapping motif sequences to simulated frequencies
     """
-    dnase1_motif_preference = {
-        "CG": float(params["dnase1_cg_pref"]),  # type: ignore
-        "GC": float(params["dnase1_gc_pref"]),  # type: ignore
-        "AT": float(params["dnase1_at_pref"]),  # type: ignore
-        "TA": float(params["dnase1_ta_pref"]),  # type: ignore
-        "AA": float(params["dnase1_aa_pref"]),  # type: ignore
-        "TT": float(params["dnase1_tt_pref"])   # type: ignore
+    dnase1_motif_preference: dict[str, float] = {
+        "CG": max(params["dnase1_cg_pref"], 0.0),  # type: ignore
+        "GC": max(params["dnase1_gc_pref"], 0.0),  # type: ignore
+        "AT": max(params["dnase1_at_pref"], 0.0),  # type: ignore
+        "TA": max(params["dnase1_ta_pref"], 0.0),  # type: ignore
+        "AA": max(params["dnase1_aa_pref"], 0.0),  # type: ignore
+        "TT": max(params["dnase1_tt_pref"], 0.0)   # type: ignore
     }
 
-    dnase1l3_motif_preference = {
-        "CC": float(params["dnase1l3_cc_pref"]),  # type: ignore
-        "C": float(params["dnase1l3_c_pref"]),    # type: ignore
-        "CG": float(params["dnase1l3_cg_pref"]),  # type: ignore
-        "GC": float(params["dnase1l3_gc_pref"]),  # type: ignore
-        "CT": float(params["dnase1l3_ct_pref"]),  # type: ignore
-        "TC": float(params["dnase1l3_tc_pref"]),  # type: ignore
-        "GG": float(params["dnase1l3_gg_pref"]),  # type: ignore
-        "AT": float(params["dnase1l3_at_pref"]),  # type: ignore
-        "TA": float(params["dnase1l3_ta_pref"]),  # type: ignore
-        "A": float(params["dnase1l3_a_pref"]),    # type: ignore
-        "T": float(params["dnase1l3_t_pref"])     # type: ignore
+    dnase1l3_motif_preference: dict[str, float] = {
+        "CC": max(params["dnase1l3_cc_pref"], 0.0),  # type: ignore
+        "C": max(params["dnase1l3_c_pref"], 0.0),    # type: ignore
+        "CG": max(params["dnase1l3_cg_pref"], 0.0),  # type: ignore
+        "GC": max(params["dnase1l3_gc_pref"], 0.0),  # type: ignore
+        "CT": max(params["dnase1l3_ct_pref"], 0.0),  # type: ignore
+        "TC": max(params["dnase1l3_tc_pref"], 0.0),  # type: ignore
+        "GG": max(params["dnase1l3_gg_pref"], 0.0),  # type: ignore
+        "AT": max(params["dnase1l3_at_pref"], 0.0),  # type: ignore
+        "TA": max(params["dnase1l3_ta_pref"], 0.0),  # type: ignore
+        "A": max(params["dnase1l3_a_pref"], 0.0),    # type: ignore
+        "T": max(params["dnase1l3_t_pref"], 0.0)     # type: ignore
     }
 
-    dffb_motif_preference = {
-        "A": float(params["dffb_a_pref"]),  # type: ignore
-        "T": float(params["dffb_t_pref"]),  # type: ignore
-        "C": float(params["dffb_c_pref"]),  # type: ignore
-        "G": float(params["dffb_g_pref"])   # type: ignore
+    dffb_motif_preference: dict[str, float] = {
+        "A": max(params["dffb_a_pref"], 0.0),  # type: ignore
+        "T": max(params["dffb_t_pref"], 0.0),  # type: ignore
+        "C": max(params["dffb_c_pref"], 0.0),  # type: ignore
+        "G": max(params["dffb_g_pref"], 0.0)   # type: ignore
     }
 
+    dnase1_activity: float = \
+        max(params["dnase1_activity"], 0.0)  # type: ignore
+    dnase1l3_activity: float = \
+        max(params["dnase1l3_activity"], 0.0)  # type: ignore
+    dffb_activity: float = max(params["dffb_activity"], 0.0)  # type: ignore
     nuclease_profile = NucleaseProfile(
-        dnase1_activity=float(params["dnase1_activity"]),  # type: ignore
-        dnase1l3_activity=float(params["dnase1l3_activity"]),  # type: ignore
-        dffb_activity=float(params["dffb_activity"]),  # type: ignore
+        dnase1_activity=dnase1_activity,
+        dnase1l3_activity=dnase1l3_activity,
+        dffb_activity=dffb_activity,
         dnase1_motif_preference=dnase1_motif_preference,
         dnase1l3_motif_preference=dnase1l3_motif_preference,
         dffb_motif_preference=dffb_motif_preference
@@ -308,8 +313,11 @@ def optimize(
         n_procs=n_cores
     )
 
-    transition = pyabc.LocalTransition(  # type: ignore
-        k_fraction=0.3, scaling=0.5
+    # transition = pyabc.LocalTransition(  # type: ignore
+    #     k_fraction=0.3, scaling=0.2
+    # )
+    transition = pyabc.MultivariateNormalTransition(  # type: ignore
+        scaling=0.2
     )
     abc = pyabc.ABCSMC(  # type: ignore
         models=partial(abc_model, fasta_path=fasta_path),
