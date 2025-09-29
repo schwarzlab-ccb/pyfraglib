@@ -23,10 +23,12 @@ License along with this program. If not, see <https://www.gnu.org/licenses/>.
 import argparse
 import logging
 import os
+import signal
 import sys
 import pickle
 import pyabc  # type: ignore
 import pyfraglib
+import warnings
 
 import numpy as np
 import pandas as pd
@@ -77,9 +79,13 @@ class RandomWalkTransition(pyabc.transition.Transition):  # type: ignore
         return 1.0
 
 
-def fail(msg: str, logger: logging.Logger) -> NoReturn:
+def fail(
+    msg: str, logger: logging.Logger | None
+) -> NoReturn:
     """
     Log a fatal error message and exit the program.
+
+    Kills all processes of the process group, too.
 
     Args:
         msg: Error message to log
@@ -88,8 +94,21 @@ def fail(msg: str, logger: logging.Logger) -> NoReturn:
     Raises:
         SystemExit: Always exits with code 1
     """
-    logger.fatal(msg)
+    if logger:
+        logger.fatal(msg)
+    else:
+        print(msg)
+    os.killpg(os.getpgid(os.getpid()), signal.SIGTERM)
     sys.exit(1)
+
+
+def kill_on_warning(
+    message: str, _category: object, _filename: str,
+    _lineno: int, file: object | None = None,
+    line: object | None = None,
+    logger: logging.Logger | None = None
+) -> NoReturn:
+    fail(f"failed with warning: {message}", logger)
 
 
 def load_observed_motifs(
@@ -128,7 +147,7 @@ def load_observed_motifs(
 
 
 def simulate_motifs(
-    params: dict[str, object], fasta_path: str
+    params: dict[str, object], fasta_path: str, num_fragments: int
 ) -> dict[str, float]:
     """
     Simulate fragment 5' end motifs given nuclease parameters.
@@ -213,7 +232,7 @@ def simulate_motifs(
         simulator: FragmentSimulator = FragmentSimulator(seq_gen)
         fragments: FragmentList = simulator.simulate_fragments(
             chrom="1", start=100_000, end=200_000_000,
-            num_fragments=50000, tissue_type="healthy",
+            num_fragments=num_fragments, tissue_type="healthy",
             nuclease_profile=nuclease_profile
         )
 
@@ -264,12 +283,12 @@ def calculate_distance(
 
 
 def abc_model(
-    params: dict[str, object], fasta_path: str
+    params: dict[str, object], fasta_path: str, num_fragments: int
 ) -> dict[str, float]:
     """
     ABC model function that simulates motifs given parameters.
     """
-    return simulate_motifs(params, fasta_path)
+    return simulate_motifs(params, fasta_path, num_fragments)
 
 
 def abc_distance(
@@ -283,7 +302,7 @@ def abc_distance(
 
 def optimize(
     motif_data_path: str, fasta_path: str, output_dir: str,
-    pop_size: int, logger: logging.Logger
+    num_fragments: int, pop_size: int, logger: logging.Logger
 ) -> None:
     """
     Run ABC-SMC parameter estimation.
@@ -361,7 +380,9 @@ def optimize(
         scaling=1.5
     )
     abc = pyabc.ABCSMC(  # type: ignore
-        models=partial(abc_model, fasta_path=fasta_path),
+        models=partial(
+            abc_model, fasta_path=fasta_path, num_fragments=num_fragments
+        ),
         parameter_priors=prior,  # type: ignore
         distance_function=abc_distance,
         population_size=pop_size,
@@ -447,6 +468,11 @@ def create_argparser() -> argparse.ArgumentParser:
         "data (e.g., sample_k4_end_motifs.csv)")
 
     parser.add_argument(
+        "-n", "--num-fragments", type=int, dest="num_fragments",
+        required=False, default=10_000,
+        help="Number of fragments per simulation run")
+
+    parser.add_argument(
         "-s", "--pop-size", type=int, dest="pop_size", required=False,
         default=10, help="Per-generation population size to use")
 
@@ -483,8 +509,13 @@ def main() -> None:
         level = logging.DEBUG
     logger.setLevel(level)
 
+    warnings.showwarning = partial(
+        kill_on_warning, logger=logger
+    )
+
     motif_data_path: str = args.motif_data
     fasta_path: str = args.fasta_path
+    num_fragments: int = args.num_fragments
     pop_size: int = args.pop_size
     output_dir: str = args.output_dir
 
@@ -512,7 +543,10 @@ def main() -> None:
     logger.info(f"Output directory: {output_dir}")
 
     try:
-        optimize(motif_data_path, fasta_path, output_dir, pop_size, logger)
+        optimize(
+            motif_data_path, fasta_path, output_dir,
+            num_fragments, pop_size, logger
+        )
         logger.info("Parameter estimation completed successfully")
     except Exception as e:
         fail(f"Parameter estimation failed: {e}", logger)
