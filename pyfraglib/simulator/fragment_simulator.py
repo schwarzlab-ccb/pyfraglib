@@ -1179,7 +1179,7 @@ class FragmentSimulator:
             fragments_generated += len(accepted_positions)  # type: ignore
             attempts += candidates_to_generate
 
-            if attempts % 5000 == 0:
+            if attempts % 100_000 == 0:
                 self.logger.debug(
                     f"Generated {fragments_generated}/{num_fragments} "
                     f"fragments after {attempts} attempts"
