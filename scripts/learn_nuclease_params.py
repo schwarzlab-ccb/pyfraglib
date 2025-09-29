@@ -45,6 +45,8 @@ version_string: Final[str] = \
     )
 LOGGER_NAME: Final[str] = "learn_nuclease_params"
 EPS: Final[float] = 1e-4
+MAX_NR_POPULATIONS: Final[int] = 15
+KERNEL_SCALING: Final[float] = 2.0
 
 
 def bounded_normal_prior(  # type: ignore
@@ -373,12 +375,16 @@ def optimize(
     sampler = pyabc.sampler.MulticoreEvalParallelSampler(  # type: ignore
         n_procs=n_cores
     )
+
+    transition = pyabc.MultivariateNormalTransition(  # type: ignore
+        scaling=KERNEL_SCALING
+    )
+    # @NOTE(ds): A local transition kernel is a valid alternative:
+    #
     # transition = pyabc.LocalTransition(  # type: ignore
     #     scaling=0.01, k_fraction=0.8
     # )
-    transition = pyabc.MultivariateNormalTransition(  # type: ignore
-        scaling=1.5
-    )
+
     abc = pyabc.ABCSMC(  # type: ignore
         models=partial(
             abc_model, fasta_path=fasta_path, num_fragments=num_fragments
@@ -398,7 +404,7 @@ def optimize(
     logger.info("Running ABC-SMC inference...")
     history = abc.run(  # type: ignore
         minimum_epsilon=0.01,
-        max_nr_populations=20,
+        max_nr_populations=MAX_NR_POPULATIONS,
         min_acceptance_rate=0.01
     )
 
