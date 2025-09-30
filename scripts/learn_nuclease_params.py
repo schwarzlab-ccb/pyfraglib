@@ -25,12 +25,12 @@ import logging
 import os
 import signal
 import sys
-import pickle
 import pyabc  # type: ignore
 import pyfraglib
 import warnings
 
 import numpy as np
+import numpy.typing as npt
 import pandas as pd
 
 from typing import Final, NoReturn
@@ -38,6 +38,7 @@ from functools import partial
 from pyfraglib import FragmentSimulator, NucleaseProfile, FragmentList
 from pyfraglib.simulator.fragment_simulator import SequenceContextGenerator
 from pyfraglib.core import detect_cpus
+from pyfraglib.stats import end_motifs_barplot
 
 version_string: Final[str] = \
     "learn_nuclease_params v{} (running on Python v{})".format(
@@ -45,7 +46,6 @@ version_string: Final[str] = \
     )
 LOGGER_NAME: Final[str] = "learn_nuclease_params"
 EPS: Final[float] = 1e-4
-MAX_NR_POPULATIONS: Final[int] = 15
 KERNEL_SCALING: Final[float] = 2.0
 
 
@@ -148,24 +148,23 @@ def load_observed_motifs(
     return motif_freqs
 
 
-def simulate_motifs(
-    params: dict[str, object], fasta_path: str, num_fragments: int
-) -> dict[str, float]:
+def simulate_fragments(
+    params: dict[str, float], fasta_path: str, num_fragments: int
+) -> FragmentList:
     """
-    Simulate fragment 5' end motifs given nuclease parameters.
+    Simulate fragments given nuclease parameters.
 
     Args:
         params: Dict containing nuclease activity and preference parameters
+        fasta_path: path to reference fasta for sequence generation
+        num_fragments: number of fragments to generate
 
     Returns:
-        Dict mapping motif sequences to simulated frequencies
+        FragmentList
     """
-    dnase1_cg_pref: float = \
-        max(params["dnase1_cg_pref"], EPS)  # type: ignore
-    dnase1_at_pref: float = \
-        max(params["dnase1_at_pref"], EPS)  # type: ignore
-    dnase1_aa_pref: float = \
-        max(params["dnase1_aa_pref"], EPS)  # type: ignore
+    dnase1_cg_pref: float = max(params["dnase1_cg_pref"], EPS)
+    dnase1_at_pref: float = max(params["dnase1_at_pref"], EPS)
+    dnase1_aa_pref: float = max(params["dnase1_aa_pref"], EPS)
     dnase1_motif_preference: dict[str, float] = {
         "CG": dnase1_cg_pref,
         "GC": dnase1_cg_pref,
@@ -175,20 +174,13 @@ def simulate_motifs(
         "TT": dnase1_aa_pref
     }
 
-    dnase1l3_cc_pref: float = \
-        max(params["dnase1l3_cc_pref"], EPS)  # type: ignore
-    dnase1l3_c_pref: float = \
-        max(params["dnase1l3_c_pref"], EPS)  # type: ignore
-    dnase1l3_cg_pref: float = \
-        max(params["dnase1l3_cg_pref"], EPS)  # type: ignore
-    dnase1l3_ct_pref: float = \
-        max(params["dnase1l3_ct_pref"], EPS)  # type: ignore
-    dnase1l3_gg_pref: float = \
-        max(params["dnase1l3_gg_pref"], EPS)  # type: ignore
-    dnase1l3_at_pref: float = \
-        max(params["dnase1l3_at_pref"], EPS)  # type: ignore
-    dnase1l3_a_pref: float = \
-        max(params["dnase1l3_a_pref"], EPS)  # type: ignore
+    dnase1l3_cc_pref: float = max(params["dnase1l3_cc_pref"], EPS)
+    dnase1l3_c_pref: float = max(params["dnase1l3_c_pref"], EPS)
+    dnase1l3_cg_pref: float = max(params["dnase1l3_cg_pref"], EPS)
+    dnase1l3_ct_pref: float = max(params["dnase1l3_ct_pref"], EPS)
+    dnase1l3_gg_pref: float = max(params["dnase1l3_gg_pref"], EPS)
+    dnase1l3_at_pref: float = max(params["dnase1l3_at_pref"], EPS)
+    dnase1l3_a_pref: float = max(params["dnase1l3_a_pref"], EPS)
     dnase1l3_motif_preference: dict[str, float] = {
         "CC": dnase1l3_cc_pref,
         "C": dnase1l3_c_pref,
@@ -203,10 +195,8 @@ def simulate_motifs(
         "T": dnase1l3_a_pref
     }
 
-    dffb_a_pref: float = \
-        max(params["dffb_a_pref"], EPS)  # type: ignore
-    dffb_c_pref: float = \
-        max(params["dffb_c_pref"], EPS)  # type: ignore
+    dffb_a_pref: float = max(params["dffb_a_pref"], EPS)
+    dffb_c_pref: float = max(params["dffb_c_pref"], EPS)
     dffb_motif_preference: dict[str, float] = {
         "A": dffb_a_pref,
         "T": dffb_a_pref,
@@ -214,12 +204,9 @@ def simulate_motifs(
         "G": dffb_c_pref
     }
 
-    dnase1_activity: float = \
-        max(params["dnase1_activity"], EPS)  # type: ignore
-    dnase1l3_activity: float = \
-        max(params["dnase1l3_activity"], EPS)  # type: ignore
-    dffb_activity: float = \
-        max(params["dffb_activity"], EPS)  # type: ignore
+    dnase1_activity: float = max(params["dnase1_activity"], EPS)
+    dnase1l3_activity: float = max(params["dnase1l3_activity"], EPS)
+    dffb_activity: float = max(params["dffb_activity"], EPS)
     nuclease_profile = NucleaseProfile(
         dnase1_activity=dnase1_activity,
         dnase1l3_activity=dnase1l3_activity,
@@ -237,19 +224,39 @@ def simulate_motifs(
             num_fragments=num_fragments, tissue_type="healthy",
             nuclease_profile=nuclease_profile
         )
+        return fragments
 
-        motifs_5p, _, num_frags = fragments.count_endmotifs(kmer_len=4)
-        if num_frags == 0:
-            raise ValueError("No 5' end motifs simulated")
-
-        total_count: int = sum(motifs_5p.values())
-        motif_freqs: dict[str, float] = {
-            motif: (count / total_count) * 1000
-            for motif, count in motifs_5p.items()
-        }
-        return motif_freqs
     finally:
         seq_gen.close()
+
+
+def simulate_motifs(
+    params: dict[str, float], fasta_path: str, num_fragments: int
+) -> dict[str, float]:
+    """
+    Simulate fragment 5' end motifs given nuclease parameters.
+
+    Args:
+        params: Dict containing nuclease activity and preference parameters
+        fasta_path: path to reference fasta for sequence generation
+        num_fragments: number of fragments to generate
+
+    Returns:
+        Dictionary of end motif frequencies
+    """
+    fragments: FragmentList = simulate_fragments(
+        params, fasta_path, num_fragments
+    )
+    motifs_5p, _, num_frags = fragments.count_endmotifs(kmer_len=4)
+    if num_frags == 0:
+        raise ValueError("No 5' end motifs simulated")
+
+    total_count: int = sum(motifs_5p.values())
+    motif_freqs: dict[str, float] = {
+        motif: (count / total_count) * 1000
+        for motif, count in motifs_5p.items()
+    }
+    return motif_freqs
 
 
 def calculate_distance(
@@ -285,7 +292,7 @@ def calculate_distance(
 
 
 def abc_model(
-    params: dict[str, object], fasta_path: str, num_fragments: int
+    params: dict[str, float], fasta_path: str, num_fragments: int
 ) -> dict[str, float]:
     """
     ABC model function that simulates motifs given parameters.
@@ -304,16 +311,19 @@ def abc_distance(
 
 def optimize(
     motif_data_path: str, fasta_path: str, output_dir: str,
-    num_fragments: int, pop_size: int, logger: logging.Logger
+    num_fragments: int, max_pops: int, pop_size: int,
+    logger: logging.Logger
 ) -> None:
     """
     Run ABC-SMC parameter estimation.
 
     Args:
         motif_data_path: Path to CSV file with observed motif data
-        pop_size: Population size per iteration
         fasta_path: Path to reference FASTA file
         output_dir: Directory for output files
+        num_fragments: Number of fragments per simulation run
+        max_pops: Maximum number of populations / iterations
+        pop_size: Population size per iteration
         logger: Logger instance
     """
     observed_motifs = load_observed_motifs(motif_data_path, logger)
@@ -397,63 +407,91 @@ def optimize(
         eps=pyabc.QuantileEpsilon(alpha=0.9)  # type: ignore
     )
 
+    db_path: str = f"sqlite:///{output_dir}/abc_history.db"
     history: pyabc.History = abc.new(  # type: ignore
-        "sqlite://", observed_motifs
+        db_path, observed_motifs
     )
 
-    logger.info("Running ABC-SMC inference...")
+    logger.info(f"Running ABC-SMC inference with DB at {db_path}")
     history = abc.run(  # type: ignore
         minimum_epsilon=0.01,
-        max_nr_populations=MAX_NR_POPULATIONS,
+        max_nr_populations=max_pops,
         min_acceptance_rate=0.01
     )
 
-    db_path: str = os.path.join(output_dir, "abc_results.pkl")
-    with open(db_path, "wb") as f:
-        pickle.dump(history, f)  # type: ignore
-    logger.info(f"Run results saved to ABC database: {db_path}")
     logger.info(
         f"Completed generations: {history.max_t + 1}"  # type: ignore
     )
-    logger.info(f"Saving posterior estimates and plots to {output_dir}")
-    try:
-        save_posterior_estimates(history, output_dir)  # type: ignore
-        visualize_history(history, output_dir)  # type: ignore
-    except Exception as e:
-        logger.warning(f"Error accessing history: {e}. SQLite missing?")
 
 
-def save_posterior_estimates(history: object, output_dir: str) -> None:
+def analyze_run_from_history(
+    db_file: str, output_dir: str, fasta_path: str, logger: logging.Logger
+) -> None:
+    """
+    Analyze an existing run.
+    """
+    logger.info(f"loading history from file `{db_file}`")
+    db_str: str = f"sqlite:///{db_file}"
+    history: pyabc.History = pyabc.History(db_str)  # type: ignore
+
+    df: pd.DataFrame
+    w: npt.NDArray[np.float64]
+    df, w = history.get_distribution()  # type: ignore
+
+    logger.info(f"saving posterior estimates to `{output_dir}`")
+    estimates_df = save_posterior_estimates(df, w, output_dir)
+
+    logger.info("performing simulation based on posterior estimates")
+    nuc_params: dict[str, float] = dict(estimates_df["median"])  # type: ignore
+    fragments: FragmentList = simulate_fragments(
+        nuc_params, fasta_path, 100_000
+    )
+    end_motifs_barplot(fragments, output_dir, "simulation_after_fit", 4)
+
+
+def save_posterior_estimates(
+    df: pd.DataFrame, w: npt.NDArray[np.float64], output_dir: str
+) -> pd.DataFrame:
     """
     Calculate posterior estimates for mean and median from ABC-SMC run results
     and save them to disk.
     """
-    df: pd.DataFrame
-    df, w = history.get_distribution()  # type: ignore
-
     estimates: dict[str, dict[str, float]] = {}
-    col: str
-    for col in df.columns:
-        mean: float = float(np.average(df[col], weights=w))  # type: ignore
-        sorted_idx = np.argsort(df[col])  # type: ignore
-        cum_weights = np.cumsum(w[sorted_idx])  # type: ignore
-        median: float = float(
-            df[col].iloc[  # type: ignore
-                sorted_idx[np.searchsorted(cum_weights, 0.5)]  # type: ignore
-            ]
+    param: str
+    for param in df.columns:
+        mean: float = float(np.average(df[param], weights=w))  # type: ignore
+        std: float = float(
+            np.sqrt(  # type: ignore
+                np.average((df[param] - mean)**2, weights=w)  # type: ignore
+            )
         )
-        estimates[col] = {"mean": mean, "median": median}
+        sorted_indices = np.argsort(df[param])  # type: ignore
+        sorted_values = df[param].values[sorted_indices]  # type: ignore
+        sorted_weights = w[sorted_indices]  # type: ignore
+        cumsum = np.cumsum(sorted_weights)  # type: ignore
+
+        estimates[param] = {
+            "mean": mean,
+            "std": std,
+            "median":
+                sorted_values[np.searchsorted(cumsum, 0.5)],  # type: ignore
+            "min": float(df[param].min()),  # type: ignore
+            "max": float(df[param].max()),  # type: ignore
+        }
 
     est_df = pd.DataFrame(estimates).T
     est_df.to_csv(os.path.join(output_dir, "abc_estimates.csv"))
 
+    return est_df
 
-def visualize_history(history: object, output_dir: str) -> None:
+
+def visualize_history(
+    df: pd.DataFrame, w: npt.NDArray[np.float64], output_dir: str
+) -> None:
     """
     Visualize ABC-SMC run results.
     """
-    df: pd.DataFrame
-    df, w = history.get_distribution()  # type: ignore
+    pass
 
 
 def create_argparser() -> argparse.ArgumentParser:
@@ -469,9 +507,9 @@ def create_argparser() -> argparse.ArgumentParser:
         epilog="{}. Licensed under GPLv3.".format(version_string))
 
     parser.add_argument(
-        "-d", "--motif-data", type=str, dest="motif_data", required=True,
-        help="CSV file from pyfrag.py stats command containing 5' end motif "
-        "data (e.g., sample_k4_end_motifs.csv)")
+        "-d", "--motif-data", type=str, dest="motif_data", required=False,
+        default=None, help="CSV file from pyfrag.py stats command containing "
+        "5' end motif data (e.g., sample_k4_end_motifs.csv)")
 
     parser.add_argument(
         "-n", "--num-fragments", type=int, dest="num_fragments",
@@ -483,12 +521,26 @@ def create_argparser() -> argparse.ArgumentParser:
         default=10, help="Per-generation population size to use")
 
     parser.add_argument(
+        "-p", "--max-pops", type=int, dest="max_pops", required=False,
+        default=15, help="Maximum number of populations")
+
+    parser.add_argument(
         "-f", "--fasta", type=str, dest="fasta_path", required=True,
         help="Path to reference FASTA file (must be indexed)")
 
     parser.add_argument(
         "-o", "--output-dir", type=str, dest="output_dir", default=".",
         help="Output directory for results (default: current directory)")
+
+    parser.add_argument(
+        "--analyze-run", action="store_true", dest="analyze_run",
+        default=False, help="Instead of learning parameters, analyze a "
+        "past run (requires --db-file to be set)")
+
+    parser.add_argument(
+        "--db-file", type=str, dest="db_file", required=False, default=None,
+        help="Indicates the database file (only used when called "
+        "with --analyze-run")
 
     parser.add_argument(
         "-v", "--verbose", action="store_true", dest="is_verbose",
@@ -503,8 +555,12 @@ def create_argparser() -> argparse.ArgumentParser:
 
 def main() -> None:
     """
-    Entry point for the parameter fitting.
+    Entry point for the parameter fitting routine.
     """
+    pyabc_logger: logging.Logger = logging.getLogger("ABC")
+    pyabc_logger.handlers.clear()
+    pyabc_logger.propagate = True
+
     logger: logging.Logger = logging.getLogger(LOGGER_NAME)
     parser: argparse.ArgumentParser = create_argparser()
     args: argparse.Namespace = parser.parse_args()
@@ -519,29 +575,40 @@ def main() -> None:
         kill_on_warning, logger=logger
     )
 
-    motif_data_path: str = args.motif_data
     fasta_path: str = args.fasta_path
-    num_fragments: int = args.num_fragments
-    pop_size: int = args.pop_size
-    output_dir: str = args.output_dir
-
-    if not os.path.exists(motif_data_path):
-        fail(f"Motif data file does not exist: {motif_data_path}", logger)
-
-    if not os.path.exists(fasta_path):
+    if not fasta_path or not os.path.exists(fasta_path):
         fail(f"FASTA file does not exist: {fasta_path}", logger)
 
-    fasta_index = fasta_path + ".fai"
+    fasta_index: str = fasta_path + ".fai"
     if not os.path.exists(fasta_index):
         fail(f"FASTA index not found: {fasta_index}. "
              f"Please run 'samtools faidx {fasta_path}'", logger)
 
+    output_dir: str = args.output_dir
     if not os.path.exists(output_dir):
         try:
             os.makedirs(output_dir)
             logger.info(f"Created output directory: {output_dir}")
         except OSError as e:
             fail(f"Cannot create output directory: {e}", logger)
+
+    analyze_run: bool = args.analyze_run
+    if analyze_run:
+        db_file: str | None = args.db_file
+        if not db_file or not os.path.exists(db_file):
+            fail(f"DB file does not exist: {db_file}", logger)
+        analyze_run_from_history(
+            db_file, output_dir, fasta_path, logger
+        )
+        return
+
+    motif_data_path: str | None = args.motif_data
+    num_fragments: int = args.num_fragments
+    max_pops: int = args.max_pops
+    pop_size: int = args.pop_size
+
+    if not motif_data_path or not os.path.exists(motif_data_path):
+        fail(f"Motif data file does not exist: {motif_data_path}", logger)
 
     logger.info("Starting nuclease parameter estimation using ABC-SMC")
     logger.info(f"Motif data: {motif_data_path}")
@@ -551,7 +618,7 @@ def main() -> None:
     try:
         optimize(
             motif_data_path, fasta_path, output_dir,
-            num_fragments, pop_size, logger
+            num_fragments, max_pops, pop_size, logger
         )
         logger.info("Parameter estimation completed successfully")
     except Exception as e:
