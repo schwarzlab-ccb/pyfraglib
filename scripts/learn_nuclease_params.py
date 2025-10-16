@@ -50,7 +50,7 @@ KERNEL_SCALING: Final[float] = 2.0
 
 
 def bounded_normal_prior(  # type: ignore
-    mean: float, std: float, low: float = 0.0, high: float = 2.0
+    mean: float, std: float, low: float = 0.0, high: float = 2.5
 ) -> pyabc.RV:
     a, b = (low - mean) / std, (high - mean) / std
     return pyabc.RV(  # type: ignore
@@ -331,39 +331,39 @@ def optimize(
 
     prior = pyabc.Distribution(  # type: ignore
         dnase1_activity=(
-            pyabc.RV("uniform", loc=0.0, scale=1.0)  # type: ignore
+            pyabc.RV("uniform", loc=0.0, scale=2.0)  # type: ignore
         ),
         dnase1l3_activity=(
-            pyabc.RV("uniform", loc=0.0, scale=1.0)  # type: ignore
+            pyabc.RV("uniform", loc=0.0, scale=2.0)  # type: ignore
         ),
         dffb_activity=(
-            pyabc.RV("uniform", loc=0.0, scale=1.0)  # type: ignore
+            pyabc.RV("uniform", loc=0.0, scale=2.0)  # type: ignore
         ),
 
         dnase1_cg_pref=(
-            bounded_normal_prior(0.8, 0.2)  # type: ignore
+            bounded_normal_prior(0.8, 0.4)  # type: ignore
         ),
         dnase1_at_pref=(
-            bounded_normal_prior(1.2, 0.2)  # type: ignore
+            bounded_normal_prior(1.2, 0.4)  # type: ignore
         ),
         dnase1_aa_pref=(
-            bounded_normal_prior(1.1, 0.2)  # type: ignore
+            bounded_normal_prior(1.1, 0.4)  # type: ignore
         ),
 
         dnase1l3_cc_pref=(
-            bounded_normal_prior(6.0, 1.5, high=10.0)  # type: ignore
+            bounded_normal_prior(6.0, 2.0, high=12.0)  # type: ignore
         ),
         dnase1l3_c_pref=(
-            bounded_normal_prior(3.0, 1.2, high=7.0)  # type: ignore
+            bounded_normal_prior(3.0, 1.5, high=10.0)  # type: ignore
         ),
         dnase1l3_cg_pref=(
-            bounded_normal_prior(2.0, 1.1, high=6.0)  # type: ignore
+            bounded_normal_prior(2.5, 1.4, high=8.0)  # type: ignore
         ),
         dnase1l3_ct_pref=(
-            bounded_normal_prior(2.0, 1.0, high=5.0)  # type: ignore
+            bounded_normal_prior(2.0, 1.3, high=6.0)  # type: ignore
         ),
         dnase1l3_gg_pref=(
-            bounded_normal_prior(1.5, 0.6, high=4.0)  # type: ignore
+            bounded_normal_prior(1.8, 1.2, high=5.0)  # type: ignore
         ),
         dnase1l3_at_pref=(
             bounded_normal_prior(0.6, 0.2)  # type: ignore
@@ -373,10 +373,10 @@ def optimize(
         ),
 
         dffb_a_pref=(
-            bounded_normal_prior(1.1, 0.2)  # type: ignore
+            bounded_normal_prior(1.1, 0.5)  # type: ignore
         ),
         dffb_c_pref=(
-            bounded_normal_prior(0.9, 0.2)  # type: ignore
+            bounded_normal_prior(0.9, 0.5)  # type: ignore
         )
     )
 
