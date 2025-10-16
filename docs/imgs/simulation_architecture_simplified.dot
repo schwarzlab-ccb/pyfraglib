@@ -1,0 +1,48 @@
+// This file is part of `pyfraglib`, a software suite to calculate fragmentomics
+// features from cfDNA and perform downstream analyses.
+//
+// Copyright (C) 2024 Daniel Schütte, daniel.schuette@iccb-cologne.org
+//
+// This program is free software: you can redistribute it and/or modify it under
+// the terms of the GNU General Public License as published by the Free Software
+// Foundation, either version 3 of the License, or (at your option) any later
+// version. This program is distributed in the hope that it will be useful, but
+// WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+// FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License for
+// more details. You should have received a copy of the GNU General Public
+// License along with this program. If not, see <https://www.gnu.org/licenses/>.
+
+digraph SimulationArchitecture {
+    rankdir=TB;
+    node [shape=box, style=filled, fillcolor=lightblue];
+    edge [fontsize=10];
+
+    CLI [label="pyfrag.py simulate (CLI)", shape=ellipse, fillcolor=yellow];
+    Config [label="JSON Configuration", fillcolor=lightyellow];
+
+    subgraph cluster_config {
+        label="Simulation Logic"
+        style=filled;
+        fillcolor=lightgray;
+
+        NucleaseProfile [label="NucleaseProfile"];
+        NucleosomeMap [label="NucleosomeMap"];
+        ChromatinState [label="ChromatinState"];
+        SequenceGenerator [label="SequenceContextGenerator"];
+    }
+
+    subgraph cluster_simulators {
+        label="Simulation Engine";
+        style=filled;
+        fillcolor=lightcyan;
+
+        FragmentSimulator [label="FragmentSimulator\n• Probabilistic cleavage model\n• Probabilistic fragment length model"];
+    }
+
+    CLI -> Config [label="reads"];
+    CLI -> FragmentSimulator [label="starts"];
+    FragmentSimulator -> SequenceGenerator [label="uses"];
+    FragmentSimulator -> NucleosomeMap [label="uses"];
+    FragmentSimulator -> ChromatinState [label="uses"];
+    FragmentSimulator -> NucleaseProfile [label="uses"];
+}
