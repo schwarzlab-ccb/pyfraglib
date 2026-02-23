@@ -53,7 +53,7 @@ def bounded_normal_prior(  # type: ignore
     mean: float, std: float, low: float = 0.0, high: float = 2.5
 ) -> pyabc.RV:
     a, b = (low - mean) / std, (high - mean) / std
-    return pyabc.RV(  # type: ignore
+    return pyabc.RV(
         "truncnorm", a=a, b=b, loc=mean, scale=std
     )
 
@@ -68,9 +68,9 @@ class RandomWalkTransition(pyabc.transition.Transition):  # type: ignore
     ) -> dict[str, object]:
         """Simple random walk that doesn't depend on other particles."""
         perturbed: dict[str, object] = {}
-        for key, val in source_parameter.items():  # type: ignore
-            noise = np.random.normal(0, val * self.step_size)  # type: ignore
-            perturbed[key] = max(val + noise, EPS)  # type: ignore
+        for key, val in source_parameter.items():
+            noise = np.random.normal(0, val * self.step_size)
+            perturbed[key] = max(val + noise, EPS)
             return perturbed
 
     def pdf(  # type: ignore
@@ -134,9 +134,7 @@ def load_observed_motifs(
         if col not in df.columns:
             fail(f"Required column '{col}' not found in {csv_path}", logger)
 
-    motif_counts: dict[str, int] = dict(
-        zip(df["motif_5p"], df["count_5p"])  # type: ignore
-    )
+    motif_counts: dict[str, int] = dict(zip(df["motif_5p"], df["count_5p"]))
     total_count = sum(motif_counts.values())
     if total_count == 0:
         fail("No motif counts found in data", logger)
@@ -329,82 +327,44 @@ def optimize(
     observed_motifs = load_observed_motifs(motif_data_path, logger)
     logger.info(f"Loaded {len(observed_motifs)} motifs from observed data")
 
-    prior = pyabc.Distribution(  # type: ignore
-        dnase1_activity=(
-            pyabc.RV("uniform", loc=0.0, scale=2.0)  # type: ignore
-        ),
-        dnase1l3_activity=(
-            pyabc.RV("uniform", loc=0.0, scale=2.0)  # type: ignore
-        ),
-        dffb_activity=(
-            pyabc.RV("uniform", loc=0.0, scale=2.0)  # type: ignore
-        ),
+    prior = pyabc.Distribution(
+        dnase1_activity=(pyabc.RV("uniform", loc=0.0, scale=2.0)),
+        dnase1l3_activity=(pyabc.RV("uniform", loc=0.0, scale=2.0)),
+        dffb_activity=(pyabc.RV("uniform", loc=0.0, scale=2.0)),
 
-        dnase1_cg_pref=(
-            bounded_normal_prior(0.8, 0.4)  # type: ignore
-        ),
-        dnase1_at_pref=(
-            bounded_normal_prior(1.2, 0.4)  # type: ignore
-        ),
-        dnase1_aa_pref=(
-            bounded_normal_prior(1.1, 0.4)  # type: ignore
-        ),
+        dnase1_cg_pref=(bounded_normal_prior(0.8, 0.4)),
+        dnase1_at_pref=(bounded_normal_prior(1.2, 0.4)),
+        dnase1_aa_pref=(bounded_normal_prior(1.1, 0.4)),
 
-        dnase1l3_cc_pref=(
-            bounded_normal_prior(6.0, 2.0, high=12.0)  # type: ignore
-        ),
-        dnase1l3_c_pref=(
-            bounded_normal_prior(3.0, 1.5, high=10.0)  # type: ignore
-        ),
-        dnase1l3_cg_pref=(
-            bounded_normal_prior(2.5, 1.4, high=8.0)  # type: ignore
-        ),
-        dnase1l3_ct_pref=(
-            bounded_normal_prior(2.0, 1.3, high=6.0)  # type: ignore
-        ),
-        dnase1l3_gg_pref=(
-            bounded_normal_prior(1.8, 1.2, high=5.0)  # type: ignore
-        ),
-        dnase1l3_at_pref=(
-            bounded_normal_prior(0.6, 0.2)  # type: ignore
-        ),
-        dnase1l3_a_pref=(
-            bounded_normal_prior(0.7, 0.2)  # type: ignore
-        ),
+        dnase1l3_cc_pref=(bounded_normal_prior(6.0, 2.0, high=12.0)),
+        dnase1l3_c_pref=(bounded_normal_prior(3.0, 1.5, high=10.0)),
+        dnase1l3_cg_pref=(bounded_normal_prior(2.5, 1.4, high=8.0)),
+        dnase1l3_ct_pref=(bounded_normal_prior(2.0, 1.3, high=6.0)),
+        dnase1l3_gg_pref=(bounded_normal_prior(1.8, 1.2, high=5.0)),
+        dnase1l3_at_pref=(bounded_normal_prior(0.6, 0.2)),
+        dnase1l3_a_pref=(bounded_normal_prior(0.7, 0.2)),
 
-        dffb_a_pref=(
-            bounded_normal_prior(1.1, 0.5)  # type: ignore
-        ),
-        dffb_c_pref=(
-            bounded_normal_prior(0.9, 0.5)  # type: ignore
-        )
+        dffb_a_pref=(bounded_normal_prior(1.1, 0.5)),
+        dffb_c_pref=(bounded_normal_prior(0.9, 0.5))
     )
 
     n_cores = detect_cpus()
     logger.info(f"Using {n_cores} cores for ABC-SMC sampling")
-    sampler = pyabc.sampler.MulticoreEvalParallelSampler(  # type: ignore
-        n_procs=n_cores
-    )
-
-    transition = pyabc.MultivariateNormalTransition(  # type: ignore
-        scaling=KERNEL_SCALING
-    )
+    sampler = pyabc.sampler.MulticoreEvalParallelSampler(n_procs=n_cores)
+    transition = pyabc.MultivariateNormalTransition(scaling=KERNEL_SCALING)
     # @NOTE(ds): A local transition kernel is a valid alternative:
-    #
-    # transition = pyabc.LocalTransition(  # type: ignore
-    #     scaling=0.01, k_fraction=0.8
-    # )
+    # > transition = pyabc.LocalTransition(scaling=0.01, k_fraction=0.8)
 
-    abc = pyabc.ABCSMC(  # type: ignore
+    abc = pyabc.ABCSMC(
         models=partial(
             abc_model, fasta_path=fasta_path, num_fragments=num_fragments
         ),
-        parameter_priors=prior,  # type: ignore
+        parameter_priors=prior,
         distance_function=abc_distance,
         population_size=pop_size,
-        transitions=transition,  # type: ignore
-        sampler=sampler,  # type: ignore
-        eps=pyabc.QuantileEpsilon(alpha=0.9)  # type: ignore
+        transitions=transition,
+        sampler=sampler,
+        eps=pyabc.QuantileEpsilon(alpha=0.9)
     )
 
     db_path: str = f"sqlite:///{output_dir}/abc_history.db"
@@ -413,14 +373,14 @@ def optimize(
     )
 
     logger.info(f"Running ABC-SMC inference with DB at {db_path}")
-    history = abc.run(  # type: ignore
+    history = abc.run(
         minimum_epsilon=0.01,
         max_nr_populations=max_pops,
         min_acceptance_rate=0.01
     )
 
     logger.info(
-        f"Completed generations: {history.max_t + 1}"  # type: ignore
+        f"Completed generations: {history.max_t + 1}"
     )
 
 
@@ -436,13 +396,13 @@ def analyze_run_from_history(
 
     df: pd.DataFrame
     w: npt.NDArray[np.float64]
-    df, w = history.get_distribution()  # type: ignore
+    df, w = history.get_distribution()
 
     logger.info(f"saving posterior estimates to `{output_dir}`")
     estimates_df = save_posterior_estimates(df, w, output_dir)
 
     logger.info("performing simulation based on posterior estimates")
-    nuc_params: dict[str, float] = dict(estimates_df["median"])  # type: ignore
+    nuc_params: dict[str, float] = dict(estimates_df["median"])
     fragments: FragmentList = simulate_fragments(
         nuc_params, fasta_path, 100_000
     )
@@ -459,24 +419,21 @@ def save_posterior_estimates(
     estimates: dict[str, dict[str, float]] = {}
     param: str
     for param in df.columns:
-        mean: float = float(np.average(df[param], weights=w))  # type: ignore
+        mean: float = float(np.average(df[param], weights=w))
         std: float = float(
-            np.sqrt(  # type: ignore
-                np.average((df[param] - mean)**2, weights=w)  # type: ignore
-            )
+            np.sqrt(np.average((df[param] - mean)**2, weights=w))
         )
-        sorted_indices = np.argsort(df[param])  # type: ignore
-        sorted_values = df[param].values[sorted_indices]  # type: ignore
-        sorted_weights = w[sorted_indices]  # type: ignore
-        cumsum = np.cumsum(sorted_weights)  # type: ignore
+        sorted_indices = np.argsort(df[param])
+        sorted_values = df[param].values[sorted_indices]
+        sorted_weights = w[sorted_indices]
+        cumsum = np.cumsum(sorted_weights)
 
         estimates[param] = {
             "mean": mean,
             "std": std,
-            "median":
-                sorted_values[np.searchsorted(cumsum, 0.5)],  # type: ignore
-            "min": float(df[param].min()),  # type: ignore
-            "max": float(df[param].max()),  # type: ignore
+            "median": sorted_values[np.searchsorted(cumsum, 0.5)],
+            "min": float(df[param].min()),
+            "max": float(df[param].max()),
         }
 
     est_df = pd.DataFrame(estimates).T

@@ -62,10 +62,10 @@ def find_skew_normal_mean_from_mode(
         scale_param: the scale parameter used
     """
     delta: float = float(
-        skewness / np.sqrt(1 + skewness**2)  # type: ignore
+        skewness / np.sqrt(1 + skewness**2)
     )
     scale: float = float(
-        np.sqrt(variance / (1 - 2 * delta**2 / np.pi))  # type: ignore
+        np.sqrt(variance / (1 - 2 * delta**2 / np.pi))
     )
 
     def _mode_objective(loc: float) -> float:
@@ -109,9 +109,9 @@ def gaussian_mixture(
     for idx in range(n):
         m, s, p = params[idx], params[n+idx], params[2*n+idx]
         if pdf is None:
-            pdf = norm.pdf(data, loc=m, scale=s) * p  # type: ignore
+            pdf = norm.pdf(data, loc=m, scale=s) * p
         else:
-            pdf += norm.pdf(data, loc=m, scale=s) * p  # type: ignore
+            pdf += norm.pdf(data, loc=m, scale=s) * p
     return pdf  # type: ignore
 
 
@@ -119,14 +119,14 @@ def mixture_cdf(x: float, params: list[float], n: int) -> float:
     cdf: float = 0
     for idx in range(n):
         m, s, p = params[idx], params[n+idx], params[2*n+idx]
-        cdf += p * norm.cdf(x, loc=m, scale=s)  # type: ignore
+        cdf += p * norm.cdf(x, loc=m, scale=s)
     return cdf
 
 
 def mixture_cdf_wrapper(
     data: list[float], params: list[float], n: int
 ) -> npt.NDArray[np.float64]:
-    return np.array([mixture_cdf(x, params, n) for x in data])  # type: ignore
+    return np.array([mixture_cdf(x, params, n) for x in data])
 
 
 def negative_log_likelihood(
@@ -141,7 +141,7 @@ def negative_log_likelihood(
     """
     # @NOTE(ds): We clip the mixture fractions to avoid numerical instability
     # issues.
-    params[2*n:] = np.clip(params[2*n:], 1e-6, 1-1e-6)  # type: ignore
+    params[2*n:] = np.clip(params[2*n:], 1e-6, 1-1e-6)
     pdf: npt.NDArray[np.float64] = gaussian_mixture(params, n, data)
     epsilon = 1e-10
     return -np.sum(np.log(pdf + epsilon)) / norm_const  # type: ignore
@@ -242,7 +242,7 @@ def fit_gmm(
         )
 
     lin_constraint: LinearConstraint = LinearConstraint(
-        A=[[0]*2*n + [1]*n],  lb=1, ub=1  # type: ignore
+        A=[[0]*2*n + [1]*n],  lb=1, ub=1
     )
     norm_const: float = abs(negative_log_likelihood(
         initial_params, n, data_sample, 1.0
@@ -263,7 +263,7 @@ def fit_gmm(
         }
     )
 
-    return (result, n, result.x, data_sample)  # type: ignore
+    return (result, n, result.x, data_sample)
 
 
 def jensen_shannon_divergence(
@@ -271,7 +271,7 @@ def jensen_shannon_divergence(
 ) -> float:
     p = np.asarray(p) / np.sum(p)
     q = np.asarray(q) / np.sum(q)
-    m = 0.5 * (p + q)  # type: ignore
+    m = 0.5 * (p + q)
     return 0.5 * (entropy(p, m) + entropy(q, m))  # type: ignore
 
 
@@ -284,20 +284,19 @@ def goodness_of_fit_stats(
     ks_stat, ks_pval = ks_1samp(data, dist)  # type: ignore
 
     nbins: int = 1000
-    bins = np.linspace(min(data), max(data), nbins)  # type: ignore
-    bin_centers = (bins[:-1] + bins[1:]) / 2  # type: ignore
+    bins = np.linspace(min(data), max(data), nbins)
+    bin_centers = (bins[:-1] + bins[1:]) / 2
 
-    hist_empirical, _ = \
-        np.histogram(data, bins=bins, density=True)  # type: ignore
-    pdf_empirical = hist_empirical / np.sum(hist_empirical)  # type: ignore
-    pdf_fit = gaussian_mixture(params, n, bin_centers)  # type: ignore
+    hist_empirical, _ = np.histogram(data, bins=bins, density=True)
+    pdf_empirical = hist_empirical / np.sum(hist_empirical)
+    pdf_fit = gaussian_mixture(params, n, bin_centers)
 
     wd_distance = wasserstein_distance(
-        bin_centers, bin_centers,  # type: ignore
-        u_weights=pdf_empirical, v_weights=pdf_fit  # type: ignore
+        bin_centers, bin_centers,
+        u_weights=pdf_empirical, v_weights=pdf_fit
     )
     js_divergence = \
-        jensen_shannon_divergence(pdf_empirical, pdf_fit)  # type: ignore
+        jensen_shannon_divergence(pdf_empirical, pdf_fit)
 
     return {
         "kolmogorov_smirnov_statistic": ks_stat,
@@ -321,7 +320,7 @@ def plot_gmm(
     sample_min: np.float64 = np.min(data)
     sample_max: np.float64 = np.max(data)
     bins: list[float] = list(
-        np.arange(sample_min-30, sample_max+30)  # type: ignore
+        np.arange(sample_min-30, sample_max+30)
     )
     x: npt.NDArray[np.float64] = np.linspace(sample_min, sample_max, 1000)
 
@@ -332,7 +331,7 @@ def plot_gmm(
     for idx in range(num_gaussians):
         m, s, p = params[idx], params[n+idx], params[2*n+idx]
         this_pdf: npt.NDArray[np.float64] = \
-            norm.pdf(x, loc=m, scale=s) * p  # type: ignore
+            norm.pdf(x, loc=m, scale=s) * p
         plt.plot(x, this_pdf, linestyle="--",
                  label=r"$\mu_{}={:.4}$, $\sigma_{}={:.4}$, "
                        r"$\pi_{}={:.4}$".format(idx+1, m, idx+1, s, idx+1, p))
@@ -342,7 +341,8 @@ def plot_gmm(
             pdf_gmm += this_pdf
 
     plt.hist(data, bins=bins, density=True, alpha=0.5, color="gray")
-    plt.plot(x, pdf_gmm, color="red", linewidth=2, label="GMM fit")
+    if pdf_gmm is not None:
+        plt.plot(x, pdf_gmm, color="red", linewidth=2, label="GMM fit")
     plt.xlabel("Fragment Lengths")
     plt.ylabel("Density")
     plt.legend()

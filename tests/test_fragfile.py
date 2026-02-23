@@ -177,7 +177,7 @@ class TestFragFile(unittest.TestCase):
         frag_file = FragFile(self.temp_frag_path)
         file_ref = frag_file._FragFile__file  # type: ignore
         del frag_file
-        self.assertTrue(file_ref.closed)  # type: ignore
+        self.assertTrue(file_ref.closed)
 
 
 class TestFragFileIntegration(unittest.TestCase):

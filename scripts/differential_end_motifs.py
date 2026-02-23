@@ -172,19 +172,17 @@ def load_end_motif_data(
                 fail("CSV file '{}' missing required columns: {}".format(
                     csv_file, required_cols), logger)
 
-            df["count_5p"] = df["count_5p"].astype(int)  # type: ignore
-            df["count_3p"] = df["count_3p"].astype(int)  # type: ignore
-            df = df[
-                (df["count_5p"] > 0) | (df["count_3p"] > 0)  # type: ignore
-            ]
+            df["count_5p"] = df["count_5p"].astype(int)
+            df["count_3p"] = df["count_3p"].astype(int)
+            df = df[(df["count_5p"] > 0) | (df["count_3p"] > 0)]
 
             if df.empty:
                 fail("no valid data found in CSV file '{}'".format(
                     csv_file), logger)
 
             sample_data[sample_name] = df
-            all_motifs_5p.update(df["motif_5p"].tolist())  # type: ignore
-            all_motifs_3p.update(df["motif_3p"].tolist())  # type: ignore
+            all_motifs_5p.update(df["motif_5p"].tolist())
+            all_motifs_3p.update(df["motif_3p"].tolist())
 
         except Exception as e:
             fail("error reading CSV file '{}': {}".format(csv_file, e), logger)
@@ -210,15 +208,15 @@ def load_end_motif_data(
 
     for i, sample_name in enumerate(sample_names):
         df = sample_data[sample_name]
-        for _, row in df.iterrows():  # type: ignore
-            motif_5p: str = row["motif_5p"]  # type: ignore
-            count_5p: int = row["count_5p"]  # type: ignore
+        for _, row in df.iterrows():
+            motif_5p: str = row["motif_5p"]
+            count_5p: int = row["count_5p"]
             if motif_5p in all_motifs_5p_sorted and count_5p > 0:
                 col_idx: int = all_motifs_5p_sorted.index(motif_5p)
                 data_matrix[i, col_idx] = count_5p
 
-            motif_3p: str = row["motif_3p"]  # type: ignore
-            count_3p: int = row["count_3p"]  # type: ignore
+            motif_3p: str = row["motif_3p"]
+            count_3p: int = row["count_3p"]
             if motif_3p in all_motifs_3p_sorted and count_3p > 0:
                 col_idx = len(all_motifs_5p_sorted) + \
                     all_motifs_3p_sorted.index(motif_3p)
@@ -268,10 +266,10 @@ def perform_differential_analysis(
         group_b_values: npt.NDArray[np.int64] = \
             group_b_data[motif].values  # type: ignore
 
-        mean_a: float = float(np.mean(group_a_values))  # type: ignore
-        mean_b: float = float(np.mean(group_b_values))  # type: ignore
-        std_a: float = float(np.std(group_a_values))  # type: ignore
-        std_b: float = float(np.std(group_b_values))  # type: ignore
+        mean_a: float = float(np.mean(group_a_values))
+        mean_b: float = float(np.mean(group_b_values))
+        std_a: float = float(np.std(group_a_values))
+        std_b: float = float(np.std(group_b_values))
         log_fold_change: float = np.log2((mean_b + 1) / (mean_a + 1))
 
         try:
@@ -283,7 +281,7 @@ def perform_differential_analysis(
             u_statistic: float = float(statistic)
             effect_size: float = 1 - (2 * u_statistic) / (n_a * n_b)
         except ValueError:
-            p_value = 1.0
+            p_value = np.float64(1.0)
             effect_size = 0.0
 
         results.append({
@@ -299,11 +297,11 @@ def perform_differential_analysis(
 
     results_df: pd.DataFrame = pd.DataFrame(results)
     rejected, p_adjusted = \
-        fdrcorrection(results_df["p_value"].values, alpha=0.05)  # type: ignore
-    results_df["p_adjusted"] = p_adjusted  # type: ignore
-    results_df["significant"] = rejected  # type: ignore
+        fdrcorrection(results_df["p_value"].values, alpha=0.05)
+    results_df["p_adjusted"] = p_adjusted
+    results_df["significant"] = rejected
     results_df = results_df.sort_values("p_value")
-    n_significant: int = int(results_df["significant"].sum())  # type: ignore
+    n_significant: int = int(results_df["significant"].sum())
 
     logger.info("found {} significant motifs after FDR correction".format(
         n_significant))
@@ -323,40 +321,39 @@ def create_differential_plots(
     """
     neg_log10_p_adj: npt.NDArray[np.float64] = \
         -np.log10(results_df["p_adjusted"].values + 1e-100)  # type: ignore
-    colors: list[str] = [  # type: ignore
-        "red" if sig else "gray"  # type: ignore
-        for sig in results_df["significant"]  # type: ignore
+    colors: list[str] = [
+        "red" if sig else "gray" for sig in results_df["significant"]
     ]
 
     fig1, ax1 = plt.subplots(figsize=(10, 8))
     ax1.scatter(
-        results_df["log_fold_change"], neg_log10_p_adj,  # type: ignore
+        results_df["log_fold_change"], neg_log10_p_adj,
         c=colors, alpha=0.7, s=30
     )
 
     ax1.axhline(
-        y=-np.log10(0.05), color="black",  # type: ignore
+        y=-np.log10(0.05), color="black",
         linestyle="--", alpha=0.5, label="FDR = 0.05"
     )
     ax1.axvline(x=0, color="black", linestyle="-", alpha=0.3)
     ax1.set_xlabel("Log2 Fold Change (Group B / Group A)")
     ax1.set_ylabel("-log10(FDR-adjusted p-value)")
     ax1.set_title("Volcano Plot: Differential End Motif Analysis")
-    ax1.legend(["FDR = 0.05", "FDR < 0.05", "FDR ≥ 0.05"])  # type: ignore
+    ax1.legend(["FDR = 0.05", "FDR < 0.05", "FDR ≥ 0.05"])
     ax1.grid(True, alpha=0.3)
 
     top_significant: pd.DataFrame = \
-        results_df[results_df["significant"]].head(15)  # type: ignore
-    for _, row in top_significant.iterrows():  # type: ignore
-        if row["p_adjusted"] < 0.01:  # type: ignore
+        results_df[results_df["significant"]].head(15)
+    for _, row in top_significant.iterrows():
+        if row["p_adjusted"] < 0.01:
             motif_name: str = (
-                row["motif"].replace("motif_", "")  # type: ignore
+                row["motif"].replace("motif_", "")
                             .replace("_", " ")
             )
             ax1.annotate(
                 motif_name,
-                (row["log_fold_change"],  # type: ignore
-                 -np.log10(row["p_adjusted"] + 1e-100)),  # type: ignore
+                (row["log_fold_change"],
+                 -np.log10(row["p_adjusted"] + 1e-100)),
                 xytext=(5, 5), textcoords="offset points",
                 fontsize=8, alpha=0.8
             )
@@ -396,21 +393,21 @@ def create_differential_plots(
     if len(top_significant) > 0:
         fig3, ax3 = plt.subplots(figsize=(12, 8))
         top_20: pd.DataFrame = \
-            results_df[results_df["significant"]].head(20)  # type: ignore
-        motif_labels: list[str] = [  # type: ignore
-            m.replace("motif_", "").replace("_", " ")  # type: ignore
-            for m in top_20["motif"].tolist()  # type: ignore
+            results_df[results_df["significant"]].head(20)
+        motif_labels: list[str] = [
+            m.replace("motif_", "").replace("_", " ")
+            for m in top_20["motif"].tolist()
         ]
         bars = ax3.barh(
             range(len(top_20)),
             top_20["log_fold_change"].values  # type: ignore
         )
 
-        for i, bar in enumerate(bars):  # type: ignore
-            if top_20.iloc[i]["log_fold_change"] > 0:  # type: ignore
-                bar.set_color("red")  # type: ignore
+        for i, bar in enumerate(bars):
+            if top_20.iloc[i]["log_fold_change"] > 0:
+                bar.set_color("red")
             else:
-                bar.set_color("blue")  # type: ignore
+                bar.set_color("blue")
 
         ax3.set_yticks(range(len(top_20)))  # type: ignore
         ax3.set_yticklabels(motif_labels)  # type: ignore

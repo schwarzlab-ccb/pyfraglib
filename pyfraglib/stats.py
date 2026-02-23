@@ -180,7 +180,7 @@ def end_motifs_barplot(
         colors_bars: list[str] = list(itertools.chain(
             *[sec_len*[color] for color in colors]))
 
-        plt.bar(motifs_names, motifs_vals, color=colors_bars)
+        plt.bar(motifs_names, motifs_vals, color=colors_bars)  # type: ignore
         for num, (color, base) in enumerate(zip(colors, bases)):
             x_start: float = sec_len*num-0.5
             x_end: float = sec_len*(num+1)-0.5
@@ -302,9 +302,9 @@ def export_length_distribution_csv(
     outpath: str = os.path.join(out_dir, f"{name}_length_distribution.csv")
     with open(outpath, "w", newline="") as csvfile:
         writer = csv.writer(csvfile)
-        writer.writerow(["fragment_length", "count"])  # type: ignore
+        writer.writerow(["fragment_length", "count"])
         for length, count in sorted_lengths:
-            writer.writerow([length, count])  # type: ignore
+            writer.writerow([length, count])
 
     logger.info(
         "exported {} unique fragment lengths to {}".format(
@@ -363,13 +363,13 @@ def export_end_motifs_csv(
     with open(outpath, "w", newline="") as csvfile:
         writer = csv.writer(csvfile)
         writer.writerow(
-            ["motif_5p", "count_5p", "motif_3p", "count_3p"]  # type: ignore
+            ["motif_5p", "count_5p", "motif_3p", "count_3p"]
         )
         for motif in sorted_motifs:
             count_5p: int = motifs_5p[motif]
             count_3p: int = motifs_3p[motif]
             writer.writerow(
-                [motif, count_5p, motif, count_3p]  # type: ignore
+                [motif, count_5p, motif, count_3p]
             )
 
     logger.info(

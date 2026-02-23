@@ -351,13 +351,11 @@ class TestUtilityFunctions(unittest.TestCase):
                 return "value"
             raise KeyError(f"Tag {tag} not found")
 
-        duplex_read.get_tag.side_effect = duplex_get_tag  # type: ignore
+        duplex_read.get_tag.side_effect = duplex_get_tag
         self.assertTrue(is_duplex(duplex_read))
 
         non_duplex_read = Mock()
-        non_duplex_read.get_tag.side_effect = (  # type: ignore
-            KeyError("No tags found")
-        )
+        non_duplex_read.get_tag.side_effect = KeyError("No tags found")
         self.assertFalse(is_duplex(non_duplex_read))
 
         partial_duplex_read = Mock()
@@ -367,10 +365,7 @@ class TestUtilityFunctions(unittest.TestCase):
                 return "value"
             raise KeyError(f"Tag {tag} not found")
 
-        partial_duplex_read.get_tag.side_effect = (  # type: ignore
-            partial_get_tag
-        )
-
+        partial_duplex_read.get_tag.side_effect = partial_get_tag
         self.assertFalse(is_duplex(partial_duplex_read))
 
 
@@ -380,9 +375,7 @@ class TestVCFParsing(unittest.TestCase):
     def test_build_mutated_reads_set_basic(self) -> None:
         """Test basic VCF parsing with simple SNV."""
         bam_file = Mock()
-        bam_file.header.to_dict.return_value = {  # type: ignore
-            "SQ": [{"SN": "chr1"}]  # type: ignore
-        }
+        bam_file.header.to_dict.return_value = {"SQ": [{"SN": "chr1"}]}
 
         vcf_file = Mock()
         vcf_file.filename = b"test.vcf"
@@ -398,7 +391,7 @@ class TestVCFParsing(unittest.TestCase):
             reference_end=131
         )
         mutated_read.get_reference_positions = Mock(  # type: ignore
-            return_value=list(range(120, 131))  # type: ignore
+            return_value=list(range(120, 131))
         )
 
         normal_read = MockAlignedSegment(
@@ -408,12 +401,10 @@ class TestVCFParsing(unittest.TestCase):
             reference_end=131
         )
         normal_read.get_reference_positions = Mock(  # type: ignore
-            return_value=list(range(120, 131))  # type: ignore
+            return_value=list(range(120, 131))
         )
 
-        bam_file.fetch.return_value = [  # type: ignore
-            mutated_read, normal_read
-        ]
+        bam_file.fetch.return_value = [mutated_read, normal_read]
 
         result = Fragment.build_mutated_reads_set(bam_file, vcf_file)
 
@@ -424,9 +415,7 @@ class TestVCFParsing(unittest.TestCase):
     def test_build_mutated_reads_set_non_snv_filtered(self) -> None:
         """Test that non-SNV variants are filtered out."""
         bam_file = Mock()
-        bam_file.header.to_dict.return_value = {  # type: ignore
-            "SQ": [{"SN": "chr1"}]  # type: ignore
-        }
+        bam_file.header.to_dict.return_value = {"SQ": [{"SN": "chr1"}]}
 
         vcf_file = Mock()
         vcf_file.filename = b"test.vcf"
@@ -438,16 +427,14 @@ class TestVCFParsing(unittest.TestCase):
         result = Fragment.build_mutated_reads_set(bam_file, vcf_file)
 
         self.assertEqual(len(result), 0)
-        bam_file.fetch.assert_not_called()  # type: ignore
+        bam_file.fetch.assert_not_called()
 
     def test_build_mutated_reads_set_chromosome_name_normalization(
         self
     ) -> None:
         """Test chromosome name normalization between VCF and BAM."""
         bam_file = Mock()
-        bam_file.header.to_dict.return_value = {  # type: ignore
-            "SQ": [{"SN": "chr1"}]  # type: ignore
-        }
+        bam_file.header.to_dict.return_value = {"SQ": [{"SN": "chr1"}]}
 
         vcf_file = Mock()
         vcf_file.filename = b"test.vcf"
@@ -463,14 +450,12 @@ class TestVCFParsing(unittest.TestCase):
             reference_end=131
         )
         mutated_read.get_reference_positions = Mock(  # type: ignore
-            return_value=list(range(120, 131))  # type: ignore
+            return_value=list(range(120, 131))
         )
-        bam_file.fetch.return_value = [mutated_read]  # type: ignore
+        bam_file.fetch.return_value = [mutated_read]
 
         result = Fragment.build_mutated_reads_set(bam_file, vcf_file)
-        bam_file.fetch.assert_called_with(  # type: ignore
-            contig="chr1", start=125, stop=126
-        )
+        bam_file.fetch.assert_called_with(contig="chr1", start=125, stop=126)
         self.assertEqual(len(result), 1)
 
     def test_build_mutated_reads_set_read_position_not_in_variant(
@@ -478,9 +463,7 @@ class TestVCFParsing(unittest.TestCase):
     ) -> None:
         """Test reads that do not span the variant position."""
         bam_file = Mock()
-        bam_file.header.to_dict.return_value = {  # type: ignore
-            "SQ": [{"SN": "chr1"}]  # type: ignore
-        }
+        bam_file.header.to_dict.return_value = {"SQ": [{"SN": "chr1"}]}
 
         vcf_file = Mock()
         vcf_file.filename = b"test.vcf"
@@ -496,10 +479,10 @@ class TestVCFParsing(unittest.TestCase):
             reference_end=141
         )
         read.get_reference_positions = Mock(  # type: ignore
-            return_value=list(range(130, 141))  # type: ignore
+            return_value=list(range(130, 141))
         )
 
-        bam_file.fetch.return_value = [read]  # type: ignore
+        bam_file.fetch.return_value = [read]
         result = Fragment.build_mutated_reads_set(bam_file, vcf_file)
 
         self.assertEqual(len(result), 0)
@@ -507,9 +490,7 @@ class TestVCFParsing(unittest.TestCase):
     def test_build_mutated_reads_set_unknown_variant_base(self) -> None:
         """Test reads with bases that are neither ref nor alt."""
         bam_file = Mock()
-        bam_file.header.to_dict.return_value = {  # type: ignore
-            "SQ": [{"SN": "chr1"}]  # type: ignore
-        }
+        bam_file.header.to_dict.return_value = {"SQ": [{"SN": "chr1"}]}
 
         vcf_file = Mock()
         vcf_file.filename = b"test.vcf"
@@ -525,10 +506,10 @@ class TestVCFParsing(unittest.TestCase):
             reference_end=131
         )
         read.get_reference_positions = Mock(  # type: ignore
-            return_value=list(range(120, 131))  # type: ignore
+            return_value=list(range(120, 131))
         )
 
-        bam_file.fetch.return_value = [read]  # type: ignore
+        bam_file.fetch.return_value = [read]
         result = Fragment.build_mutated_reads_set(bam_file, vcf_file)
 
         self.assertEqual(len(result), 0)
@@ -536,9 +517,7 @@ class TestVCFParsing(unittest.TestCase):
     def test_build_mutated_reads_set_multiple_variants(self) -> None:
         """Test processing multiple variants in VCF."""
         bam_file = Mock()
-        bam_file.header.to_dict.return_value = {  # type: ignore
-            "SQ": [{"SN": "chr1"}]  # type: ignore
-        }
+        bam_file.header.to_dict.return_value = {"SQ": [{"SN": "chr1"}]}
 
         vcf_file = Mock()
         vcf_file.filename = b"test.vcf"
@@ -554,17 +533,17 @@ class TestVCFParsing(unittest.TestCase):
             query_name="read1", query_sequence="ATCGATCGTCG"  # T at position 5
         )
         read1.get_reference_positions = Mock(  # type: ignore
-            return_value=list(range(120, 131))  # type: ignore
+            return_value=list(range(120, 131))
         )
 
         read2 = MockAlignedSegment(
             query_name="read2", query_sequence="ATCGGGCGTCG"  # G at position 5
         )
         read2.get_reference_positions = Mock(  # type: ignore
-            return_value=list(range(220, 231))  # type: ignore
+            return_value=list(range(220, 231))
         )
 
-        bam_file.fetch.side_effect = [[read1], [read2]]  # type: ignore
+        bam_file.fetch.side_effect = [[read1], [read2]]
         result = Fragment.build_mutated_reads_set(bam_file, vcf_file)
 
         self.assertEqual(len(result), 2)
@@ -574,9 +553,7 @@ class TestVCFParsing(unittest.TestCase):
     def test_build_mutated_reads_set_invalid_chromosome_error(self) -> None:
         """Test error handling for invalid chromosome in VCF."""
         bam_file = Mock()
-        bam_file.header.to_dict.return_value = {  # type: ignore
-            "SQ": [{"SN": "chr1"}]  # type: ignore
-        }
+        bam_file.header.to_dict.return_value = {"SQ": [{"SN": "chr1"}]}
 
         vcf_file = Mock()
         vcf_file.filename = b"test.vcf"
@@ -585,9 +562,7 @@ class TestVCFParsing(unittest.TestCase):
         )
         vcf_file.__iter__ = Mock(return_value=iter([variant]))
 
-        bam_file.fetch.side_effect = ValueError(  # type: ignore
-            "Invalid chromosome"
-        )
+        bam_file.fetch.side_effect = ValueError("Invalid chromosome")
 
         with self.assertRaises(SystemExit):
             Fragment.build_mutated_reads_set(bam_file, vcf_file)
@@ -625,7 +600,7 @@ class TestVCFIntegration(unittest.TestCase):
         finally:
             cleanup_temp_file(temp_path)
 
-    @unittest.skipUnless(  # type: ignore
+    @unittest.skipUnless(
         os.path.exists(MUTATED_READS_ONLY_TEST_BAM) and
         os.path.exists(MUTATED_READS_ONLY_TEST_BAM_BAI) and
         os.path.exists(MUTATED_READS_ONLY_TEST_VCF),
@@ -686,7 +661,7 @@ class TestVCFIntegration(unittest.TestCase):
             f"({known_fragments}/{total_fragments}) were known"
         )
 
-    @unittest.skipUnless(  # type: ignore
+    @unittest.skipUnless(
         os.path.exists(UNMUTATED_READS_ONLY_TEST_BAM) and
         os.path.exists(UNMUTATED_READS_ONLY_TEST_BAM_BAI) and
         os.path.exists(UNMUTATED_READS_ONLY_TEST_VCF),
@@ -748,7 +723,7 @@ class TestVCFIntegration(unittest.TestCase):
             f"({known_fragments}/{total_fragments}) were known"
         )
 
-    @unittest.skipUnless(  # type: ignore
+    @unittest.skipUnless(
         os.path.exists(MIXED_MUTATED_READS_TEST_BAM) and
         os.path.exists(MIXED_MUTATED_READS_TEST_BAM_BAI) and
         os.path.exists(MIXED_MUTATED_READS_TEST_VCF),
@@ -828,9 +803,7 @@ class TestVCFEdgeCases(unittest.TestCase):
     def test_vcf_with_multiple_alt_alleles(self) -> None:
         """Test VCF records with multiple alternative alleles."""
         bam_file = Mock()
-        bam_file.header.to_dict.return_value = {  # type: ignore
-            "SQ": [{"SN": "chr1"}]  # type: ignore
-        }
+        bam_file.header.to_dict.return_value = {"SQ": [{"SN": "chr1"}]}
 
         vcf_file = Mock()
         vcf_file.filename = b"test.vcf"
@@ -846,7 +819,7 @@ class TestVCFEdgeCases(unittest.TestCase):
             reference_end=131
         )
         read1.get_reference_positions = Mock(  # type: ignore
-            return_value=list(range(120, 131))  # type: ignore
+            return_value=list(range(120, 131))
         )
 
         read2 = MockAlignedSegment(
@@ -856,10 +829,10 @@ class TestVCFEdgeCases(unittest.TestCase):
             reference_end=131
         )
         read2.get_reference_positions = Mock(  # type: ignore
-            return_value=list(range(120, 131))  # type: ignore
+            return_value=list(range(120, 131))
         )
 
-        bam_file.fetch.return_value = [read1, read2]  # type: ignore
+        bam_file.fetch.return_value = [read1, read2]
         result = Fragment.build_mutated_reads_set(bam_file, vcf_file)
 
         self.assertEqual(len(result), 2)
@@ -869,9 +842,7 @@ class TestVCFEdgeCases(unittest.TestCase):
     def test_read_with_none_query_sequence(self) -> None:
         """Test handling of reads with None query sequence."""
         bam_file = Mock()
-        bam_file.header.to_dict.return_value = {  # type: ignore
-            "SQ": [{"SN": "chr1"}]  # type: ignore
-        }
+        bam_file.header.to_dict.return_value = {"SQ": [{"SN": "chr1"}]}
 
         vcf_file = Mock()
         vcf_file.filename = b"test.vcf"
@@ -887,9 +858,9 @@ class TestVCFEdgeCases(unittest.TestCase):
             reference_end=131
         )
         read.get_reference_positions = Mock(  # type: ignore
-            return_value=list(range(120, 131))  # type: ignore
+            return_value=list(range(120, 131))
         )
-        bam_file.fetch.return_value = [read]  # type: ignore
+        bam_file.fetch.return_value = [read]
 
         with self.assertRaises(AssertionError):
             Fragment.build_mutated_reads_set(bam_file, vcf_file)

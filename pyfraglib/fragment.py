@@ -744,7 +744,7 @@ class Fragment:
             # use the methods that are 0-based.
             read: pysam.AlignedSegment
             contig: str = homogenize_to_chrom_naming_convention(
-                variant.contig, bam_file.header.to_dict()  # type: ignore
+                variant.contig, bam_file.header.to_dict()
             )
 
             try:
@@ -814,14 +814,14 @@ class Fragment:
 
             with Pool(processes=detect_cpus()) as pool:
                 partial_task: Callable[[str, str], None] = partial(
-                    task0, frags_per_bam=shared_collection,  # type: ignore
+                    task0, frags_per_bam=shared_collection,
                     is_nanopore=is_nanopore
                 )
                 pool.starmap(partial_task, input_data)
 
             return cast(
                 FragmentCollection,
-                shared_collection._getvalue()  # type: ignore
+                shared_collection._getvalue()
             )
 
     @staticmethod
@@ -1141,10 +1141,10 @@ class IntervalTable():
         self.__table: dict[str, IntervalTree] = {}  # type: ignore
 
     def insert(self, fragment: Fragment) -> None:
-        if fragment.chrom not in self.__table:  # type: ignore
-            self.__table[fragment.chrom] = IntervalTree()  # type: ignore
+        if fragment.chrom not in self.__table:
+            self.__table[fragment.chrom] = IntervalTree()
 
-        self.__table[fragment.chrom].addi(  # type: ignore
+        self.__table[fragment.chrom].addi(
             fragment.start_pos, fragment.end_pos
         )
 
@@ -1153,7 +1153,7 @@ class IntervalTable():
     ) -> list[Interval]:
         itree: IntervalTree = self.__table[chrom]  # type: ignore
         intervals: list[Interval] = itree[win_start:win_end]  # type: ignore
-        return intervals  # type: ignore
+        return intervals
 
 
 class FragmentCollection():

@@ -200,6 +200,6 @@ py_warnings_logger: logging.Logger = logging.getLogger("py.warnings")
 log_filter: FixedLogLevelFilter = FixedLogLevelFilter(logging.DEBUG)
 py_warnings_logger.addFilter(log_filter)
 
-PyfragManager.register(  # type: ignore
+PyfragManager.register(
     "FragmentCollection", FragmentCollection
 )

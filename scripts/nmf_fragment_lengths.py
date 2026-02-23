@@ -152,20 +152,16 @@ def load_fragment_length_data(
                 fail("CSV file '{}' missing required columns: {}".format(
                     csv_file, required_cols), logger)
 
-            df["fragment_length"] = \
-                df["fragment_length"].astype(int)  # type: ignore
-            df["count"] = \
-                df["count"].astype(int)  # type: ignore
-            df = df[
-                (df["count"] > 0) & (df["fragment_length"] > 0)  # type: ignore
-            ]
+            df["fragment_length"] = df["fragment_length"].astype(int)
+            df["count"] = df["count"].astype(int)
+            df = df[(df["count"] > 0) & (df["fragment_length"] > 0)]
 
             if df.empty:
                 fail("no valid data found in CSV file '{}'".format(
                     csv_file), logger)
 
             sample_data[sample_name] = df
-            all_lengths.update(df["fragment_length"].tolist())  # type: ignore
+            all_lengths.update(df["fragment_length"].tolist())
 
         except Exception as e:
             fail("error reading CSV file '{}': {}".format(csv_file, e), logger)
@@ -183,7 +179,7 @@ def load_fragment_length_data(
     for i, sample_name in enumerate(sample_names):
         df = sample_data[sample_name]
         row: pd.Series[int]
-        for _, row in df.iterrows():  # type: ignore
+        for _, row in df.iterrows():
             length_idx: int = row["fragment_length"] - min_length
             data_matrix[i, length_idx] = row["count"]
 
@@ -214,7 +210,7 @@ def perform_nmf_analysis(
     logger.info("performing NMF with {} components".format(n_components))
     scaler: MinMaxScaler = MinMaxScaler()  # type: ignore
     X_scaled: npt.NDArray[np.float64] = \
-        scaler.fit_transform(data_matrix.values)  # type: ignore
+        scaler.fit_transform(data_matrix.values)
 
     # @NOTE(ds): We perform NMF with multiple random initializations for
     # better stability.
@@ -237,10 +233,8 @@ def perform_nmf_analysis(
             l1_ratio=0.1,  # mostly L2, little L1
         )
 
-        W: npt.NDArray[np.float64] = \
-            nmf_model.fit_transform(X_scaled)  # type: ignore
-        H: npt.NDArray[np.float64] = \
-            nmf_model.components_  # type: ignore
+        W: npt.NDArray[np.float64] = nmf_model.fit_transform(X_scaled)
+        H: npt.NDArray[np.float64] = nmf_model.components_
         X_reconstructed: npt.NDArray[np.float64] = np.dot(W, H)
         error: float = mean_squared_error(X_scaled, X_reconstructed)
 
@@ -318,24 +312,25 @@ def create_nmf_visualizations(
     component_names: list[str] = [
         "Component {}".format(i+1) for i in range(n_components)
     ]
-    fig1, axes1 = plt.subplots(  # type: ignore
+    fig1, axes1 = plt.subplots(
         n_components, 1, figsize=(12, 3*n_components), sharex=True
     )
     if n_components == 1:
-        axes1 = [axes1]  # type: ignore
+        axes1 = [axes1]
 
     lengths_numeric: list[int] = [int(x) for x in fragment_lengths]
     ax: plt.Axes
     i: int
-    for i, ax in enumerate(axes1):  # type: ignore
-        ax.plot(lengths_numeric, H[i, :], linewidth=2,  # type: ignore
-                label=component_names[i])
+    for i, ax in enumerate(axes1):
+        ax.plot(
+            lengths_numeric, H[i, :], linewidth=2, label=component_names[i]
+        )
         ax.set_ylabel("Signature Weight")
         ax.set_title("NMF Component {} Signature".format(i+1))
         ax.grid(True, alpha=0.3)
         ax.legend()
 
-    axes1[-1].set_xlabel("Fragment Length (bp)")  # type: ignore
+    axes1[-1].set_xlabel("Fragment Length (bp)")
     plt.suptitle("NMF Fragment Length Signatures\n"
                  "Reconstruction Error: {:.6f}".format(reconstruction_error))
     plt.tight_layout()
@@ -350,10 +345,10 @@ def create_nmf_visualizations(
     W_df: pd.DataFrame = pd.DataFrame(
         W, index=sample_names, columns=component_names
     )
-    W_norm: pd.DataFrame = W_df.div(W_df.sum(axis=1), axis=0)  # type: ignore
+    W_norm: pd.DataFrame = W_df.div(W_df.sum(axis=1), axis=0)
     sns.heatmap(
         W_norm.T, annot=True, fmt=".3f", cmap="viridis",
-        ax=ax2, cbar_kws={"label": "Normalized Weight"}  # type: ignore
+        ax=ax2, cbar_kws={"label": "Normalized Weight"}
     )
     ax2.set_title("Sample Composition by NMF Components")
     ax2.set_xlabel("Samples")
@@ -373,14 +368,14 @@ def create_nmf_visualizations(
 
     for i in range(n_components):
         ax3.bar(
-            x_pos + i*width, W[:, i], width,  # type: ignore
+            x_pos + i*width, W[:, i], width,
             label=component_names[i], alpha=0.8
         )
 
     ax3.set_xlabel("Samples")
     ax3.set_ylabel("Component Weight")
     ax3.set_title("NMF Component Weights by Sample")
-    ax3.set_xticks(x_pos + width*(n_components-1)/2)  # type: ignore
+    ax3.set_xticks(x_pos + width*(n_components-1)/2)
     ax3.set_xticklabels(sample_names, rotation=45, ha="right")  # type: ignore
     ax3.legend()
     ax3.grid(True, alpha=0.3)

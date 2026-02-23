@@ -285,21 +285,21 @@ def windowed_protection_score_fast(
         iend: int = min(frag_end + win_half,
                         get_chromosome_length(frag_chrom, genome))
 
-        chrom_map_depth[frag_chrom][frag_start:frag_end] += 1  # type: ignore
+        chrom_map_depth[frag_chrom][frag_start:frag_end] += 1
         if frag_len < win_size:
-            chrom_map_wps[frag_chrom][istart:iend] -= 1  # type: ignore
-            chrom_map_end[frag_chrom][istart:iend] += 1  # type: ignore
+            chrom_map_wps[frag_chrom][istart:iend] -= 1
+            chrom_map_end[frag_chrom][istart:iend] += 1
         else:
             ostart: int = frag_start + win_half
             oend: int = frag_end - win_half  # 1 past end
 
-            chrom_map_wps[frag_chrom][istart:ostart] -= 1  # type: ignore
-            chrom_map_wps[frag_chrom][ostart:oend] += 1  # type: ignore
-            chrom_map_wps[frag_chrom][oend:iend] -= 1  # type: ignore
+            chrom_map_wps[frag_chrom][istart:ostart] -= 1
+            chrom_map_wps[frag_chrom][ostart:oend] += 1
+            chrom_map_wps[frag_chrom][oend:iend] -= 1
 
-            chrom_map_end[frag_chrom][istart:ostart] += 1  # type: ignore
-            chrom_map_span[frag_chrom][ostart:oend] += 1  # type: ignore
-            chrom_map_end[frag_chrom][oend:iend] += 1  # type: ignore
+            chrom_map_end[frag_chrom][istart:ostart] += 1
+            chrom_map_span[frag_chrom][ostart:oend] += 1
+            chrom_map_end[frag_chrom][oend:iend] += 1
 
     return chromosome_maps_to_df(chrom_map_wps, chrom_map_depth,
                                  chrom_map_span, chrom_map_end,
@@ -311,10 +311,10 @@ def precalc_size(regions: pysam.TabixFile) -> int:
     Internal utility function.
     """
     it: int = 0
-    for region in regions.fetch():  # type: ignore
+    for region in regions.fetch():
         istart: str
         iend: str
-        _, istart, iend, _ = region.split()  # type: ignore
+        _, istart, iend, _ = region.split()
         it += int(iend) - int(istart) + 1
     regions.reset()
     return it
@@ -376,7 +376,7 @@ def chromosome_maps_to_df(
     chromosome_span: npt.NDArray[np.int64] | None = None
     chromosome_end: npt.NDArray[np.int64] | None = None
 
-    for region in regions.fetch():  # type: ignore
+    for region in regions.fetch():
         chrom: str
         istart: str
         iend: str
@@ -408,16 +408,12 @@ def chromosome_maps_to_df(
 
         output_df.loc[it:(it+rlen), "chrom"] = chrom
         output_df.loc[it:(it+rlen), "pos"] = rel_pos
-        output_df.loc[it:(it+rlen), "abs_pos"] = \
-            rel_pos + cum_pos  # type: ignore
-        output_df.loc[it:(it+rlen), "wps"] = \
-            chromosome_wps[rel_pos]  # type: ignore
-        output_df.loc[it:(it+rlen), "depth"] = \
-            chromosome_depth[rel_pos]  # type: ignore
+        output_df.loc[it:(it+rlen), "abs_pos"] = rel_pos + cum_pos
+        output_df.loc[it:(it+rlen), "wps"] = chromosome_wps[rel_pos]
+        output_df.loc[it:(it+rlen), "depth"] = chromosome_depth[rel_pos]
         output_df.loc[it:(it+rlen), "spanning_frags"] = \
-            chromosome_span[rel_pos]  # type: ignore
-        output_df.loc[it:(it+rlen), "ending_frags"] = \
-            chromosome_end[rel_pos]  # type: ignore
+            chromosome_span[rel_pos]
+        output_df.loc[it:(it+rlen), "ending_frags"] = chromosome_end[rel_pos]
         output_df.loc[it:(it+rlen), "info"] = info
 
         it += rlen + 1
@@ -518,19 +514,19 @@ def score_line_plot(
 
     if score == "ratio_end_span":
         # Avoid division by zero: set ratio to 0 when spanning_frags is 0.
-        denominator = df["spanning_frags"].replace(0, 1)  # type: ignore
-        df["ratio_end_span"] = df["ending_frags"] / denominator  # type: ignore
-        df.loc[df["spanning_frags"] == 0, "ratio_end_span"] = (  # type: ignore
+        denominator = df["spanning_frags"].replace(0, 1)
+        df["ratio_end_span"] = df["ending_frags"] / denominator
+        df.loc[df["spanning_frags"] == 0, "ratio_end_span"] = (
             0.0
         )
 
     if score == "ratio_span_total":
         # Avoid division by zero: set ratio to 0 when total is 0.
-        total_frags = df["ending_frags"] + df["spanning_frags"]  # type: ignore
-        denominator = total_frags.replace(0, 1)  # type: ignore
+        total_frags = df["ending_frags"] + df["spanning_frags"]
+        denominator = total_frags.replace(0, 1)
         df["ratio_span_total"] = \
-            df["spanning_frags"] / denominator  # type: ignore
-        df.loc[total_frags == 0, "ratio_span_total"] = 0.0  # type: ignore
+            df["spanning_frags"] / denominator
+        df.loc[total_frags == 0, "ratio_span_total"] = 0.0
 
     fig: matplotlib.figure.Figure = plt.figure()
     plt.title(f"Sample {name}")
@@ -552,24 +548,24 @@ def score_line_plot(
         else:
             color = "lightgrey"
 
-        condition = df["chrom"] == name  # type: ignore
+        condition = df["chrom"] == name
         plt.plot(
-            df.loc[condition, "pos"] + cumsum,  # type: ignore
-            df.loc[condition, score],  # type: ignore
+            df.loc[condition, "pos"] + cumsum,
+            df.loc[condition, score],
             color="#1f77b4",
             label=score,
             linewidth=2.5
         )
         if plot_spanning_ending_frags:
             plt.plot(
-                df.loc[condition, "pos"] + cumsum,  # type: ignore
-                df.loc[condition, "spanning_frags"],  # type: ignore
+                df.loc[condition, "pos"] + cumsum,
+                df.loc[condition, "spanning_frags"],
                 color="#beddf1",
                 label="spanning fragments",
             )
             plt.plot(
-                df.loc[condition, "pos"] + cumsum,  # type: ignore
-                df.loc[condition, "ending_frags"],  # type: ignore
+                df.loc[condition, "pos"] + cumsum,
+                df.loc[condition, "ending_frags"],
                 color="#f8c57c",
                 label="ending fragments",
             )

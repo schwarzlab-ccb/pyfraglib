@@ -43,7 +43,7 @@ class TestGaussianMixture(unittest.TestCase):
         self.assertEqual(len(pdf), len(data))
         self.assertTrue(np.all(pdf > 0))
         peak_idx: np.int64 = np.argmax(pdf)
-        self.assertEqual(data[peak_idx], 3.0)  # type: ignore
+        self.assertEqual(data[peak_idx], 3.0)
 
     def test_gaussian_mixture_multiple_components(self) -> None:
         """Test Gaussian mixture with multiple components."""
@@ -92,7 +92,7 @@ class TestGaussianMixture(unittest.TestCase):
         for i, x in enumerate(data):
             expected: float = mixture_cdf(x, params, n)
             self.assertAlmostEqual(
-                cdf_array[i], expected, places=6  # type: ignore
+                cdf_array[i], expected, places=6
             )
 
     def test_negative_log_likelihood(self) -> None:
@@ -255,7 +255,7 @@ class TestGMMFitting(unittest.TestCase):
         np.random.seed(42)
 
         mock_result = MagicMock()
-        mock_result.x = [160.0, 15.0, 1.0]  # type: ignore
+        mock_result.x = [160.0, 15.0, 1.0]
         mock_minimize.return_value = mock_result
         data: npt.NDArray[np.float64] = np.random.normal(160.0, 15.0, 100)
         config_path = self.create_test_config_file()
@@ -275,7 +275,7 @@ class TestGMMFitting(unittest.TestCase):
         data = [1.0, 2.0, 3.0]
         hess = hessian(params, n, data)
         self.assertEqual(hess.shape, (3, 3))
-        self.assertTrue(np.all(hess == 0))  # type: ignore
+        self.assertTrue(np.all(hess == 0))
 
 
 class TestSkewNormalFitting(unittest.TestCase):
@@ -361,7 +361,7 @@ class TestDivergenceMetrics(unittest.TestCase):
         q: npt.NDArray[np.float64] = np.array([0.1, 0.8, 0.1])
         js_div = jensen_shannon_divergence(p, q)
         self.assertGreater(js_div, 0.0)
-        self.assertLessEqual(js_div, np.log(2))  # type: ignore
+        self.assertLessEqual(js_div, np.log(2))
 
     def test_jensen_shannon_divergence_normalization(self) -> None:
         """Test JS divergence with unnormalized distributions."""
@@ -369,7 +369,7 @@ class TestDivergenceMetrics(unittest.TestCase):
         q: npt.NDArray[np.float64] = np.array([1.0, 2.0, 1.0])
         js_div = jensen_shannon_divergence(p, q)
         self.assertGreater(js_div, 0.0)
-        self.assertLessEqual(js_div, np.log(2))  # type: ignore
+        self.assertLessEqual(js_div, np.log(2))
 
 
 class TestGoodnessOfFit(unittest.TestCase):
@@ -405,7 +405,7 @@ class TestGoodnessOfFit(unittest.TestCase):
 class TestPlotting(unittest.TestCase):
     """Test plotting functions."""
 
-    @patch("matplotlib.pyplot.savefig")  # type: ignore
+    @patch("matplotlib.pyplot.savefig")
     @patch("matplotlib.pyplot.figure")
     def test_plot_gmm(
         self, mock_figure: MagicMock, mock_savefig: MagicMock
@@ -425,11 +425,11 @@ class TestPlotting(unittest.TestCase):
             expected_path: str = os.path.join(
                 temp_dir, "test_sample_gmm_frags_len.png"
             )
-            mock_fig.savefig.assert_called_once_with(  # type: ignore
+            mock_fig.savefig.assert_called_once_with(
                 expected_path, dpi=100
             )
 
-    @patch("matplotlib.pyplot.savefig")  # type: ignore
+    @patch("matplotlib.pyplot.savefig")
     @patch("matplotlib.pyplot.figure")
     def test_plot_gmm_multiple_components(
         self, mock_figure: MagicMock, mock_savefig: MagicMock
@@ -443,15 +443,13 @@ class TestPlotting(unittest.TestCase):
 
         data1: npt.NDArray[np.float64] = np.random.normal(120.0, 15.0, 50)
         data2: npt.NDArray[np.float64] = np.random.normal(180.0, 20.0, 50)
-        data: npt.NDArray[np.float64] = np.concatenate(
-            [data1, data2]  # type: ignore
-        )
+        data: npt.NDArray[np.float64] = np.concatenate([data1, data2])
         params: list[float] = [120.0, 180.0, 15.0, 20.0, 0.5, 0.5]
         n: int = 2
 
         with tempfile.TemporaryDirectory() as temp_dir:
             plot_gmm(data, n, params, temp_dir, "bimodal_test")
-            mock_fig.savefig.assert_called_once()  # type: ignore
+            mock_fig.savefig.assert_called_once()
 
 
 class TestConstants(unittest.TestCase):

@@ -157,11 +157,9 @@ def create_mock_vcf_file(variants: list[Mock]) -> Mock:
 def create_test_bam_with_reads(reads: list[MockAlignedSegment]) -> Mock:
     """Create a mock BAM file with specified reads."""
     bam_file = Mock()
-    bam_file.header.to_dict.return_value = {  # type: ignore
-        "SQ": [{"SN": "chr1"}]  # type: ignore
-    }
-    bam_file.fetch.return_value = reads  # type: ignore
-    bam_file.has_index.return_value = True  # type: ignore
+    bam_file.header.to_dict.return_value = {"SQ": [{"SN": "chr1"}]}
+    bam_file.fetch.return_value = reads
+    bam_file.has_index.return_value = True
     return bam_file
 
 

@@ -159,13 +159,13 @@ class TestWindowedProtectionScore(unittest.TestCase):
 
     def create_mock_tabix_file(self) -> Mock:
         """Create a mock TabixFile for testing."""
-        mock_tabix: Mock = Mock(spec=pysam.TabixFile)  # type: ignore
+        mock_tabix: Mock = Mock(spec=pysam.TabixFile)
         regions = [
             "1\t1000\t2000\tregion1",
             "1\t3000\t4000\tregion2",
             "2\t1000\t2000\tregion3"
         ]
-        mock_tabix.fetch.return_value = regions  # type: ignore
+        mock_tabix.fetch.return_value = regions
         return mock_tabix
 
     def create_test_fragments_for_wps(self) -> FragmentList:
@@ -190,15 +190,14 @@ class TestWindowedProtectionScore(unittest.TestCase):
 
         return fragment_list
 
-    @patch("pyfraglib.scores.chromosome_maps_to_df")  # type: ignore
+    @patch("pyfraglib.scores.chromosome_maps_to_df")
     @patch("pyfraglib.scores.create_chromosome_map")
     def test_windowed_protection_score_fast(
         self, mock_create_map: Mock, mock_maps_to_df: Mock
     ) -> None:
         """Test fast windowed protection score calculation."""
         mock_map = np.zeros(250000000, dtype=np.int64)
-        mock_create_map.return_value = \
-            {"1": mock_map, "2": mock_map}  # type: ignore
+        mock_create_map.return_value = {"1": mock_map, "2": mock_map}
         mock_df: pd.DataFrame = pd.DataFrame({
             "chrom": ["1", "1"],
             "pos": [1500, 3500],
@@ -267,7 +266,7 @@ class TestWindowedProtectionScore(unittest.TestCase):
             "pyfraglib.scores.create_chromosome_map"
         ) as mock_create_map:
             mock_map = np.zeros(250000000, dtype=np.int64)
-            mock_create_map.return_value = {"1": mock_map}  # type: ignore
+            mock_create_map.return_value = {"1": mock_map}
 
             with patch(
                 "pyfraglib.scores.chromosome_maps_to_df"
@@ -325,16 +324,14 @@ class TestWPSIntegration(unittest.TestCase):
     def test_wps_empty_fragment_list(self) -> None:
         """Test WPS calculation with empty fragment list."""
         fragment_list = FragmentList()
-        mock_regions = Mock(spec=pysam.TabixFile)  # type: ignore
-        mock_regions.fetch.return_value = (  # type: ignore
-            ["1\t1000\t2000\ttest"]  # type: ignore
-        )
+        mock_regions = Mock(spec=pysam.TabixFile)
+        mock_regions.fetch.return_value = (["1\t1000\t2000\ttest"])
 
         with patch(
             "pyfraglib.scores.create_chromosome_map"
         ) as mock_create_map:
             mock_map = np.zeros(250000000, dtype=np.int64)
-            mock_create_map.return_value = {"1": mock_map}  # type: ignore
+            mock_create_map.return_value = {"1": mock_map}
 
             with patch(
                 "pyfraglib.scores.chromosome_maps_to_df"
@@ -345,17 +342,15 @@ class TestWPSIntegration(unittest.TestCase):
     def test_wps_different_genomes(self) -> None:
         """Test WPS calculation with different genome versions."""
         fragment_list = self.create_test_fragments_for_wps()
-        mock_regions = Mock(spec=pysam.TabixFile)  # type: ignore
-        mock_regions.fetch.return_value = (  # type: ignore
-            ["1\t1000\t2000\ttest"]  # type: ignore
-        )
+        mock_regions = Mock(spec=pysam.TabixFile)
+        mock_regions.fetch.return_value = (["1\t1000\t2000\ttest"])
 
         for genome in ["hg19", "hg38"]:
             with patch(
                 "pyfraglib.scores.create_chromosome_map"
             ) as mock_create_map:
                 mock_map = np.zeros(250000000, dtype=np.int64)
-                mock_create_map.return_value = {"1": mock_map}  # type: ignore
+                mock_create_map.return_value = {"1": mock_map}
 
                 with patch(
                     "pyfraglib.scores.chromosome_maps_to_df"

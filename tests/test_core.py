@@ -123,13 +123,13 @@ class TestDiversityIndices(unittest.TestCase):
 class TestUtilityFunctions(unittest.TestCase):
     """Test utility functions."""
 
-    @patch.dict(os.environ, {"SLURM_CPUS_PER_TASK": "8"})  # type: ignore
+    @patch.dict(os.environ, {"SLURM_CPUS_PER_TASK": "8"})
     def test_detect_cpus_with_slurm(self) -> None:
         """Test CPU detection with SLURM environment variable."""
         cpus = detect_cpus()
         self.assertEqual(cpus, 8)
 
-    @patch.dict(os.environ, {}, clear=True)  # type: ignore
+    @patch.dict(os.environ, {}, clear=True)
     def test_detect_cpus_without_slurm(self) -> None:
         """Test CPU detection without SLURM environment variable."""
         cpus = detect_cpus()

@@ -149,7 +149,7 @@ class NucleosomeMap:
     occupancy: dict[str, npt.NDArray[np.float64]]  # chr -> occupancy scores
 
 
-@dataclass  # type: ignore
+@dataclass
 class ChromatinState:  # type: ignore
     """
     Represents tissue-specific chromatin accessibility and regulatory states.
@@ -516,7 +516,7 @@ class FragmentSimulator:
 
         self._prob_cache: dict[tuple[str, int], float] = {}
 
-    @lru_cache(maxsize=8192)  # type: ignore
+    @lru_cache(maxsize=8192)
     def _get_cached_sequence_context(self, chrom: str, position: int) -> str:
         """
         Get sequence context with LRU caching for performance.
@@ -589,9 +589,8 @@ class FragmentSimulator:
             noise: npt.NDArray[np.float64] = np.random.normal(
                 0, 10, len(base_positions)
             )
-            positions[chrom] = \
-                base_positions + noise.astype(np.int64)  # type: ignore
-            occupancy[chrom] = np.random.beta(  # type: ignore
+            positions[chrom] = base_positions + noise.astype(np.int64)
+            occupancy[chrom] = np.random.beta(
                 beta_alpha, beta_beta, len(base_positions)
             )
 
@@ -622,23 +621,23 @@ class FragmentSimulator:
             if chrom_length == 0:
                 continue
 
-            chrom_open = IntervalTree()  # type: ignore
+            chrom_open = IntervalTree()
             for _ in range(1000):
                 start: int = np.random.randint(
                     1000, min(chrom_length - 1000, 10000000)
                 )
                 end: int = start + np.random.randint(200, 1000)
                 if end < chrom_length:
-                    chrom_open.addi(start, end)  # type: ignore
+                    chrom_open.addi(start, end)
 
-            open_regions_dict[chrom] = chrom_open  # type: ignore
-            tf_sites_dict[chrom] = IntervalTree()  # type: ignore
-            ctcf_sites_dict[chrom] = IntervalTree()  # type: ignore
+            open_regions_dict[chrom] = chrom_open
+            tf_sites_dict[chrom] = IntervalTree()
+            ctcf_sites_dict[chrom] = IntervalTree()
 
         return ChromatinState(
-            open_regions=open_regions_dict,  # type: ignore
-            tf_binding_sites=tf_sites_dict,  # type: ignore
-            ctcf_sites=ctcf_sites_dict  # type: ignore
+            open_regions=open_regions_dict,
+            tf_binding_sites=tf_sites_dict,
+            ctcf_sites=ctcf_sites_dict
         )
 
     def _get_cleavage_probability(
@@ -660,9 +659,9 @@ class FragmentSimulator:
             Cleavage probability between 0.001 and 1.0
         """
         base_prob = 0.1  # default is closed chromatin
-        if chrom in self.chromatin_state.open_regions:  # type: ignore
+        if chrom in self.chromatin_state.open_regions:
             overlaps: list[object] = \
-                self.chromatin_state.open_regions[  # type: ignore
+                self.chromatin_state.open_regions[
                     chrom
                 ].at(position)
             if overlaps:
@@ -701,7 +700,7 @@ class FragmentSimulator:
         else:  # linker region
             return 0.70 + (1.0 - cached_occupancy) * 0.30
 
-    @lru_cache(maxsize=16384)  # type: ignore
+    @lru_cache(maxsize=16384)
     def _get_nearest_nucleosome_info(
         self, chrom: str, position: int
     ) -> tuple[float, float]:
@@ -728,16 +727,14 @@ class FragmentSimulator:
         if not candidates:
             return 100.0, 0.5
 
-        distances = np.abs(  # type: ignore
-            nucleosome_positions[candidates] - cache_pos  # type: ignore
+        distances = np.abs(
+            nucleosome_positions[candidates] - cache_pos
         )
-        best_candidate_idx = np.argmin(distances)  # type: ignore
+        best_candidate_idx = np.argmin(distances)
         best_idx = candidates[best_candidate_idx]
 
-        cached_distance: float = \
-            float(distances[best_candidate_idx])  # type: ignore
-        cached_occupancy: float = \
-            float(nucleosome_occupancy[best_idx])  # type: ignore
+        cached_distance: float = float(distances[best_candidate_idx])
+        cached_occupancy: float = float(nucleosome_occupancy[best_idx])
         actual_distance = abs(cached_distance + (position - cache_pos))
 
         return actual_distance, cached_occupancy
@@ -893,13 +890,11 @@ class FragmentSimulator:
 
         TF binding sites are protected from nuclease cleavage.
         """
-        if chrom not in self.chromatin_state.tf_binding_sites:  # type: ignore
+        if chrom not in self.chromatin_state.tf_binding_sites:
             return 1.0
 
         overlaps: list[object] = (
-            self.chromatin_state.tf_binding_sites[  # type: ignore
-                chrom
-            ].at(position)
+            self.chromatin_state.tf_binding_sites[chrom].at(position)
         )
         if overlaps:
             return 0.3
@@ -983,7 +978,7 @@ class FragmentSimulator:
             tri_mean+size_shift, tri_std, num_tri
         )
         sizes = np.concatenate(
-            [mono_sizes, di_sizes, tri_sizes]  # type: ignore
+            [mono_sizes, di_sizes, tri_sizes]
         )
 
         sizes = self._add_periodicity(sizes, mono_mean, periodicity_amplitude)
@@ -1016,30 +1011,26 @@ class FragmentSimulator:
         modified_sizes = sizes.copy()
 
         if np.any(mask):
-            fragments_to_modify = sizes[mask]  # type: ignore
+            fragments_to_modify = sizes[mask]
             amplitude_gradient = (
-                (mono_mean - fragments_to_modify) /  # type: ignore
+                (mono_mean - fragments_to_modify) /
                 (mono_mean - self.MIN_FRAGMENT_SIZE) *
                 periodicity_amplitude
             )
-            amplitude_gradient = \
-                np.maximum(amplitude_gradient, 0)  # type: ignore
-            nearest_10bp = \
-                np.round(fragments_to_modify / 10) * 10  # type: ignore
-            offset_from_10bp = \
-                fragments_to_modify - nearest_10bp  # type: ignore
+            amplitude_gradient = np.maximum(amplitude_gradient, 0)
+            nearest_10bp = np.round(fragments_to_modify / 10) * 10
+            offset_from_10bp = fragments_to_modify - nearest_10bp
             gaussian_width = 8.0
             attraction_strength = np.exp(
-                -0.5 * (offset_from_10bp / gaussian_width) ** 2  # type: ignore
+                -0.5 * (offset_from_10bp / gaussian_width) ** 2
             )
             push_toward_10bp = (
-                -offset_from_10bp *  # type: ignore
-                attraction_strength *  # type: ignore
-                amplitude_gradient  # type: ignore
+                -offset_from_10bp *
+                attraction_strength *
+                amplitude_gradient
             )
 
-            modified_sizes[mask] = \
-                fragments_to_modify + push_toward_10bp  # type: ignore
+            modified_sizes[mask] = fragments_to_modify + push_toward_10bp
 
         return modified_sizes
 
@@ -1135,48 +1126,38 @@ class FragmentSimulator:
                 candidates_to_generate, fragment_size_params
             )
 
-            cleave_probs = np.array([  # type: ignore
+            cleave_probs = np.array([
                 self._get_cleavage_probability(
-                    int(pos), chrom, nuclease_profile,  # type: ignore
-                    tissue_factor
+                    int(pos), chrom, nuclease_profile, tissue_factor
                 ) for pos in batch_positions
             ])
 
-            random_vals = \
-                np.random.random(len(batch_positions))  # type: ignore
-            accepted_mask = random_vals <= cleave_probs  # type: ignore
-            accepted_positions = batch_positions[accepted_mask]  # type: ignore
-            accepted_sizes = batch_sizes[accepted_mask]  # type: ignore
-            for pos, size in zip(  # type: ignore
-                accepted_positions, accepted_sizes  # type: ignore
-            ):
+            random_vals = np.random.random(len(batch_positions))
+            accepted_mask = random_vals <= cleave_probs
+            accepted_positions = batch_positions[accepted_mask]
+            accepted_sizes = batch_sizes[accepted_mask]
+            for pos, size in zip(accepted_positions, accepted_sizes):
                 end5p: str = self._generate_end_motif(
-                    chrom=chrom,
-                    position=int(pos),  # type: ignore
-                    end_type="5p"
+                    chrom=chrom, position=int(pos), end_type="5p"
                 )
                 end3p: str = self._generate_end_motif(
-                    chrom=chrom,
-                    position=int(pos + size),  # type: ignore
-                    end_type="3p"
+                    chrom=chrom, position=int(pos + size), end_type="3p"
                 )
 
                 fragment: Fragment = Fragment.create_simulated(
-                    start_pos=int(pos),  # type: ignore
-                    end_pos=int(pos + size),  # type: ignore
+                    start_pos=int(pos),
+                    end_pos=int(pos + size),
                     chrom=chrom,
-                    length=int(size),  # type: ignore
+                    length=int(size),
                     end5p=end5p,
                     end3p=end3p,
-                    is_forward=bool(
-                        np.random.choice([True, False])  # type: ignore
-                    ),
+                    is_forward=bool(np.random.choice([True, False])),
                     is_mutated=False
                 )
 
                 fragment_list.append(fragment)
 
-            fragments_generated += len(accepted_positions)  # type: ignore
+            fragments_generated += len(accepted_positions)
             attempts += candidates_to_generate
 
             if attempts % 100_000 == 0:
