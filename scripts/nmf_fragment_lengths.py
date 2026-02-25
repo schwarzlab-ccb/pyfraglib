@@ -57,7 +57,6 @@ import seaborn as sns
 from pathlib import Path
 from typing import Final, NoReturn
 from sklearn.decomposition import NMF  # type: ignore
-from sklearn.preprocessing import MinMaxScaler  # type: ignore
 from sklearn.metrics import mean_squared_error  # type: ignore
 
 version_string: Final[str] = \
@@ -208,9 +207,12 @@ def perform_nmf_analysis(
         Tuple of (basis matrix W, coefficient matrix H, reconstruction error)
     """
     logger.info("performing NMF with {} components".format(n_components))
-    scaler: MinMaxScaler = MinMaxScaler()  # type: ignore
-    X_scaled: npt.NDArray[np.float64] = \
-        scaler.fit_transform(data_matrix.values)
+
+    raw: npt.NDArray[np.float64] = data_matrix.values.astype(np.float64)
+    row_sums: npt.NDArray[np.float64] = raw.sum(axis=1, keepdims=True)
+    X_scaled: npt.NDArray[np.float64] = raw / np.where(
+        row_sums > 0, row_sums, 1.0
+    )
 
     # @NOTE(ds): We perform NMF with multiple random initializations for
     # better stability.
@@ -228,9 +230,6 @@ def perform_nmf_analysis(
             init="random",
             random_state=run,
             max_iter=1000,
-            alpha_W=0.01,
-            alpha_H=0.01,
-            l1_ratio=0.1,  # mostly L2, little L1
         )
 
         W: npt.NDArray[np.float64] = nmf_model.fit_transform(X_scaled)
