@@ -70,9 +70,9 @@ digraph Workflow {
     BED_SIM -> SIM [color=orange,penwidth=2];
     CONFIG_SIM -> SIM [color=orange,penwidth=2];
 
-    SIM -> SIM_BASIC [label="basic mode",color=orange];
-    SIM -> SIM_TISSUE [label="tissue_mixture mode",color=orange];
-    SIM -> SIM_CANCER [label="cancer_progression mode",color=orange];
+    SIM -> SIM_BASIC [color=orange];
+    SIM -> SIM_TISSUE [color=orange];
+    SIM -> SIM_CANCER [color=orange];
 
     SIM_BASIC -> B [color=orange,penwidth=2];
     SIM_TISSUE -> B [color=orange,penwidth=2];
