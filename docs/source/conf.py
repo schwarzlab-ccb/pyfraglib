@@ -40,6 +40,7 @@ extensions = [
     "sphinx_autodoc_typehints",
     "myst_parser",
     "sphinx_rtd_theme",
+    "rst2pdf.pdfbuilder",
 ]
 
 napoleon_google_docstring = True
@@ -138,10 +139,12 @@ html_search_language = "en"
 html_show_sourcelink = True
 html_copy_source = True
 
+latex_engine = "pdflatex"  # xelatex
 latex_elements = {
     "papersize": "letterpaper",  # or a4paper
     "pointsize": "10pt",
     "preamble": r"""
+\usepackage{newunicodechar}
 \usepackage{amsmath,amsfonts,amssymb,amsthm}
 \usepackage{graphicx}
 \usepackage{hyperref}
