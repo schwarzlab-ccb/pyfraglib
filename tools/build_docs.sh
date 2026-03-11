@@ -80,6 +80,10 @@ build_pdf() {
             echo -e "${RED}pdflatex failed on run $i - no PDF generated.${NC}"
             exit 1
         fi
+        if [ $i -eq 1 ] && command -v makeindex &> /dev/null; then
+            echo -e "${YELLOW}Running makeindex...${NC}"
+            makeindex pyfraglib_documentation.idx 2>/dev/null || true
+        fi
     done
     set -e
 
