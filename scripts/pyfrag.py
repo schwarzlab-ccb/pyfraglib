@@ -140,8 +140,8 @@ def create_argparser() -> argparse.ArgumentParser:
             "Example: ``$ pyfraglib.py extract --bam-file=<FILE>''",
             dest="subcommand")
 
-    subparsers.add_parser("version", help="Show version info.",
-        parents=[parent_parser]
+    subparsers.add_parser(
+        "version", help="Show version info.", parents=[parent_parser]
     )
 
     argparser_extract: argparse.ArgumentParser = subparsers.add_parser(

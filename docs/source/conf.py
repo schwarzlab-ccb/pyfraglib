@@ -24,9 +24,9 @@ sys.path.insert(0, os.path.abspath("../../"))
 # General configuration information:
 # https://www.sphinx-doc.org/en/master/usage/configuration.html
 project = "pyfraglib"
-copyright = "2025, Daniel Schütte"
+copyright = "2026, Daniel Schütte"
 author = "Daniel Schütte"
-release = "0.5.1"
+release = "0.5.2"
 extensions = [
     "sphinx.ext.autodoc",
     "sphinx.ext.autosummary",
