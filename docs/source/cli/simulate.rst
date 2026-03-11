@@ -8,7 +8,7 @@ Syntax
 
 .. code-block:: bash
 
-   pyfrag.py -o <OUT_DIR> simulate [OPTIONS]
+   pyfrag.py simulate -o <OUT_DIR> [OPTIONS]
 
 Options
 -------

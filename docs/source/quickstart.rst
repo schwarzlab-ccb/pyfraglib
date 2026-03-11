@@ -32,31 +32,31 @@ Extract Fragments
 .. code-block:: bash
 
    # Extract from single BAM file
-   pyfrag.py -o fragments/ extract --bam-file sample.bam
+   pyfrag.py extract -o fragments/ --bam-file sample.bam
 
    # Include mutation annotation (BAM and VCF file names must match!)
-   pyfrag.py -o fragments/ extract --bam-file sample.bam --with-vcf
+   pyfrag.py extract -o fragments/ --bam-file sample.bam --with-vcf
 
 Generate Overview Statistics
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. code-block:: bash
 
-   pyfrag.py -o stats/ stats --frag-file sample.frag
+   pyfrag.py stats -o stats/ --frag-file sample.frag
 
 Analyze Fragment Lengths
 ~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. code-block:: bash
 
-   pyfrag.py -o lengths/ lengths --frag-file sample.frag --config-file configs/gmm_3.json
+   pyfrag.py lengths -o lengths/ --frag-file sample.frag --config-file configs/gmm_3.json
 
 Calculate Fragmentomics Scores
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. code-block:: bash
 
-   pyfrag.py -o scores/ scores --frag-file sample.frag --bed-file regions.bed
+   pyfrag.py scores -o scores/ --frag-file sample.frag --bed-file regions.bed
 
 Python API
 ----------

@@ -8,9 +8,7 @@ Syntax
 
 .. code-block:: bash
 
-   pyfrag.py -o <OUT_DIR> extract [OPTIONS]
-
-The ``-o / --out-dir`` must come *before* the subcommand. Please be aware that all other subcommands follow this pattern, too.
+   pyfrag.py extract -o <OUT_DIR> [OPTIONS]
 
 Options
 -------
