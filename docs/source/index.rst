@@ -1,10 +1,6 @@
 pyfraglib Documentation
 =======================
 
-.. image:: ../imgs/pyfraglib_logo.jpg
-   :width: 200px
-   :align: center
-
 ``pyfraglib`` is a Python library for analyzing high-throughput sequencing data of cell-free DNA (cfDNA), focusing on fragmentomics features. It provides tools to extract, analyze, and visualize fragment characteristics -- either starting from BAM files or using a custom, memory-efficient file format.
 
 .. toctree::
@@ -19,8 +15,7 @@ pyfraglib Documentation
    contributing
    changelog
 
-Indices and Tables
-==================
+Indices
+=======
 
-* :ref:`genindex`
-* :ref:`modindex`
+The following pages provide indices for navigating Python modules and API symbols.

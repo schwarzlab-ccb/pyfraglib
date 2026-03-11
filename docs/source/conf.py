@@ -168,13 +168,27 @@ latex_elements = {
     citecolor=blue,
     filecolor=blue
 }
-% Append List of Figures and List of Tables after the TOC
+% Fix general index: smaller font + raggedright so long symbol names wrap
+% instead of overflowing into the adjacent column.
+\renewenvironment{sphinxtheindex}{%
+  \if@openright\cleardoublepage\else\clearpage\fi
+  \phantomsection
+  \begin{theindex}%
+  \addcontentsline{toc}{chapter}{\indexname}%
+  \small\raggedright
+}{\end{theindex}}
+% Append List of Figures after the TOC
+% Note: Sphinx sets tocdepth=0; \l@figure uses \@dottedtocline{1} which
+% requires tocdepth>=1 to render entries, so we temporarily raise it.
 \AtBeginDocument{%
   \let\oldsphinxtableofcontents\sphinxtableofcontents
   \renewcommand{\sphinxtableofcontents}{%
     \oldsphinxtableofcontents
-    \clearpage\listoffigures
-    \clearpage\listoftables
+    \clearpage
+    \setcounter{tocdepth}{1}%
+    \listoffigures
+    \setcounter{tocdepth}{0}%
+    \clearpage
   }%
 }
 """,
