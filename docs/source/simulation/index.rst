@@ -51,7 +51,7 @@ The simulation module is implemented as a multi-layered architecture. The follow
    :alt: cfDNA Fragment Simulation Architecture
    :figclass: align-center
 
-   **Figure 1: cfDNA Fragment Simulation Architecture.**
+   cfDNA fragment simulation architecture showing the key components and their relationships.
 
 Configuration
 -------------

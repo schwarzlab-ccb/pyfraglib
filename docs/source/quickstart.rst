@@ -13,9 +13,13 @@ The typical pyfraglib workflow involves:
 3. **Calculate fragmentomics scores** (WPS, motif diversity)
 4. **Visualize results** with plots and statistics
 
-.. image:: ../imgs/workflow.png
-   :alt: Pyfraglib workflow diagram
+.. figure:: ../imgs/workflow.png
+   :alt: pyfraglib workflow diagram
    :width: 900px
+   :align: center
+
+   Overview of the pyfraglib workflow: fragment extraction from BAM files,
+   feature analysis (lengths, motifs, scores), and result visualization.
 
 Command Line Interface
 ----------------------

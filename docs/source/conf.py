@@ -133,6 +133,7 @@ source_suffix = {
     ".md": "myst_parser",
 }
 master_doc = "index"  # the master toctree document
+numfig = True  # enable numbered figures/tables for list-of-figures/tables
 html_use_modindex = True
 html_use_index = True
 html_search_language = "en"
@@ -140,9 +141,11 @@ html_show_sourcelink = True
 html_copy_source = True
 
 latex_engine = "pdflatex"  # xelatex
+latex_use_xindy = False  # use makeindex (xindy not available on all systems)
 latex_elements = {
     "papersize": "letterpaper",  # or a4paper
     "pointsize": "10pt",
+    "classoptions": ",openany",  # suppress blank pages before/after TOC and chapters
     "preamble": r"""
 \usepackage{newunicodechar}
 \usepackage{amsmath,amsfonts,amssymb,amsthm}
@@ -151,6 +154,12 @@ latex_elements = {
 \usepackage{xcolor}
 \definecolor{VerbatimColor}{rgb}{0.95,0.95,0.95}
 \definecolor{VerbatimBorderColor}{rgb}{0.8,0.8,0.8}
+% Unicode characters not handled by pdflatex by default
+\newunicodechar{≥}{\ensuremath{\geq}}
+\newunicodechar{≤}{\ensuremath{\leq}}
+\newunicodechar{α}{\ensuremath{\alpha}}
+\newunicodechar{β}{\ensuremath{\beta}}
+\newunicodechar{±}{\ensuremath{\pm}}
 % Disable footnotes for hyperlinks
 \hypersetup{
     colorlinks=true,
@@ -158,6 +167,15 @@ latex_elements = {
     urlcolor=blue,
     citecolor=blue,
     filecolor=blue
+}
+% Append List of Figures and List of Tables after the TOC
+\AtBeginDocument{%
+  \let\oldsphinxtableofcontents\sphinxtableofcontents
+  \renewcommand{\sphinxtableofcontents}{%
+    \oldsphinxtableofcontents
+    \clearpage\listoffigures
+    \clearpage\listoftables
+  }%
 }
 """,
     "figure_align": "htbp",
