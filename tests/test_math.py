@@ -457,7 +457,7 @@ class TestConstants(unittest.TestCase):
 
     def test_large_dataset_threshold(self) -> None:
         """Test large dataset threshold constant."""
-        self.assertEqual(LARGE_DATASET_THRESHOLD, 1_000_000)
+        self.assertEqual(LARGE_DATASET_THRESHOLD, 5_000_000)
         self.assertIsInstance(LARGE_DATASET_THRESHOLD, int)
 
 

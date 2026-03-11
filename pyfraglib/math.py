@@ -35,7 +35,7 @@ from scipy.stats import norm, ks_1samp, wasserstein_distance, entropy, \
                         skewnorm
 from typing import Final
 
-LARGE_DATASET_THRESHOLD: Final[int] = 1_000_000
+LARGE_DATASET_THRESHOLD: Final[int] = 5_000_000
 
 
 def find_skew_normal_mean_from_mode(
@@ -238,7 +238,8 @@ def fit_gmm(
     if subsample_size > LARGE_DATASET_THRESHOLD:
         logger.warning(
             f"fitting a GMM to {subsample_size} fragments might take "
-            "a long time - consider downsampling"
+            "a long time - consider (further) downsampling if that's "
+            "the case for you"
         )
 
     lin_constraint: LinearConstraint = LinearConstraint(
