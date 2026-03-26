@@ -204,7 +204,12 @@ def perform_nmf_analysis(
         logger: Logger instance for output
 
     Returns:
-        Tuple of (basis matrix W, coefficient matrix H, reconstruction error)
+        Tuple of (W, H, reconstruction error). W is the raw (unnormalized)
+        sample loading matrix from NMF. To obtain true mixture fractions,
+        weight each column of W by the corresponding H row sum before
+        row-normalizing (H-weighted normalization), rather than plain
+        row-normalization of W, which ignores differences in signature
+        magnitudes.
     """
     logger.info("performing NMF with {} components".format(n_components))
 
@@ -249,11 +254,7 @@ def perform_nmf_analysis(
     if best_W is None or best_H is None:
         fail("NMF failed to converge", logger)
 
-    # @NOTE(ds): We Aormalize W matrix so each row (sample) sums to 1.
-    # This makes coefficients represent true proportions of each component.
-    W_row_sums: npt.NDArray[np.float64] = best_W.sum(axis=1, keepdims=True)
-    W_normalized: npt.NDArray[np.float64] = best_W / W_row_sums
-    return W_normalized, best_H, best_error
+    return best_W, best_H, best_error
 
 
 def save_nmf_results(
@@ -344,10 +345,15 @@ def create_nmf_visualizations(
     W_df: pd.DataFrame = pd.DataFrame(
         W, index=sample_names, columns=component_names
     )
-    W_norm: pd.DataFrame = W_df.div(W_df.sum(axis=1), axis=0)
+    # H-weighted normalisation: scale each W column by the corresponding
+    # H row sum before row-normalising, so that signature magnitude differences
+    # are accounted for and the result represents true mixture fractions.
+    H_sums: npt.NDArray[np.float64] = H.sum(axis=1)
+    W_weighted: pd.DataFrame = W_df.multiply(H_sums, axis="columns")
+    W_norm: pd.DataFrame = W_weighted.div(W_weighted.sum(axis=1), axis=0)
     sns.heatmap(
         W_norm.T, annot=True, fmt=".3f", cmap="viridis",
-        ax=ax2, cbar_kws={"label": "Normalized Weight"}
+        ax=ax2, cbar_kws={"label": "Mixture fraction"}
     )
     ax2.set_title("Sample Composition by NMF Components")
     ax2.set_xlabel("Samples")
