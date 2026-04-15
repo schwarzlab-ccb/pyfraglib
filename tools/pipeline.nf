@@ -86,6 +86,7 @@ process pyfraglib_stats {
     output:
     path("*.png")
     path("*.json")
+    path("*.csv")
 
     shell:
     """
