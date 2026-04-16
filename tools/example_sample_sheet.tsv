@@ -1,0 +1,2 @@
+sample_name	path_to_bam.bam	path_to_index.bam.bai	path_to_vcf.vcf
+other_sample_name	path_to_other_bam.bam	path_to_other_index.bam.bai	none
