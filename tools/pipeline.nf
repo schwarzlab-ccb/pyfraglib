@@ -1,7 +1,7 @@
 // This file is part of `pyfraglib`, a software suite to calculate fragmentomics
 // features from cfDNA and perform downstream analyses.
 //
-// Copyright (C) 2024 Daniel Schütte, daniel.schuette@iccb-cologne.org
+// Copyright (C) 2026 Daniel Schütte, daniel.schuette@iccb-cologne.org
 //
 // This program is free software: you can redistribute it and/or modify it under
 // the terms of the GNU General Public License as published by the Free Software
@@ -58,7 +58,8 @@ process pyfraglib_extract {
     tuple val(sample_id), path(bam_path), path(bai_path), path(vcf_path)
 
     output:
-    tuple val(sample_id), path("*.frag")
+    tuple val(sample_id), path("*.frag"), emit: frag
+    path("*_extract_stats.tsv"), emit: stats
 
     shell:
     """
@@ -67,7 +68,63 @@ process pyfraglib_extract {
     conda activate !{params.conda_env}
     set -eu
 
-    pyfrag.py extract -o . -f !{bam_path} --with-vcf
+    bam_bytes=\$(stat -c %s !{bam_path})
+    bam_reads_total=\$(samtools view -c !{bam_path})
+    bam_reads_dedup=\$(samtools view -c -F 1024 !{bam_path})
+
+    /usr/bin/time -f '%e\\t%U\\t%S\\t%M' -o extract.time \\
+        pyfrag.py extract -o . -f !{bam_path} --with-vcf
+
+    extract_wall_s=\$(awk -F'\\t' '{print \$1}' extract.time)
+    extract_user_s=\$(awk -F'\\t' '{print \$2}' extract.time)
+    extract_sys_s=\$(awk -F'\\t' '{print \$3}' extract.time)
+    extract_max_rss_kb=\$(awk -F'\\t' '{print \$4}' extract.time)
+
+    frag_path=\$(ls *.frag | head -n 1)
+    frag_bytes=\$(stat -c %s "\$frag_path")
+    frag_fragments=\$(python -c "
+import sys
+import pyarrow.parquet as pq
+print(pq.ParquetFile(sys.argv[1]).metadata.num_rows)
+" "\$frag_path")
+
+    compression_ratio_total=\$(awk -v b=\$bam_bytes -v f=\$frag_bytes 'BEGIN {if (f > 0) printf "%.4f", b / f; else print "nan"}')
+    compression_ratio_dedup=\$(awk -v b=\$bam_bytes -v rt=\$bam_reads_total -v rd=\$bam_reads_dedup -v f=\$frag_bytes 'BEGIN {if (f > 0 && rt > 0) printf "%.4f", (b * rd / rt) / f; else print "nan"}')
+    reads_per_sec=\$(awk -v n=\$bam_reads_total -v t=\$extract_wall_s 'BEGIN {if (t > 0) printf "%.1f", n / t; else print "nan"}')
+    fragments_per_sec=\$(awk -v n=\$frag_fragments -v t=\$extract_wall_s 'BEGIN {if (t > 0) printf "%.1f", n / t; else print "nan"}')
+
+    stats_file="!{sample_id}_extract_stats.tsv"
+    printf 'sample_id\\tbam_bytes\\tbam_reads_total\\tbam_reads_dedup\\tfrag_bytes\\tfrag_fragments\\textract_wall_s\\textract_user_s\\textract_sys_s\\textract_max_rss_kb\\treads_per_sec\\tfragments_per_sec\\tcompression_ratio_total\\tcompression_ratio_dedup\\n' > "\$stats_file"
+    printf '%s\\t%s\\t%s\\t%s\\t%s\\t%s\\t%s\\t%s\\t%s\\t%s\\t%s\\t%s\\t%s\\t%s\\n' \\
+        "!{sample_id}" "\$bam_bytes" "\$bam_reads_total" "\$bam_reads_dedup" \\
+        "\$frag_bytes" "\$frag_fragments" \\
+        "\$extract_wall_s" "\$extract_user_s" "\$extract_sys_s" "\$extract_max_rss_kb" \\
+        "\$reads_per_sec" "\$fragments_per_sec" \\
+        "\$compression_ratio_total" "\$compression_ratio_dedup" >> "\$stats_file"
+    """
+}
+
+
+process collect_extract_stats {
+    label "serial"
+    tag "cohort"
+    errorStrategy "terminate"
+
+    publishDir "${params.out_dir}", mode: 'copy', overwrite: true
+
+    input:
+    path(per_sample_stats)
+
+    output:
+    path("extract_stats.tsv")
+
+    shell:
+    """
+    first=\$(ls !{per_sample_stats} | head -n 1)
+    head -n 1 "\$first" > extract_stats.tsv
+    for f in !{per_sample_stats}; do
+        tail -n +2 "\$f"
+    done | sort -u >> extract_stats.tsv
     """
 }
 
@@ -159,9 +216,11 @@ workflow {
         | map { row -> tuple(row[0], row[1], row[2], row[3]) }
     samples = stage_data(sample_info)
 
-    frag_files = pyfraglib_extract(samples)
+    extract_result = pyfraglib_extract(samples)
+    frag_files = extract_result.frag
 
     pyfraglib_stats(frag_files)
     pyfraglib_lengths(frag_files)
     pyfraglib_scores(frag_files)
+    collect_extract_stats(extract_result.stats.collect())
 }
