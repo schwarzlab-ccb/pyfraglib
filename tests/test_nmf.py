@@ -18,7 +18,11 @@ import numpy as np
 import numpy.typing as npt
 import pandas as pd
 
-from scripts.nmf_fragment_lengths import perform_nmf_analysis
+from sklearn.decomposition import NMF  # type: ignore
+
+from scripts.nmf_fragment_lengths import (
+    perform_nmf_analysis, project_onto_signatures,
+)
 
 
 class TestNMFMixtureFractionRecovery(unittest.TestCase):
@@ -221,3 +225,110 @@ class TestNMFMixtureFractionRecovery(unittest.TestCase):
             f"Overestimation should be bounded (< {MAX_FRACTION:.2f}); "
             f"got mean={mean_recovered:.4f}"
         )
+
+
+class TestNMFProjection(unittest.TestCase):
+    """
+    Equivalence tests for ``project_onto_signatures``.
+    """
+
+    _logger: logging.Logger = logging.getLogger("test_nmf")
+
+    @staticmethod
+    def _row_normalise(
+        X: npt.NDArray[np.float64],
+    ) -> npt.NDArray[np.float64]:
+        row_sums = X.sum(axis=1, keepdims=True)
+        return X / np.where(row_sums > 0, row_sums, 1.0)
+
+    def _fit_and_project_both(
+        self,
+        X_fit: npt.NDArray[np.float64],
+        X_new: npt.NDArray[np.float64],
+        n_components: int,
+    ) -> tuple[npt.NDArray[np.float64], npt.NDArray[np.float64],
+               npt.NDArray[np.float64]]:
+        X_fit_n = self._row_normalise(X_fit)
+        X_new_n = self._row_normalise(X_new)
+        model = NMF(
+            n_components=n_components, init="nndsvd",
+            random_state=0, max_iter=5000, tol=1e-6,
+        )
+        model.fit(X_fit_n)
+        H = model.components_
+        W_sklearn = model.transform(X_new_n)
+        W_ours, _ = project_onto_signatures(
+            pd.DataFrame(X_new), H, self._logger,
+        )
+        return W_ours, W_sklearn, H
+
+    def test_projection_matches_sklearn_nonoverlapping(self) -> None:
+        """Projection onto non-overlapping signatures recovers the
+        ground-truth mixing fractions to within a tight tolerance, and is
+        numerically equivalent to sklearn's ``NMF.transform``."""
+        rng = np.random.default_rng(42)
+        n_features = 40
+        sig_a = np.zeros(n_features)
+        sig_a[:20] = 1.0
+        sig_b = np.zeros(n_features)
+        sig_b[20:] = 1.0
+
+        fit_rows = []
+        for _ in range(5):
+            fit_rows.append(sig_a * 1000 + rng.poisson(5, n_features))
+            fit_rows.append(sig_b * 1000 + rng.poisson(5, n_features))
+        X_fit = np.vstack(fit_rows).astype(float)
+
+        true_frac_b = np.array([0.1, 0.3, 0.5, 0.7, 0.9])
+        X_new = np.stack([
+            (1 - f) * sig_a * 1000 + f * sig_b * 1000 +
+            rng.poisson(5, n_features)
+            for f in true_frac_b
+        ]).astype(float)
+
+        W_ours, W_sklearn, H = self._fit_and_project_both(
+            X_fit, X_new, n_components=2,
+        )
+
+        # Normalise to mixture fractions for both.
+        def _to_frac(W: npt.NDArray[np.float64]) -> npt.NDArray[np.float64]:
+            scaled = W * H.sum(axis=1)[None, :]
+            return scaled / scaled.sum(axis=1, keepdims=True)  # type: ignore
+
+        f_ours = _to_frac(W_ours)
+        f_sklearn = _to_frac(W_sklearn)
+
+        # Align components by matching each to its nearest sklearn counterpart.
+        sig_b_idx = int(np.argmin(np.abs(H @ sig_b - (H @ sig_b).max())))
+        rec_b_ours = f_ours[:, sig_b_idx]
+        rec_b_skl = f_sklearn[:, sig_b_idx]
+
+        np.testing.assert_allclose(
+            rec_b_ours, true_frac_b, atol=0.02,
+            err_msg="scipy-NNLS projection should recover ground-truth "
+                    "fractions to within 2 pp on non-overlapping signatures")
+        np.testing.assert_allclose(
+            rec_b_ours, rec_b_skl, atol=1e-4,
+            err_msg="scipy-NNLS projection must match sklearn's NMF.transform")
+
+    def test_projection_matches_sklearn_random_signatures(self) -> None:
+        """On random dense signatures, the scipy-NNLS projection matches
+        sklearn's ``NMF.transform`` to within numerical tolerance, and
+        reconstructs the fit set with a small squared error."""
+        rng = np.random.default_rng(7)
+        n_components = 3
+        n_features = 60
+        H_true = rng.uniform(0.1, 1.0, size=(n_components, n_features))
+        frac_fit = rng.dirichlet(np.ones(n_components), size=12)
+        X_fit = \
+            frac_fit @ H_true * 1000 + rng.poisson(3, size=(12, n_features))
+        frac_new = rng.dirichlet(np.ones(n_components), size=6)
+        X_new = frac_new @ H_true * 1000 + rng.poisson(3, size=(6, n_features))
+
+        W_ours, W_sklearn, _H = self._fit_and_project_both(
+            X_fit, X_new, n_components=n_components,
+        )
+
+        np.testing.assert_allclose(
+            W_ours, W_sklearn, atol=5e-3,
+            err_msg="scipy-NNLS projection must match sklearn's NMF.transform")

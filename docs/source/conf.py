@@ -6,7 +6,7 @@
 # This file is part of `pyfraglib`, a software suite to calculate fragmentomics
 # features from cfDNA and perform downstream analyses.
 #
-# Copyright (C) 2024 Daniel Schütte, daniel.schuette@iccb-cologne.org
+# Copyright (C) 2026 Daniel Schütte, daniel.schuette@iccb-cologne.org
 #
 # This program is free software: you can redistribute it and/or modify it under
 # the terms of the GNU General Public License as published by the Free Software
@@ -26,7 +26,7 @@ sys.path.insert(0, os.path.abspath("../../"))
 project = "pyfraglib"
 copyright = "2026, Daniel Schütte"
 author = "Daniel Schütte"
-release = "0.5.2"
+release = "0.6.0"
 extensions = [
     "sphinx.ext.autodoc",
     "sphinx.ext.autosummary",
@@ -145,7 +145,7 @@ latex_use_xindy = False  # use makeindex (xindy not available on all systems)
 latex_elements = {
     "papersize": "letterpaper",  # or a4paper
     "pointsize": "10pt",
-    "classoptions": ",openany",  # suppress blank pages before/after TOC and chapters
+    "classoptions": ",openany",  # suppress blank pages before TOC/chapters
     "preamble": r"""
 \usepackage{newunicodechar}
 \usepackage{amsmath,amsfonts,amssymb,amsthm}
@@ -154,12 +154,30 @@ latex_elements = {
 \usepackage{xcolor}
 \definecolor{VerbatimColor}{rgb}{0.95,0.95,0.95}
 \definecolor{VerbatimBorderColor}{rgb}{0.8,0.8,0.8}
-% Unicode characters not handled by pdflatex by default
+% Unicode characters not handled by pdflatex by default.
 \newunicodechar{≥}{\ensuremath{\geq}}
 \newunicodechar{≤}{\ensuremath{\leq}}
 \newunicodechar{α}{\ensuremath{\alpha}}
 \newunicodechar{β}{\ensuremath{\beta}}
+\newunicodechar{λ}{\ensuremath{\lambda}}
+\newunicodechar{μ}{\ensuremath{\mu}}
+\newunicodechar{σ}{\ensuremath{\sigma}}
+\newunicodechar{χ}{\ensuremath{\chi}}
 \newunicodechar{±}{\ensuremath{\pm}}
+\newunicodechar{×}{\ensuremath{\times}}
+\newunicodechar{÷}{\ensuremath{\div}}
+\newunicodechar{≈}{\ensuremath{\approx}}
+\newunicodechar{≠}{\ensuremath{\neq}}
+\newunicodechar{∞}{\ensuremath{\infty}}
+\newunicodechar{·}{\ensuremath{\cdot}}
+\newunicodechar{′}{\ensuremath{'}}
+\newunicodechar{″}{\ensuremath{''}}
+\newunicodechar{—}{---}
+\newunicodechar{–}{--}
+\newunicodechar{…}{\ldots}
+\newunicodechar{→}{\ensuremath{\rightarrow}}
+\newunicodechar{←}{\ensuremath{\leftarrow}}
+\newunicodechar{↔}{\ensuremath{\leftrightarrow}}
 % Disable footnotes for hyperlinks
 \hypersetup{
     colorlinks=true,

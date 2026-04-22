@@ -318,15 +318,17 @@ class SequenceContextGenerator:
 
     Examples
     --------
-    >>> seq_gen = SequenceContextGenerator(\"/path/to/reference.fasta\")
-    >>> context = seq_gen.generate_sequence_context(\"chr1\", 1000000, 20)
-    >>> print(f\"Sequence context: {context}\")
-    >>> seq_gen.close()
+    Direct usage::
 
-    Using as context manager:
+        seq_gen = SequenceContextGenerator(\"/path/to/reference.fasta\")
+        context = seq_gen.generate_sequence_context(\"chr1\", 1000000, 20)
+        print(f\"Sequence context: {context}\")
+        seq_gen.close()
 
-    >>> with SequenceContextGenerator(\"/path/to/reference.fasta\") as seq_gen:
-    ...     context = seq_gen.generate_sequence_context(\"chr1\", 1000000, 20)
+    Using as a context manager::
+
+        with SequenceContextGenerator(\"/path/to/reference.fasta\") as seq_gen:
+            context = seq_gen.generate_sequence_context(\"chr1\", 1000000, 20)
     """
     def __init__(self, fasta_path: str) -> None:
         """

@@ -1,7 +1,7 @@
 # This file is part of `pyfraglib`, a software suite to calculate fragmentomics
 # features from cfDNA and perform downstream analyses.
 #
-# Copyright (C) 2025 Daniel Schütte, daniel.schuette@iccb-cologne.org
+# Copyright (C) 2026 Daniel Schütte, daniel.schuette@iccb-cologne.org
 #
 # This program is free software: you can redistribute it and/or modify it under
 # the terms of the GNU General Public License as published by the Free Software
@@ -13,8 +13,6 @@
 # License along with this program. If not, see <https://www.gnu.org/licenses/>.
 import tempfile
 import os
-import gzip
-import pickle
 
 from unittest.mock import Mock
 from pyfraglib.fragment import Fragment, FragmentList
@@ -108,11 +106,10 @@ def create_test_fragment_list(num_fragments: int = 10) -> FragmentList:
 
 def create_temp_frag_file(fragments: FragmentList) -> str:
     """Create a temporary .frag file for testing."""
-    with tempfile.NamedTemporaryFile(suffix=".frag", delete=False) as tmp:
-        with gzip.open(tmp.name, "wb") as gz_file:
-            for fragment in fragments:
-                pickle.dump(fragment, gz_file)
-        return tmp.name
+    tmp_dir = tempfile.mkdtemp()
+    name = "test_fragments"
+    fragments.to_frag_file(name, tmp_dir)
+    return os.path.join(tmp_dir, name + ".frag")
 
 
 def create_mock_bam_header() -> dict[str, object]:
@@ -164,6 +161,11 @@ def create_test_bam_with_reads(reads: list[MockAlignedSegment]) -> Mock:
 
 
 def cleanup_temp_file(filepath: str) -> None:
-    """Clean up temporary test files."""
+    """Clean up a temporary test file and, if it lives inside a
+    ``tempfile.mkdtemp`` directory, remove that directory too."""
     if os.path.exists(filepath):
         os.unlink(filepath)
+    parent = os.path.dirname(filepath)
+    if parent and parent.startswith(tempfile.gettempdir()) and \
+            os.path.isdir(parent) and not os.listdir(parent):
+        os.rmdir(parent)

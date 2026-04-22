@@ -189,12 +189,13 @@ FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License for
 more details. You should have received a copy of the GNU General Public
 License along with this program. If not, see <https://www.gnu.org/licenses/>.
 """
-import gzip
 import logging
 import os
-import pickle
 import pysam
 import tqdm
+
+import pyarrow as pa
+import pyarrow.parquet as pq
 
 from collections import defaultdict
 from dataclasses import dataclass
@@ -213,6 +214,18 @@ MAX_KMER_LEN: Final = 4
 VALID_CHROMOSOME_NAMES: Final = [str(x) for x in range(1, 23)] + \
                                 ["chr{}".format(x) for x in range(1, 23)] + \
                                 ["X", "x", "Y", "y", "chrX", "chrY", "M", "m"]
+
+FRAG_SCHEMA: pa.Schema = pa.schema([  # type: ignore
+    pa.field("start_pos", pa.int64(), nullable=False),
+    pa.field("end_pos", pa.int64(), nullable=False),
+    pa.field("length", pa.int64(), nullable=False),
+    pa.field("chrom", pa.string(), nullable=False),
+    pa.field("is_forward", pa.bool_(), nullable=False),
+    pa.field("end5p", pa.string(), nullable=False),
+    pa.field("end3p", pa.string(), nullable=False),
+    pa.field("is_bogus", pa.bool_(), nullable=False),
+    pa.field("is_mutated", pa.bool_(), nullable=True),
+])
 
 
 @dataclass(slots=True)
@@ -467,12 +480,6 @@ class Fragment:
             self.is_forward = left_read.is_forward
         else:
             self.is_forward = right_read.is_forward
-
-    def dump(self, pickle_file: gzip.GzipFile) -> None:
-        """
-        Save a fragment to disk.
-        """
-        pickle.dump(self, pickle_file)
 
     # @NOTE(ds): In the returned tuple, the first member is 5' and the
     # second member 3'.
@@ -1028,11 +1035,61 @@ class FragmentList():
         return counter
 
     def to_frag_file(self, name: str, out_dir: str) -> None:
+        """
+        Serialize this fragment list to a Parquet-backed ``.frag`` file.
+
+        One row per fragment is written with the schema declared in
+        :data:`pyfraglib.fragment.FRAG_SCHEMA`. The file is written with
+        zstd compression (level 3) and default Parquet row-group sizing.
+
+        Args:
+            name: File basename without the ``.frag`` extension.
+            out_dir: Directory that will contain the output file. Must
+                already exist.
+        """
         outfile_path: str = os.path.join(out_dir, name) + ".frag"
-        outfile: gzip.GzipFile
-        with gzip.open(outfile_path, "wb") as outfile:
-            for fragment in self.__fragments:
-                fragment.dump(outfile)
+
+        n: int = len(self.__fragments)
+        start_pos: list[int] = [0] * n
+        end_pos: list[int] = [0] * n
+        length: list[int] = [0] * n
+        chrom: list[str] = [""] * n
+        is_forward: list[bool] = [False] * n
+        end5p: list[str] = [""] * n
+        end3p: list[str] = [""] * n
+        is_bogus: list[bool] = [False] * n
+        is_mutated: list[Optional[bool]] = [None] * n
+
+        i: int
+        f: Fragment
+        for i, f in enumerate(self.__fragments):
+            start_pos[i] = f.start_pos
+            end_pos[i] = f.end_pos
+            length[i] = f.length
+            chrom[i] = f.chrom
+            is_forward[i] = f.is_forward
+            end5p[i] = f.end5p
+            end3p[i] = f.end3p
+            is_bogus[i] = f.is_bogus
+            is_mutated[i] = f.is_mutated
+
+        table: pa.Table = pa.table(
+            {
+                "start_pos": start_pos,
+                "end_pos": end_pos,
+                "length": length,
+                "chrom": chrom,
+                "is_forward": is_forward,
+                "end5p": end5p,
+                "end3p": end3p,
+                "is_bogus": is_bogus,
+                "is_mutated": is_mutated,
+            },
+            schema=FRAG_SCHEMA,
+        )
+        pq.write_table(
+            table, outfile_path, compression="zstd", compression_level=3,
+        )
 
     def count_endmotifs(
         self, kmer_len: int

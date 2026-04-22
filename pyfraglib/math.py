@@ -46,20 +46,16 @@ def find_skew_normal_mean_from_mode(
     given the desired mode, skewness parameter alpha, and scale (not
     variance!).
 
-    Parameters:
-    -----------
-    target_mode : float
-        Desired mode of the distribution
-    skewness : float
-        Skewness parameter (shape parameter, sometimes called alpha)
-    variance : float
-        Desired variance of the distribution
+    Args:
+        target_mode: Desired mode of the distribution.
+        skewness: Skewness parameter (shape parameter, sometimes called
+            alpha).
+        variance: Desired variance of the distribution.
 
     Returns:
-    --------
-    tuple: (location_param, scale_param)
-        location_param: the location parameter found
-        scale_param: the scale parameter used
+        tuple[float, float]: ``(location_param, scale_param)`` where
+        ``location_param`` is the location parameter found and
+        ``scale_param`` is the scale parameter used.
     """
     delta: float = float(
         skewness / np.sqrt(1 + skewness**2)

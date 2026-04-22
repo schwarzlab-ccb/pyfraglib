@@ -106,9 +106,18 @@ Options
 .. code-block:: bash
 
    --file-list PATH           Text file with CSV file paths (one per line)
-   --n-components INTEGER     Number of NMF components to extract (default: 3)
-   --out-dir PATH            Output directory (default: nmf_output)
-   --verbose                 Enable verbose logging
+   --n-components INTEGER     Number of NMF components to extract (default: 3).
+                              Ignored when --signatures is given.
+   --out-dir PATH             Output directory (default: nmf_output)
+   --signatures PATH          Optional path to an existing nmf_signatures.csv.
+                              When set, the script skips refitting and instead
+                              projects the input samples onto the loaded
+                              signatures basis (fixed-H NMF transform).
+                              Fragment-length columns are aligned to the
+                              basis layout before projection.
+   --verbose                  Enable verbose logging
+
+Signatures mode lets you evaluate learned signatures on unseen samples.
 
 
 differential_end_motifs.py
@@ -164,6 +173,67 @@ Configuration Format
        "cancer1_k4_end_motifs.csv",
        "cancer2_k4_end_motifs.csv",
        "cancer3_k4_end_motifs.csv"
+     ]
+   }
+
+
+differential_wps.py
+-------------------
+
+Performs differential analysis of per-region Windowed Protection Score (WPS) metrics between two groups of cfDNA samples. The script operates on the per-sample ``wps_metrics_<sample>.csv`` files produced by ``pyfrag.py scores`` (i.e. the output of :func:`pyfraglib.scores.wps_region_metrics`) and identifies genomic regions where a chosen metric (by default ``power_170``) differs significantly between groups.
+
+The analysis uses Wilcoxon rank-sum tests for non-parametric comparison, followed by Benjamini-Hochberg FDR correction to control for multiple testing across all regions.
+
+Input Requirements
+~~~~~~~~~~~~~~~~~~
+
+* JSON configuration file with ``group_a`` and ``group_b`` fields
+* Each group contains a list of ``wps_metrics_<sample>.csv`` paths
+* CSV files must carry at least the columns ``region`` and the requested metric (``power_170`` by default)
+
+Output Files
+~~~~~~~~~~~~
+
+* ``differential_wps_results_<metric>.csv`` — per-region test results (group means, medians, Wilcoxon p-value, FDR-adjusted p-value, rank-biserial effect size, log2 fold change)
+* ``differential_wps_volcano_<metric>.png`` — effect size vs significance visualisation with the top significant regions annotated
+* ``differential_wps_effect_sizes_<metric>.png`` — distribution of rank-biserial effect sizes, split by significance
+
+Syntax
+~~~~~~
+
+.. code-block:: bash
+
+   differential_wps.py [OPTIONS]
+
+Options
+~~~~~~~
+
+.. code-block:: bash
+
+   --config PATH                   JSON configuration file with group definitions
+   --out-dir PATH                  Output directory (default: differential_wps_output)
+   --metric NAME                   WPS metric to test (default: power_170).
+                                   One of: power_170, n_peaks, median_peak_dist,
+                                   median_prom, median_width
+   --min-samples-per-group INT     Minimum non-NaN values per group to test a region
+                                   (default: 3)
+   --verbose                       Enable verbose logging
+
+Configuration Format
+~~~~~~~~~~~~~~~~~~~~
+
+.. code-block:: json
+
+   {
+     "group_a": [
+       "healthy1/wps_metrics_healthy1.csv",
+       "healthy2/wps_metrics_healthy2.csv",
+       "healthy3/wps_metrics_healthy3.csv"
+     ],
+     "group_b": [
+       "cancer1/wps_metrics_cancer1.csv",
+       "cancer2/wps_metrics_cancer2.csv",
+       "cancer3/wps_metrics_cancer3.csv"
      ]
    }
 

@@ -30,7 +30,7 @@ Examples:
 
 License
 -------
-Copyright (C) 2025 Daniel Schütte, daniel.schuette@iccb-cologne.org
+Copyright (C) 2026 Daniel Schütte, daniel.schuette@iccb-cologne.org
 
 This program is free software: you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -64,7 +64,8 @@ from pyfraglib.stats import fragments_per_chromosome_barplot, \
                             export_length_distribution_csv, \
                             export_end_motifs_csv
 from pyfraglib.scores import motif_diversity, windowed_protection_score, \
-                             score_line_plot
+                             score_line_plot, smooth_wps, \
+                             wps_region_metrics, wps_power_spectrum_plot
 from pyfraglib.simulator import FragmentSimulator, NucleaseProfile, \
                                 TissueMixtureSimulator, \
                                 SequenceContextGenerator
@@ -401,9 +402,11 @@ def scores(out_dir: str, args: argparse.Namespace) -> None:
     Calculate fragmentomics scores from fragment files.
 
     Computes various fragmentomics metrics including:
-    - Windowed Protection Score (WPS)
+    - Windowed Protection Score (WPS) and smoothed WPS
+    - Per-region WPS peak / spectral-power metrics
     - Motif diversity scores (Shannon entropy, Simpson index)
     - Score visualization plots
+    - Global per-sample metrics (global_sample_metrics.csv)
 
     Args:
         out_dir: Output directory for score results and plots
@@ -434,9 +437,16 @@ def scores(out_dir: str, args: argparse.Namespace) -> None:
         fail("no bam files found; file extension `.frag' is required", logger)
 
     regions: pysam.TabixFile = pysam.TabixFile(bed_file)
-    col_names: list[str] = ["sample_name", "shannon_3p", "simpson_3p",
-                            "shannon_5p", "simpson_5p"]
-    glbl_motif_diversity_scores: pd.DataFrame = pd.DataFrame(columns=col_names)
+    col_names: list[str] = [
+        "sample_name",
+        "shannon_3p", "simpson_3p", "shannon_5p", "simpson_5p",
+        "wps_n_regions", "wps_n_regions_with_peaks",
+        "wps_median_power_170",
+        "wps_median_peaks_per_region",
+        "wps_median_peak_spacing_bp",
+        "wps_median_prominence",
+    ]
+    glbl_sample_metrics: pd.DataFrame = pd.DataFrame(columns=col_names)
 
     for it, path in enumerate(frag_files):
         logger.info("loading `{}'".format(path))
@@ -449,27 +459,59 @@ def scores(out_dir: str, args: argparse.Namespace) -> None:
         shannon_5p, shannon_3p = motif_diversity(fragments, name, "shannon")
         simpson_5p, simpson_3p = motif_diversity(fragments, name, "simpson")
 
-        new_row: list[str | float] = [
-            name, shannon_3p, simpson_3p, shannon_5p, simpson_5p
-        ]
-        glbl_motif_diversity_scores.loc[it] = new_row
-
         logger.info("calculating windowed protection score")
         wps_df: pd.DataFrame = windowed_protection_score(fragments, regions,
                                                          genome=genome)
+
+        wps_metrics: pd.DataFrame = wps_region_metrics(wps_df)
+        wps_metrics_outpath: str = os.path.join(
+            out_dir, "wps_metrics_{}.csv".format(name)
+        )
+        logger.info("saving per-region WPS metrics to `{}'".format(
+            wps_metrics_outpath))
+        wps_metrics.to_csv(wps_metrics_outpath, index=False)
+
+        wps_df = smooth_wps(wps_df)
         wps_outpath: str = os.path.join(out_dir, "wps_{}.csv".format(name))
         logger.info("saving windowed protection score to `{}'".format(
             wps_outpath))
         wps_df.to_csv(wps_outpath, index=False)
 
         score_line_plot(wps_df, name, out_dir, genome=genome)
+        wps_power_spectrum_plot(wps_df, name, out_dir)
 
-    glbl_mds_outpath: str = os.path.join(
-        out_dir, "global_motif_diversity_scores.csv"
+        good: pd.DataFrame = wps_metrics[wps_metrics["n_peaks"] >= 2]
+        wps_summary: dict[str, float] = {
+            "wps_n_regions": float(len(wps_metrics)),
+            "wps_n_regions_with_peaks": float(len(good)),
+            "wps_median_power_170": float(wps_metrics["power_170"].median()),
+            "wps_median_peaks_per_region":
+                float(wps_metrics["n_peaks"].median()),
+            "wps_median_peak_spacing_bp":
+                float(good["median_peak_dist"].median())
+                if len(good) else float("nan"),
+            "wps_median_prominence":
+                float(good["median_prom"].median())
+                if len(good) else float("nan"),
+        }
+
+        new_row: list[str | float] = [
+            name, shannon_3p, simpson_3p, shannon_5p, simpson_5p,
+            wps_summary["wps_n_regions"],
+            wps_summary["wps_n_regions_with_peaks"],
+            wps_summary["wps_median_power_170"],
+            wps_summary["wps_median_peaks_per_region"],
+            wps_summary["wps_median_peak_spacing_bp"],
+            wps_summary["wps_median_prominence"],
+        ]
+        glbl_sample_metrics.loc[it] = new_row
+
+    glbl_metrics_outpath: str = os.path.join(
+        out_dir, "global_sample_metrics.csv"
     )
-    logger.info("saving global motif diversity scores for all files "
-                "to `{}'".format(glbl_mds_outpath))
-    glbl_motif_diversity_scores.to_csv(glbl_mds_outpath, index=False)
+    logger.info("saving global per-sample metrics for all files "
+                "to `{}'".format(glbl_metrics_outpath))
+    glbl_sample_metrics.to_csv(glbl_metrics_outpath, index=False)
 
 
 def simulate(out_dir: str, args: argparse.Namespace) -> None:

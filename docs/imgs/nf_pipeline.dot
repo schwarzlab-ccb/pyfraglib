@@ -42,7 +42,7 @@ digraph Nextflow_Pipeline {
         Cn -> Dn -> En;
     }
 
-    F [label="NMF &\nDifferential\nEnd Motifs",shape=box,fontsize=12];
+    F [label="NMF (fit + projection),\nDifferential End Motifs,\nDifferential WPS",shape=box,fontsize=12];
     G [label="Cohort\nWide\nResults",shape=box,fontsize=12];
 
     A -> B [label="nextflow run",fontcolor=darkred,style=bold];

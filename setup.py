@@ -1,7 +1,7 @@
 # This file is part of `pyfraglib`, a software suite to calculate fragmentomics
 # features from cfDNA and perform downstream analyses.
 #
-# Copyright (C) 2024 Daniel Schütte, daniel.schuette@iccb-cologne.org
+# Copyright (C) 2026 Daniel Schütte, daniel.schuette@iccb-cologne.org
 #
 # This program is free software: you can redistribute it and/or modify it under
 # the terms of the GNU General Public License as published by the Free Software
@@ -44,7 +44,7 @@ setup(
     long_description=open("README.md").read(),
     long_description_content_type="text/markdown",
     license="GPL-v3",
-    packages=["pyfraglib", "pyfraglib.simulator"],
+    packages=["pyfraglib", "pyfraglib.simulator", "scripts"],
     install_requires=cast(list[str], [
         "pysam>=0.22.1", "matplotlib>=3.9.0", "numpy>=2.4.0",
         "seaborn>=0.13.2", "matplotlib-stubs>=0.2.0",
@@ -52,9 +52,10 @@ setup(
         "intervaltree>=3.1.0", "scipy>=1.14.1", "scipy-stubs>=1.14.1.4",
         "tqdm>=4.67.0", "types-tqdm>=4.67.0.20241119", "mypy>=1.13.0",
         "flake8>=7.1.1", "statsmodels>=0.14.4",
-        "scikit-learn>=1.5.2", "pyabc>=0.12.16"
+        "scikit-learn>=1.5.2", "pyabc>=0.12.16",
+        "pyarrow>=15.0.0", "pyarrow-stubs>=20.0.0"
     ]),
-    package_data={"pyfraglib": ["py.typed"]},
+    package_data={"pyfraglib": ["py.typed"]},  # type: ignore[arg-type]
     scripts=[
         "scripts/pyfrag.py",
         "scripts/txt_to_vcf.py",
@@ -62,6 +63,7 @@ setup(
         "scripts/extract_mutated_reads.py",
         "scripts/nmf_fragment_lengths.py",
         "scripts/differential_end_motifs.py",
+        "scripts/differential_wps.py",
         "scripts/learn_nuclease_params.py"
     ],
 

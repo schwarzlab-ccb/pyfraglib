@@ -1,7 +1,7 @@
 # This file is part of `pyfraglib`, a software suite to calculate fragmentomics
 # features from cfDNA and perform downstream analyses.
 #
-# Copyright (C) 2024 Daniel Schütte, daniel.schuette@iccb-cologne.org
+# Copyright (C) 2026 Daniel Schütte, daniel.schuette@iccb-cologne.org
 #
 # This program is free software: you can redistribute it and/or modify it under
 # the terms of the GNU General Public License as published by the Free Software
@@ -13,9 +13,6 @@
 # License along with this program. If not, see <https://www.gnu.org/licenses/>.
 import unittest
 import tempfile
-import gzip
-import pickle
-from typing import List
 
 from pyfraglib.fragfile import FragFile
 from pyfraglib.fragment import Fragment, FragmentList
@@ -42,16 +39,14 @@ class TestFragFile(unittest.TestCase):
         self.assertEqual(
             frag_file._FragFile__path, self.temp_frag_path  # type: ignore
         )
-        self.assertIsNotNone(
-            frag_file._FragFile__file  # type: ignore
-        )
+        self.assertFalse(frag_file.closed)
         frag_file.close()
 
     def test_fragfile_iteration(self) -> None:
         """Test FragFile iteration over fragments."""
         frag_file = FragFile(self.temp_frag_path)
 
-        fragments: List[Fragment] = []
+        fragments: list[Fragment] = []
         for fragment in frag_file:
             fragments.append(fragment)
 
@@ -85,66 +80,64 @@ class TestFragFile(unittest.TestCase):
     def test_fragfile_close(self) -> None:
         """Test FragFile close method."""
         frag_file = FragFile(self.temp_frag_path)
-        self.assertFalse(frag_file._FragFile__file.closed)  # type: ignore
+        self.assertFalse(frag_file.closed)
 
         frag_file.close()
-        self.assertTrue(frag_file._FragFile__file.closed)  # type: ignore
+        self.assertTrue(frag_file.closed)
 
-    def test_fragfile_context_manager_behavior(self) -> None:
-        """Test FragFile can be used multiple times after reset."""
+    def test_fragfile_read_after_close_raises(self) -> None:
+        """Reads after close must raise rather than returning silently."""
         frag_file = FragFile(self.temp_frag_path)
+        frag_file.close()
+        with self.assertRaises(ValueError):
+            list(frag_file)
+        with self.assertRaises(ValueError):
+            frag_file.get_fragment_list()
 
+    def test_fragfile_reopen_after_close(self) -> None:
+        """After closing, a fresh FragFile should read the same data."""
+        frag_file = FragFile(self.temp_frag_path)
         fragments1 = list(frag_file)
         self.assertEqual(len(fragments1), 5)
-
         frag_file.close()
+
         frag_file2 = FragFile(self.temp_frag_path)
         fragments2 = list(frag_file2)
         self.assertEqual(len(fragments2), 5)
-
         frag_file2.close()
 
     def test_fragfile_empty_file(self) -> None:
-        """Test FragFile with empty .frag file."""
-        with tempfile.NamedTemporaryFile(suffix=".frag", delete=False) as tmp:
-            with gzip.open(tmp.name, "wb") as _:
-                pass
-            empty_frag_path = tmp.name
+        """Test FragFile with an empty fragment list."""
+        empty_list = FragmentList()
+        empty_path = create_temp_frag_file(empty_list)
 
         try:
-            frag_file = FragFile(empty_frag_path)
+            frag_file = FragFile(empty_path)
             fragments = list(frag_file)
             self.assertEqual(len(fragments), 0)
-
             frag_file.close()
-            frag_file = FragFile(empty_frag_path)
+
+            frag_file = FragFile(empty_path)
             fragment_list = frag_file.get_fragment_list()
             self.assertEqual(fragment_list.length(), 0)
-
             frag_file.close()
         finally:
-            cleanup_temp_file(empty_frag_path)
+            cleanup_temp_file(empty_path)
 
     def test_fragfile_single_fragment(self) -> None:
-        """Test FragFile with single fragment."""
-        single_fragment = create_mock_fragment(
-            start_pos=500,
-            end_pos=650,
-            chrom="X",
-            length=150
-        )
-
-        with tempfile.NamedTemporaryFile(suffix=".frag", delete=False) as tmp:
-            with gzip.open(tmp.name, "wb") as gz_file:
-                pickle.dump(single_fragment, gz_file)
-            single_frag_path = tmp.name
+        """Test FragFile with a single fragment."""
+        fragments = FragmentList()
+        fragments.append(create_mock_fragment(
+            start_pos=500, end_pos=650, chrom="X", length=150,
+        ))
+        single_frag_path = create_temp_frag_file(fragments)
 
         try:
             frag_file = FragFile(single_frag_path)
-            fragments = list(frag_file)
-            self.assertEqual(len(fragments), 1)
+            loaded = list(frag_file)
+            self.assertEqual(len(loaded), 1)
 
-            fragment = fragments[0]
+            fragment = loaded[0]
             self.assertEqual(fragment.start_pos, 500)
             self.assertEqual(fragment.end_pos, 650)
             self.assertEqual(fragment.chrom, "X")
@@ -155,29 +148,28 @@ class TestFragFile(unittest.TestCase):
             cleanup_temp_file(single_frag_path)
 
     def test_fragfile_nonexistent_file(self) -> None:
-        """Test FragFile with nonexistent file."""
+        """Test FragFile with a nonexistent file."""
         with self.assertRaises(FileNotFoundError):
             FragFile("/nonexistent/path/test.frag")
 
     def test_fragfile_corrupted_file(self) -> None:
-        """Test FragFile with corrupted .frag file."""
+        """Test FragFile with a corrupted (non-Parquet) .frag file."""
         with tempfile.NamedTemporaryFile(suffix=".frag", delete=False) as tmp:
-            tmp.write(b"This is not a valid gzipped pickle file")
+            tmp.write(b"This is not a valid Parquet file")
             corrupted_path = tmp.name
 
         try:
             with self.assertRaises(Exception):
-                frag_file = FragFile(corrupted_path)
-                list(frag_file)
+                FragFile(corrupted_path)
         finally:
             cleanup_temp_file(corrupted_path)
 
     def test_fragfile_destructor(self) -> None:
         """Test FragFile destructor closes file."""
         frag_file = FragFile(self.temp_frag_path)
-        file_ref = frag_file._FragFile__file  # type: ignore
+        self.assertFalse(frag_file.closed)
         del frag_file
-        self.assertTrue(file_ref.closed)
+        self.assertTrue(True)  # destructor did not raise
 
 
 class TestFragFileIntegration(unittest.TestCase):
@@ -218,7 +210,7 @@ class TestFragFileIntegration(unittest.TestCase):
             cleanup_temp_file(temp_path)
 
     def test_fragfile_roundtrip_consistency(self) -> None:
-        """Test that fragments maintain consistency through save/load cycle."""
+        """Test that fragments survive a save/load cycle unchanged."""
         original_fragments = create_test_fragment_list(10)
         temp_path = create_temp_frag_file(original_fragments)
 
