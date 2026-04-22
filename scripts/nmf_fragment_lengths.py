@@ -22,16 +22,24 @@ Output:
 - Reconstruction error analysis
 
 Usage:
+    # Fit mode:
     python nmf_fragment_lengths.py -f file_list.txt -n 3 -o output_dir/
+
+    # Projection mode (onto an existing nmf_signatures.csv):
+    python nmf_fragment_lengths.py -f new_samples.txt \
+        -s output_dir/nmf_signatures.csv -o projected_dir/
 
 Parameters:
     -n, --n-components: Number of NMF components (signatures) to extract
     -o, --out-dir: Output directory for results and plots
     -f, --file-list: Text file containing CSV file paths
+    -s, --signatures: Optional path to an existing nmf_signatures.csv. When
+        set, the script skips refitting and projects the input samples onto
+        the loaded signatures basis (equivalent to a fixed-H NMF transform).
 
 License
 -------
-Copyright (C) 2025 Daniel Schütte, daniel.schuette@iccb-cologne.org
+Copyright (C) 2026 Daniel Schütte, daniel.schuette@iccb-cologne.org
 
 This program is free software: you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -56,6 +64,7 @@ import seaborn as sns
 
 from pathlib import Path
 from typing import Final, NoReturn
+from scipy.optimize import nnls
 from sklearn.decomposition import NMF  # type: ignore
 from sklearn.metrics import mean_squared_error  # type: ignore
 
@@ -190,6 +199,137 @@ def load_fragment_length_data(
         data_df.shape[0], data_df.shape[1]))
 
     return data_df, sample_names
+
+
+def load_signatures(
+    signatures_path: str, logger: logging.Logger,
+) -> tuple[npt.NDArray[np.float64], list[str]]:
+    """
+    Load a previously-fit NMF signatures matrix (``H``).
+
+    Args:
+        signatures_path: Path to an ``nmf_signatures.csv`` produced by a
+            previous run. Rows index components, columns index fragment
+            lengths (integer bp labels).
+        logger: Logger instance for output.
+
+    Returns:
+        Tuple of the ``H`` matrix (components × lengths) and the list of
+        fragment-length column labels.
+
+    Raises:
+        SystemExit: If the file does not exist or is malformed.
+    """
+    if not os.path.exists(signatures_path):
+        fail("signatures file '{}' does not exist".format(
+            signatures_path), logger)
+
+    try:
+        df: pd.DataFrame = pd.read_csv(signatures_path, index_col=0)
+    except Exception as e:
+        fail("error reading signatures file '{}': {}".format(
+            signatures_path, e), logger)
+
+    lengths: list[str] = [str(c) for c in df.columns]
+    H: npt.NDArray[np.float64] = df.to_numpy(dtype=np.float64)
+    if H.ndim != 2 or H.shape[0] < 1 or H.shape[1] < 1:
+        fail("signatures file '{}' has unexpected shape {}".format(
+            signatures_path, H.shape), logger)
+
+    logger.info(
+        "loaded signatures: {} components × {} fragment lengths".format(
+            H.shape[0], H.shape[1]
+        )
+    )
+    return H, lengths
+
+
+def align_to_signatures(
+    data_matrix: pd.DataFrame, signature_lengths: list[str],
+    logger: logging.Logger,
+) -> pd.DataFrame:
+    """
+    Align a sample x fragment-length matrix to the column layout of an
+    existing signatures matrix, filling missing lengths with zero and
+    dropping any extra lengths.
+
+    Args:
+        data_matrix: Sample × fragment-length matrix from
+            :func:`load_fragment_length_data`.
+        signature_lengths: Fragment-length column labels from the signatures
+            file.
+        logger: Logger instance for output.
+
+    Returns:
+        Aligned matrix with the same columns (and order) as the signatures
+        file.
+    """
+    aligned: pd.DataFrame = data_matrix.reindex(
+        columns=signature_lengths, fill_value=0.0
+    )
+    n_missing: int = int((aligned.sum(axis=0) == 0).sum())
+    n_dropped: int = int(len(data_matrix.columns) - len(signature_lengths))
+    if n_missing:
+        logger.warning(
+            "{} fragment-length columns from the signatures basis have no "
+            "counts in the projection samples (filled with 0)".format(
+                n_missing))
+    if n_dropped > 0:
+        logger.warning(
+            "{} fragment-length columns present in the projection samples "
+            "are absent from the signatures basis and were dropped".format(
+                n_dropped))
+    return aligned
+
+
+def project_onto_signatures(
+    data_matrix: pd.DataFrame, H: npt.NDArray[np.float64],
+    logger: logging.Logger,
+) -> tuple[npt.NDArray[np.float64], float]:
+    """
+    Project row-normalised samples onto a fixed signatures matrix.
+
+    Solves, for each sample :math:`x_i`,
+
+    .. math::
+
+        w_i = \\arg\\min_{w \\ge 0} \\| x_i - w\\, H \\|_2^2
+
+    using :func:`scipy.optimize.nnls`. This is the non-negative least
+    squares dual of NMF with :math:`H` held fixed, equivalent to what
+    :meth:`sklearn.decomposition.NMF.transform` does internally when the
+    coefficient matrix is frozen, and avoids the need for private sklearn
+    APIs.
+
+    Args:
+        data_matrix: Sample × fragment-length matrix aligned to the
+            signatures column layout.
+        H: Fixed signatures matrix (components × lengths).
+        logger: Logger instance for output.
+
+    Returns:
+        Tuple of (``W``, reconstruction error). ``W`` has shape
+        ``(n_samples, n_components)``.
+    """
+    raw: npt.NDArray[np.float64] = data_matrix.values.astype(np.float64)
+    row_sums: npt.NDArray[np.float64] = raw.sum(axis=1, keepdims=True)
+    X_scaled: npt.NDArray[np.float64] = raw / np.where(
+        row_sums > 0, row_sums, 1.0
+    )
+
+    n_samples: int = X_scaled.shape[0]
+    n_components: int = H.shape[0]
+    W: npt.NDArray[np.float64] = np.zeros((n_samples, n_components))
+    H_T: npt.NDArray[np.float64] = H.T
+    for i in range(n_samples):
+        w, _ = nnls(H_T, X_scaled[i])
+        W[i] = w
+
+    X_reconstructed: npt.NDArray[np.float64] = np.dot(W, H)
+    error: float = mean_squared_error(X_scaled, X_reconstructed)
+
+    logger.info("projection reconstruction error: {:.6f}".format(error))
+    return W, error
 
 
 def perform_nmf_analysis(
@@ -411,11 +551,22 @@ def create_argparser() -> argparse.ArgumentParser:
 
     parser.add_argument(
         "-n", "--n-components", type=int, dest="n_components", default=3,
-        help="Number of NMF components to extract (default: 3)")
+        help="Number of NMF components to extract (default: 3). Ignored "
+        "when --signatures is given; the component count is then taken "
+        "from the loaded signatures file.")
 
     parser.add_argument(
         "-o", "--out-dir", type=str, dest="out_dir", default="nmf_output",
         help="Output directory for results and plots (default: nmf_output)")
+
+    parser.add_argument(
+        "-s", "--signatures", type=str, dest="signatures_file",
+        default=None, help="Optional path to an existing nmf_signatures.csv "
+        "from a previous run. When set, the script skips refitting and "
+        "instead projects the input samples onto the loaded signatures "
+        "basis (equivalent to sklearn's NMF.transform with a fixed H). "
+        "Fragment-length columns in the projection samples are aligned to "
+        "the basis layout before projection.")
 
     parser.add_argument(
         "-v", "--verbose", action="store_true", dest="is_verbose",
@@ -453,12 +604,23 @@ def main() -> None:
     csv_files: list[str] = read_file_list(file_list, logger)
     data_matrix, sample_names = load_fragment_length_data(csv_files, logger)
 
-    n_components: int = int(args.n_components)  # type: ignore
-    W, H, reconstruction_error = perform_nmf_analysis(
-        data_matrix, n_components, logger
-    )
+    signatures_file: str | None = args.signatures_file
+    if signatures_file is not None:
+        H, signature_lengths = load_signatures(signatures_file, logger)
+        data_matrix = align_to_signatures(
+            data_matrix, signature_lengths, logger
+        )
+        W, reconstruction_error = project_onto_signatures(
+            data_matrix, H, logger
+        )
+        fragment_lengths: list[str] = signature_lengths
+    else:
+        n_components: int = int(args.n_components)  # type: ignore
+        W, H, reconstruction_error = perform_nmf_analysis(
+            data_matrix, n_components, logger
+        )
+        fragment_lengths = data_matrix.columns.tolist()
 
-    fragment_lengths: list[str] = data_matrix.columns.tolist()
     save_nmf_results(W, H, sample_names, fragment_lengths, out_dir, logger)
     create_nmf_visualizations(
         W, H, sample_names, fragment_lengths, reconstruction_error,
