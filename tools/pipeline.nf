@@ -68,7 +68,7 @@ process pyfraglib_extract {
     conda activate !{params.conda_env}
     set -eu
 
-    bam_bytes=\$(stat -c %s !{bam_path})
+    bam_bytes=\$(stat -L -c %s !{bam_path})
     bam_reads_total=\$(samtools view -c !{bam_path})
     bam_reads_dedup=\$(samtools view -c -F 1024 !{bam_path})
 
