@@ -169,6 +169,16 @@ def create_argparser() -> argparse.ArgumentParser:
         default=False, help="If set, input BAM file(s) will be treated as "
         "single-end long read sequencing (e.g. ONT sequencing). If not set "
         "(default), BAMs are expected to be paired-end.")
+    argparser_extract.add_argument(
+        "--max-insert-size", type=int, dest="max_insert_size", default=900,
+        help="Upper bound on fragment insert size (bp). Fragments whose "
+        "length is at or above this value are marked bogus during "
+        "extraction. Default: 900.")
+    argparser_extract.add_argument(
+        "--min-mapq", type=int, dest="min_mapq", default=20,
+        help="Minimum mapping quality (MAPQ) per read. Fragments where any "
+        "read falls below this threshold are marked bogus during "
+        "extraction. Default: 20.")
 
     argparser_stats: argparse.ArgumentParser = subparsers.add_parser(
         "stats", help="Given (a) `.frag' file(s), extract descriptive "
@@ -268,6 +278,8 @@ def extract(out_dir: str, args: argparse.Namespace) -> None:
     bam_file: Final[str] = args.bam_file
     bam_dir: Final[str] = args.bam_dir
     is_nanopore: Final[bool] = args.is_nanopore
+    max_insert_size: Final[int] = args.max_insert_size
+    min_mapq: Final[int] = args.min_mapq
 
     if bam_file and bam_dir:
         fail("--bam-dir and --bam-file are incompatible options", logger)
@@ -304,9 +316,18 @@ def extract(out_dir: str, args: argparse.Namespace) -> None:
     else:
         logger.info("not expecting any VCF files")
 
+    logger.info(
+        "QC thresholds: max insert size = {} bp, min MAPQ = {}".format(
+            max_insert_size, min_mapq
+        )
+    )
+
     # NOTE(ds): Instead of accumulating all results in memory and writing them
     # out at once, we extract and write BAM/FRAG files independently.
-    Fragment.bams_to_frags(bam_files, vcf_files, out_dir, is_nanopore)
+    Fragment.bams_to_frags(
+        bam_files, vcf_files, out_dir, is_nanopore,
+        max_insert_size=max_insert_size, min_mapq=min_mapq,
+    )
 
 
 def stats(out_dir: str, args: argparse.Namespace) -> None:

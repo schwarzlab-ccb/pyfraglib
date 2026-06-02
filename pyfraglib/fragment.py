@@ -281,7 +281,9 @@ class Fragment:
 
     def __init__(
         self, read: pysam.AlignedSegment, mate: Optional[pysam.AlignedSegment],
-        mutated_reads: Optional[set[str]]
+        mutated_reads: Optional[set[str]],
+        max_insert_size: int = INSERT_SIZE_UPPER_BOUND,
+        min_mapq: int = MIN_MAPQ
     ) -> None:
         """
         Initialize a Fragment from BAM alignment data.
@@ -298,6 +300,11 @@ class Fragment:
             mutated_reads: Set of read names that contain mutations, or None
                 if mutation annotation is not available. Used to mark fragments
                 as mutated based on VCF analysis.
+            max_insert_size: Upper bound on fragment insert size in bp; used
+                by :meth:`_determine_bogus`. Defaults to
+                :data:`INSERT_SIZE_UPPER_BOUND`.
+            min_mapq: Minimum per-read mapping quality; used by
+                :meth:`_determine_bogus`. Defaults to :data:`MIN_MAPQ`.
 
         Note:
             * Paired-end processing requires both reads to be properly aligned
@@ -306,13 +313,17 @@ class Fragment:
             * Quality filtering and bogus detection are applied automatically
         """
         if not mate:
-            self._init_single_ended(read, mutated_reads)
+            self._init_single_ended(read, mutated_reads,
+                                    max_insert_size, min_mapq)
         else:
-            self._init_paired_ended(read, mate, mutated_reads)
+            self._init_paired_ended(read, mate, mutated_reads,
+                                    max_insert_size, min_mapq)
 
     def _init_paired_ended(
         self, read: pysam.AlignedSegment, mate: pysam.AlignedSegment,
-        mutated_reads: Optional[set[str]]
+        mutated_reads: Optional[set[str]],
+        max_insert_size: int = INSERT_SIZE_UPPER_BOUND,
+        min_mapq: int = MIN_MAPQ
     ) -> None:
         # @NOTE(ds): We do all genomic calculations for paired-end reads in one
         # big function. All variables above are filled in after this call.
@@ -324,11 +335,15 @@ class Fragment:
             self.is_mutated = (read.query_name in mutated_reads or
                                mate.query_name in mutated_reads)
 
-        self.is_bogus = self._determine_bogus(read, mate)
+        self.is_bogus = self._determine_bogus(
+            read, mate, max_insert_size, min_mapq
+        )
 
     def _init_single_ended(
         self, read: pysam.AlignedSegment,
-        mutated_reads: Optional[set[str]]
+        mutated_reads: Optional[set[str]],
+        max_insert_size: int = INSERT_SIZE_UPPER_BOUND,
+        min_mapq: int = MIN_MAPQ
     ) -> None:
         assert read.reference_end
         assert read.reference_name
@@ -348,10 +363,14 @@ class Fragment:
         else:
             self.end3p = self.end5p = default
 
-        self.is_bogus = self._determine_bogus(read, None)
+        self.is_bogus = self._determine_bogus(
+            read, None, max_insert_size, min_mapq
+        )
 
     def _determine_bogus(
-        self, read: pysam.AlignedSegment, mate: Optional[pysam.AlignedSegment]
+        self, read: pysam.AlignedSegment, mate: Optional[pysam.AlignedSegment],
+        max_insert_size: int = INSERT_SIZE_UPPER_BOUND,
+        min_mapq: int = MIN_MAPQ
     ) -> bool:
         """
         Determine if a fragment should be marked as bogus (low quality).
@@ -394,9 +413,9 @@ class Fragment:
         # @NOTE(ds): We are checking a subset of properties that apply to
         # single-ended data and return early.
         if not mate:
-            if self.length >= INSERT_SIZE_UPPER_BOUND or self.length <= 0:
+            if self.length >= max_insert_size or self.length <= 0:
                 is_bogus = True
-            if read.mapping_quality < MIN_MAPQ:
+            if read.mapping_quality < min_mapq:
                 is_bogus = True
             return is_bogus
 
@@ -407,13 +426,13 @@ class Fragment:
 
         # @NOTE(ds): A whole lot of length-related conditions might define a
         # fragment to be bogus.
-        if self.length >= INSERT_SIZE_UPPER_BOUND or self.length <= 0:
+        if self.length >= max_insert_size or self.length <= 0:
             is_bogus = True
         elif (self.length != (self.end_pos - self.start_pos)) or \
                 (read_len != mate_len):
             is_bogus = True
 
-        if read.mapping_quality < MIN_MAPQ or mate.mapping_quality < MIN_MAPQ:
+        if read.mapping_quality < min_mapq or mate.mapping_quality < min_mapq:
             is_bogus = True
 
         # @NOTE(ds): Pairing across contigs and unmatched read orientations
@@ -526,7 +545,9 @@ class Fragment:
 
     @staticmethod
     def from_bam(filepath: str, vcfpath: Optional[str],
-                 is_nanopore: bool = False) -> "FragmentList":
+                 is_nanopore: bool = False,
+                 max_insert_size: int = INSERT_SIZE_UPPER_BOUND,
+                 min_mapq: int = MIN_MAPQ) -> "FragmentList":
         """
         Extract fragments from a BAM file with optional mutation annotation.
 
@@ -618,7 +639,8 @@ class Fragment:
                 if read.is_duplicate:
                     num_duplicates += 1
                 else:
-                    fragments.append(Fragment(read, None, mut_reads))
+                    fragments.append(Fragment(read, None, mut_reads,
+                                              max_insert_size, min_mapq))
 
             progress_bar.close()
             logger.info(
@@ -656,7 +678,8 @@ class Fragment:
                     if read.query_name in read_cache:
                         mate: pysam.AlignedSegment = \
                             read_cache[read.query_name]
-                        fragments.append(Fragment(read, mate, mut_reads))
+                        fragments.append(Fragment(read, mate, mut_reads,
+                                                  max_insert_size, min_mapq))
                         read_cache.pop(read.query_name)  # _major_ mem saver
                     else:
                         read_cache[read.query_name] = read
@@ -800,10 +823,16 @@ class Fragment:
     @staticmethod
     def from_bams(
         filepaths: list[str], vcfpaths: Optional[list[str]],
-        is_nanopore: bool = False
+        is_nanopore: bool = False,
+        max_insert_size: int = INSERT_SIZE_UPPER_BOUND,
+        min_mapq: int = MIN_MAPQ
     ) -> "FragmentCollection":
         """
         Process multiple BAM files in parallel and collect fragments in memory.
+
+        ``max_insert_size`` and ``min_mapq`` are forwarded to
+        :meth:`Fragment.from_bam` per worker (via ``functools.partial``); see
+        that method for their meaning.
 
         Warning:
             This function has significant memory overhead. Consider using
@@ -822,7 +851,8 @@ class Fragment:
             with Pool(processes=detect_cpus()) as pool:
                 partial_task: Callable[[str, str], None] = partial(
                     task0, frags_per_bam=shared_collection,
-                    is_nanopore=is_nanopore
+                    is_nanopore=is_nanopore,
+                    max_insert_size=max_insert_size, min_mapq=min_mapq
                 )
                 pool.starmap(partial_task, input_data)
 
@@ -834,7 +864,9 @@ class Fragment:
     @staticmethod
     def bams_to_frags(
         filepaths: list[str], vcfpaths: Optional[list[str]], out_dir: str,
-        is_nanopore: bool = False
+        is_nanopore: bool = False,
+        max_insert_size: int = INSERT_SIZE_UPPER_BOUND,
+        min_mapq: int = MIN_MAPQ
     ) -> None:
         """
         Process multiple BAM files in parallel and save fragments to .frag
@@ -845,6 +877,10 @@ class Fragment:
         This approach avoids the memory overhead of :func:`Fragment.from_bams`
         by not storing all fragments in memory simultaneously. It can still be
         very expensive.
+
+        ``max_insert_size`` and ``min_mapq`` are forwarded to
+        :meth:`Fragment.from_bam` per worker (via ``functools.partial``); see
+        that method for their meaning.
 
         Note:
             We use the same multiprocessing idioms as in ``from_bams``
@@ -857,7 +893,8 @@ class Fragment:
             input_data.append((filepath, vcfpath))
         with Pool(processes=detect_cpus()) as pool:
             partial_task: Callable[[str, str], None] = partial(
-                task1, out_dir=out_dir, is_nanopore=is_nanopore
+                task1, out_dir=out_dir, is_nanopore=is_nanopore,
+                max_insert_size=max_insert_size, min_mapq=min_mapq
             )
             pool.starmap(partial_task, input_data)
 
@@ -914,7 +951,9 @@ class Fragment:
 
 
 def task0(filepath: str, vcfpath: str | None,
-          frags_per_bam: "FragmentCollection", is_nanopore: bool) -> None:
+          frags_per_bam: "FragmentCollection", is_nanopore: bool,
+          max_insert_size: int = INSERT_SIZE_UPPER_BOUND,
+          min_mapq: int = MIN_MAPQ) -> None:
     """
     Helper function for parallel BAM file processing.
 
@@ -925,20 +964,26 @@ def task0(filepath: str, vcfpath: str | None,
         t0 writes the into a shared buffer, t1 writes them to disk immediately.
         That is freeing the used memory and reducing our mem footprint.
     """
-    frags: FragmentList = Fragment.from_bam(filepath, vcfpath, is_nanopore)
+    frags: FragmentList = Fragment.from_bam(
+        filepath, vcfpath, is_nanopore, max_insert_size, min_mapq
+    )
     filename: str = os.path.basename(filepath)
     name, _ = os.path.splitext(filename)
     frags_per_bam.append(name, frags)
 
 
 def task1(filepath: str, vcfpath: str | None,
-          out_dir: str, is_nanopore: bool) -> None:
+          out_dir: str, is_nanopore: bool,
+          max_insert_size: int = INSERT_SIZE_UPPER_BOUND,
+          min_mapq: int = MIN_MAPQ) -> None:
     """
     Helper function for parallel BAM file processing.
     """
     logger: logging.Logger = get_logger()
 
-    frags: FragmentList = Fragment.from_bam(filepath, vcfpath, is_nanopore)
+    frags: FragmentList = Fragment.from_bam(
+        filepath, vcfpath, is_nanopore, max_insert_size, min_mapq
+    )
     filename: str = os.path.basename(filepath)
     name, _ = os.path.splitext(filename)
 
