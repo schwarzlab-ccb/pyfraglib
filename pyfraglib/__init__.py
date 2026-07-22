@@ -149,7 +149,7 @@ from pyfraglib.lengths import fragment_length_plot
 from pyfraglib.simulator import FragmentSimulator, TissueMixtureSimulator, \
                                 NucleaseProfile
 
-__version__ = "0.6.1"
+__version__ = "0.6.2"
 __repo_url__ = "https://github.com/ICCB-Cologne/pyfraglib"
 __all__ = [
     "Fragment", "FragmentList", "FragmentCollection", "FRAG_SCHEMA", "fail",

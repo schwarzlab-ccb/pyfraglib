@@ -16,4 +16,4 @@
 # more details. You should have received a copy of the GNU General Public
 # License along with this program. If not, see <https://www.gnu.org/licenses/>.
 python3 -m build
-python3 -m twine upload --repository pypi dist/*
+python3 -m twine upload --verbose --repository pypi dist/*

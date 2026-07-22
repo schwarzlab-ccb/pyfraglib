@@ -69,7 +69,7 @@ setup(
 
     keywords=["cfDNA", "fragmentomics"],
     classifiers=[
-        "Programming Language :: Python :: 3"
+        "Programming Language :: Python :: 3",
         "Operating System :: POSIX :: Linux",
         "Topic :: Scientific/Engineering :: Bio-Informatics",
     ],
