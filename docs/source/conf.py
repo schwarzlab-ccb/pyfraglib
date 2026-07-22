@@ -26,7 +26,7 @@ sys.path.insert(0, os.path.abspath("../../"))
 project = "pyfraglib"
 copyright = "2026, Daniel Schütte"
 author = "Daniel Schütte"
-release = "0.6.3"
+release = "0.6.4"
 extensions = [
     "sphinx.ext.autodoc",
     "sphinx.ext.autosummary",

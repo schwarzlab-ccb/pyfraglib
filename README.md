@@ -19,7 +19,7 @@ It is recommended that `pyfraglib` is installed into a dedicated conda
 environment using `pip`, the Python package manager:
 
 ```bash
-git clone git@bitbucket.org:schwarzlab/pyfraglib.git
+git clone git@github.com:schwarzlab-ccb/pyfraglib.git
 cd pyfraglib
 conda env create -f pyfraglib.yml
 conda activate pyfraglib

@@ -36,7 +36,7 @@ def get_version(rel_path: str) -> str:
 setup(
     name="pyfraglib",
     version=get_version("pyfraglib/__init__.py"),
-    url="https://bitbucket.org/schwarzlab/project-lymphoma-cfdna/",
+    url="https://github.com/schwarzlab-ccb/pyfraglib",
     author="Daniel Schütte",
     author_email="daniel.schuette@iccb-cologne.org",
     description="Software suite to calculate fragmentomics features "
