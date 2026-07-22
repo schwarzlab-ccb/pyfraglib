@@ -33,14 +33,14 @@ During development, all code in `pyfraglib` is thoroughly type-checked using
 ./tools/dev_install.sh # typing & linting errors are reported
 ```
 
-Alternatively, `pyfraglib` is available via PyPI, the Python package index.
+Alternatively, `pyfraglib` is available via PyPI, the Python package index:
 
 ```bash
 pip install pyfraglib
 ```
 
 The only non-Python dependency `samtools/htslib` is usually bundled with
-`pysam` and in those cases does not need a separate installation.
+`pysam` and in those cases, no separate installation of it is required.
 
 ## Usage
 
