@@ -33,6 +33,15 @@ During development, all code in `pyfraglib` is thoroughly type-checked using
 ./tools/dev_install.sh # typing & linting errors are reported
 ```
 
+Alternatively, `pyfraglib` is available via PyPI, the Python package index.
+
+```bash
+pip install pyfraglib
+```
+
+The only non-Python dependency `samtools/htslib` is usually bundled with
+`pysam` and in those cases does not need a separate installation.
+
 ## Usage
 
 `pyfraglib` comes with a command line utility. After successful installation,
@@ -76,7 +85,7 @@ documentation in HTML or PDF format, run:
 
 ## Citation
 
-As long as `pyfraglib` is not published, please cite this repository if you use it in your scientific work.
+Please cite our bioRxiv preprint (DOI XXX) if you use `pyfraglib` in your work.
 
 ## License
 `pyfraglib` is licensed under the GPL-v3 as indicated in the source files.
