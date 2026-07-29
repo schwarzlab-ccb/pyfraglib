@@ -1,0 +1,28 @@
+{
+    "tissue_types": ["hematopoietic", "tumor"],
+    "tissue_fractions": [0.85, 0.15],
+    "total_fragments": 1000000,
+    "add_noise": true,
+    "mark_tumor_as_mutated": true,
+    "nuclease_activities": {
+        "hematopoietic": {
+            "dnase1_activity": 2.0,
+            "dnase1l3_activity": 8.0,
+            "dffb_activity": 0.2
+        },
+        "tumor": {
+            "dnase1_activity": 2.5,
+            "dnase1l3_activity": 0.5,
+            "dffb_activity": 5.0
+        }
+    },
+    "fragment_size": {
+        "hematopoietic": {
+            "periodicity_amplitude": 0.1
+        },
+        "tumor": {
+            "periodicity_amplitude": 0.05,
+            "di_fraction": 0.07
+        }
+    }
+}

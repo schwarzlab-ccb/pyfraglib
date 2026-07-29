@@ -1,0 +1,5 @@
+{
+    "fasta_path": "data/ref/Homo_sapiens.GRCh37.dna.primary_assembly.fa",
+    "bed_file": "paper/data/regions.bed.gz",
+    "n_samples_per_group": 20
+}

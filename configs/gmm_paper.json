@@ -1,0 +1,10 @@
+{
+    "number_of_gaussians": 2,
+    "subsample_percentage": 0.05,
+    "means_lower_bounds": [100, 310],
+    "means_upper_bounds": [250, 360],
+    "std_lower_bounds": [1, 1],
+    "std_upper_bounds": [50, 50],
+    "initial_means": [165, 335],
+    "initial_pis": [0.85, 0.15]
+}
