@@ -19,7 +19,7 @@ It is recommended that `pyfraglib` is installed into a dedicated conda
 environment using `pip`, the Python package manager:
 
 ```bash
-git clone git@github.com:schwarzlab-ccb/pyfraglib.git
+git clone https://github.com/schwarzlab-ccb/pyfraglib.git
 cd pyfraglib
 conda env create -f pyfraglib.yml
 conda activate pyfraglib
@@ -85,7 +85,8 @@ documentation in HTML or PDF format, run:
 
 ## Citation
 
-Please cite our bioRxiv preprint (DOI XXX) if you use `pyfraglib` in your work.
+Please cite our bioRxiv [preprint](https://www.biorxiv.org/content/10.64898/2026.07.22.740152v2)
+if you use `pyfraglib` in your work.
 
 ## License
 `pyfraglib` is licensed under the GPL-v3 as indicated in the source files.
