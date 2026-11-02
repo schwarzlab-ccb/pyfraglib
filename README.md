@@ -75,8 +75,11 @@ Sphinx).
 
 ## Documentation
 
-Sphinx is used to create documentation. The easiest way to create repository-wide
-documentation in HTML or PDF format, run:
+Documentation for the latest stable build is hosted at
+[ReadTheDocs](https://pyfraglib.readthedocs.io/en/latest/).
+
+In general, Sphinx is used to create documentation. The easiest way to create
+repository-wide documentation in HTML or PDF format manually is to run:
 
 ```bash
 ./tools/build_docs.sh pdf # or:
