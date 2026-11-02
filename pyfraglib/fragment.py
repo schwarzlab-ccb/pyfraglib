@@ -280,8 +280,10 @@ class Fragment:
     is_mutated: Optional[bool]
 
     def __init__(
-        self, read: pysam.AlignedSegment, mate: Optional[pysam.AlignedSegment],
-        mutated_reads: Optional[set[str]],
+        self, 
+        read: pysam.AlignedSegment, 
+        mate: Optional[pysam.AlignedSegment] = None,
+        mutated_reads: Optional[set[str]] = None,
         max_insert_size: int = INSERT_SIZE_UPPER_BOUND,
         min_mapq: int = MIN_MAPQ
     ) -> None:
@@ -321,7 +323,7 @@ class Fragment:
 
     def _init_paired_ended(
         self, read: pysam.AlignedSegment, mate: pysam.AlignedSegment,
-        mutated_reads: Optional[set[str]],
+        mutated_reads: Optional[set[str]] = None,
         max_insert_size: int = INSERT_SIZE_UPPER_BOUND,
         min_mapq: int = MIN_MAPQ
     ) -> None:
@@ -341,7 +343,7 @@ class Fragment:
 
     def _init_single_ended(
         self, read: pysam.AlignedSegment,
-        mutated_reads: Optional[set[str]],
+        mutated_reads: Optional[set[str]] = None,
         max_insert_size: int = INSERT_SIZE_UPPER_BOUND,
         min_mapq: int = MIN_MAPQ
     ) -> None:
@@ -368,7 +370,9 @@ class Fragment:
         )
 
     def _determine_bogus(
-        self, read: pysam.AlignedSegment, mate: Optional[pysam.AlignedSegment],
+        self, 
+        read: pysam.AlignedSegment, 
+        mate: Optional[pysam.AlignedSegment] = None,
         max_insert_size: int = INSERT_SIZE_UPPER_BOUND,
         min_mapq: int = MIN_MAPQ
     ) -> bool:
@@ -544,7 +548,7 @@ class Fragment:
         return (kmer5p, kmer3p)
 
     @staticmethod
-    def from_bam(filepath: str, vcfpath: Optional[str],
+    def from_bam(filepath: str, vcfpath: Optional[str] = None,
                  is_nanopore: bool = False,
                  max_insert_size: int = INSERT_SIZE_UPPER_BOUND,
                  min_mapq: int = MIN_MAPQ) -> "FragmentList":
@@ -822,7 +826,7 @@ class Fragment:
 
     @staticmethod
     def from_bams(
-        filepaths: list[str], vcfpaths: Optional[list[str]],
+        filepaths: list[str], vcfpaths: Optional[list[str]] = None,
         is_nanopore: bool = False,
         max_insert_size: int = INSERT_SIZE_UPPER_BOUND,
         min_mapq: int = MIN_MAPQ
@@ -863,7 +867,9 @@ class Fragment:
 
     @staticmethod
     def bams_to_frags(
-        filepaths: list[str], vcfpaths: Optional[list[str]], out_dir: str,
+        filepaths: list[str], 
+        vcfpaths: Optional[list[str]], 
+        out_dir: str,
         is_nanopore: bool = False,
         max_insert_size: int = INSERT_SIZE_UPPER_BOUND,
         min_mapq: int = MIN_MAPQ

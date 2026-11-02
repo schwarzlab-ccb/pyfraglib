@@ -350,7 +350,9 @@ def precalc_size(regions: pysam.TabixFile) -> int:
     for region in regions.fetch():
         istart: str
         iend: str
-        _, istart, iend, _ = region.split()
+        region = region.split()
+        istart = region[1]
+        iend = region[2]
         it += int(iend) - int(istart) + 1
     regions.reset()
     return it
@@ -418,7 +420,11 @@ def chromosome_maps_to_df(
         iend: str
         info: str
 
-        chrom, istart, iend, info = region.split()
+        region = region.split()
+        chrom = region[0]
+        istart = region[1]
+        iend = region[2]
+        info = region[3]
         chrom = homogenize_contig_name(chrom)
 
         if not cur_chrom or \
