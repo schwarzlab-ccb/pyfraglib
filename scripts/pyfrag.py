@@ -179,6 +179,9 @@ def create_argparser() -> argparse.ArgumentParser:
         help="Minimum mapping quality (MAPQ) per read. Fragments where any "
         "read falls below this threshold are marked bogus during "
         "extraction. Default: 20.")
+    argparser_extract.add_argument(
+        "-gctag", action="store", dest="gctag", default=None, 
+        help="Name of the GC tag in the data if present. Default: None")
 
     argparser_stats: argparse.ArgumentParser = subparsers.add_parser(
         "stats", help="Given (a) `.frag' file(s), extract descriptive "
@@ -196,6 +199,10 @@ def create_argparser() -> argparse.ArgumentParser:
         "--kmer-length", type=int, dest="kmer_len", default=4,
         help="K-mer length for end motif analyses."
         )
+    argparser_stats.add_argument(
+        "-gc", "--gc_correct", action='store_true', dest="gc_correct", 
+        help="Calculate stats using GC correction."
+    )
 
     argparser_lengths: argparse.ArgumentParser = subparsers.add_parser(
         "lengths", help="Given (a) `.frag' file(s), read fragment length "
@@ -214,6 +221,10 @@ def create_argparser() -> argparse.ArgumentParser:
         "-c", "--config-file", type=str, dest="config_file", required=True,
         help="JSON config file for Gaussian mixture model. See "
         "`config/gmm.json' for an example.")
+    argparser_lengths.add_argument(
+        "-gc", "--gc_correct", action='store_true', dest="gc_correct", 
+        help="Calculate lengths using GC correction."
+    )
 
     argparser_scores: argparse.ArgumentParser = subparsers.add_parser(
         "scores", help="Given (a) `.frag' file(s), calculate a variety of "
@@ -236,6 +247,10 @@ def create_argparser() -> argparse.ArgumentParser:
         "--hg38", action="store_true", dest="is_hg38",
         default=False, help="If set, hg38 will be assumed for the analyses. "
         "If unset (default), hg19 is assumed.")
+    argparser_scores.add_argument(
+        "-gc", "--gc_correct", action='store_true', dest="gc_correct", 
+        help="Calculate scores using GC correction."
+    )
 
     argparser_simulate: argparse.ArgumentParser = subparsers.add_parser(
         "simulate", help="Simulate synthetic cfDNA fragments based on "
@@ -280,6 +295,7 @@ def extract(out_dir: str, args: argparse.Namespace) -> None:
     is_nanopore: Final[bool] = args.is_nanopore
     max_insert_size: Final[int] = args.max_insert_size
     min_mapq: Final[int] = args.min_mapq
+    gc_tag: Final[bool] = args.gctag
 
     if bam_file and bam_dir:
         fail("--bam-dir and --bam-file are incompatible options", logger)
@@ -325,7 +341,7 @@ def extract(out_dir: str, args: argparse.Namespace) -> None:
     # NOTE(ds): Instead of accumulating all results in memory and writing them
     # out at once, we extract and write BAM/FRAG files independently.
     Fragment.bams_to_frags(
-        bam_files, vcf_files, out_dir, is_nanopore,
+        bam_files, vcf_files, out_dir, is_nanopore, gc_tag=gc_tag, 
         max_insert_size=max_insert_size, min_mapq=min_mapq,
     )
 
@@ -349,6 +365,7 @@ def stats(out_dir: str, args: argparse.Namespace) -> None:
     frag_file: Final[str] = args.frag_file
     frag_dir: Final[str] = args.frag_dir
     kmer_len: Final[int] = args.kmer_len
+    gc_correct: Final[bool] = args.gc_correct
 
     if frag_file and frag_dir:
         fail("--frag-dir and --frag-file are incompatible options", logger)
@@ -367,12 +384,12 @@ def stats(out_dir: str, args: argparse.Namespace) -> None:
         fragment_file.close()
 
         name: str = filename_only(path)
-        log_stats(fragments, logger, out_dir, name)
-        fragments_per_chromosome_barplot(fragments, out_dir, name)
-        export_length_distribution_csv(fragments, out_dir, name)
+        log_stats(fragments, logger, out_dir, name, gc_correct=gc_correct)
+        fragments_per_chromosome_barplot(fragments, out_dir, name, gc_correct=gc_correct)
+        export_length_distribution_csv(fragments, out_dir, name, gc_correct=gc_correct)
 
-        end_motifs_barplot(fragments, out_dir, name, kmer_len=kmer_len)
-        export_end_motifs_csv(fragments, out_dir, name, kmer_len=kmer_len)
+        end_motifs_barplot(fragments, out_dir, name, kmer_len=kmer_len, gc_correct=gc_correct)
+        export_end_motifs_csv(fragments, out_dir, name, kmer_len=kmer_len, gc_correct=gc_correct)
 
 
 def lengths(out_dir: str, args: argparse.Namespace) -> None:
@@ -393,6 +410,7 @@ def lengths(out_dir: str, args: argparse.Namespace) -> None:
     frag_file: Final[str] = args.frag_file
     frag_dir: Final[str] = args.frag_dir
     config_file: Final[str] = args.config_file
+    gc_correct: Final[bool] = args.gc_correct
 
     if frag_file and frag_dir:
         fail("--frag-dir and --frag-file are incompatible options", logger)
@@ -414,8 +432,8 @@ def lengths(out_dir: str, args: argparse.Namespace) -> None:
         fragment_file.close()
 
         name: str = filename_only(path)
-        fragment_length_plot(fragments, out_dir, name)
-        fragment_length_gmm(fragments, config_file, out_dir, name)
+        fragment_length_plot(fragments, out_dir, name, gc_correct=gc_correct)
+        fragment_length_gmm(fragments, config_file, out_dir, name, gc_correct=gc_correct)
 
 
 def scores(out_dir: str, args: argparse.Namespace) -> None:
@@ -444,6 +462,7 @@ def scores(out_dir: str, args: argparse.Namespace) -> None:
     frag_file: Final[str] = args.frag_file
     frag_dir: Final[str] = args.frag_dir
     bed_file: Final[str] = args.bed_file
+    gc_correct: Final[bool] = args.gc_correct
 
     is_hg38: Final[bool] = args.is_hg38
     genome: Final[str] = "hg38" if is_hg38 else "hg19"
@@ -477,27 +496,33 @@ def scores(out_dir: str, args: argparse.Namespace) -> None:
         fragment_file.close()
 
         name: str = filename_only(path)
-        shannon_5p, shannon_3p = motif_diversity(fragments, name, "shannon")
-        simpson_5p, simpson_3p = motif_diversity(fragments, name, "simpson")
+        shannon_5p, shannon_3p = motif_diversity(fragments, name, "shannon", gc_correct=gc_correct)
+        simpson_5p, simpson_3p = motif_diversity(fragments, name, "simpson", gc_correct=gc_correct)
 
         logger.info("calculating windowed protection score")
         wps_df: pd.DataFrame = windowed_protection_score(fragments, regions,
-                                                         genome=genome)
+                                                         genome=genome, gc_correct=gc_correct)
 
         wps_metrics: pd.DataFrame = wps_region_metrics(wps_df)
-        wps_metrics_outpath: str = os.path.join(
-            out_dir, "wps_metrics_{}.csv".format(name)
-        )
+        outpath = f"wps_metrics_{name}.csv"
+        if gc_correct:
+            outpath = outpath.removesuffix('.csv') + "_GC_corrected.csv"
+        wps_metrics_outpath: str = os.path.join(out_dir, outpath)
         logger.info("saving per-region WPS metrics to `{}'".format(
             wps_metrics_outpath))
         wps_metrics.to_csv(wps_metrics_outpath, index=False)
 
         wps_df = smooth_wps(wps_df)
-        wps_outpath: str = os.path.join(out_dir, "wps_{}.csv".format(name))
+        outpath = f"wps_{name}.csv"
+        if gc_correct:
+            outpath = outpath.removesuffix('.csv') + "_GC_corrected.csv"
+        wps_outpath: str = os.path.join(out_dir, outpath)
         logger.info("saving windowed protection score to `{}'".format(
             wps_outpath))
         wps_df.to_csv(wps_outpath, index=False)
 
+        if gc_correct:
+            name += "_GC_corrected"
         score_line_plot(wps_df, name, out_dir, genome=genome)
         wps_power_spectrum_plot(wps_df, name, out_dir)
 

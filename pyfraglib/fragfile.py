@@ -39,6 +39,9 @@ row per fragment and the following columns:
    * - ``end3p``
      - string
      - 3' end motif (up to ``MAX_KMER_LEN`` nt).
+   * - ``gc_coef``
+     - float
+     - GC correction coefficient; nullable.
    * - ``is_bogus``
      - bool
      - Quality flag; ``True`` marks excluded fragments.
@@ -86,6 +89,7 @@ License along with this program. If not, see <https://www.gnu.org/licenses/>.
 """
 from typing import Generator
 
+import numpy as np
 import pyarrow as pa
 import pyarrow.parquet as pq
 
@@ -94,8 +98,8 @@ from pyfraglib import Fragment, FragmentList, FRAG_SCHEMA
 
 def fragment_from_row(
     start_pos: int, end_pos: int, length: int, chrom: str,
-    is_forward: bool, end5p: str, end3p: str, is_bogus: bool,
-    is_mutated: bool | None,
+    is_forward: bool, end5p: str, end3p: str, gc_coef: float | None,
+    is_bogus: bool, is_mutated: bool | None,
 ) -> Fragment:
     """
     Reconstruct a :class:`pyfraglib.fragment.Fragment` from a row of raw
@@ -114,6 +118,7 @@ def fragment_from_row(
         is_forward: Strand / orientation flag.
         end5p: 5' end motif.
         end3p: 3' end motif.
+        gc_coef: GC correction coefficient
         is_bogus: Quality flag.
         is_mutated: Mutation flag (may be ``None``).
 
@@ -128,6 +133,7 @@ def fragment_from_row(
     fragment.is_forward = bool(is_forward)
     fragment.end5p = str(end5p)
     fragment.end3p = str(end3p)
+    fragment.gc_coef = None if gc_coef is None else float(gc_coef)
     fragment.is_bogus = bool(is_bogus)
     fragment.is_mutated = None if is_mutated is None else bool(is_mutated)
     return fragment
@@ -195,10 +201,17 @@ class FragFile:
         self.__path: str = path
         self.__parquet: pq.ParquetFile | None = pq.ParquetFile(path)
         self.__closed: bool = False
+        self.__gc_coef_absent = False
 
         required: set[str] = {f.name for f in FRAG_SCHEMA}
         present: set[str] = set(self.__parquet.schema_arrow.names)
         missing: set[str] = required - present
+        # Make backward compatible with previous .frag files
+        if 'gc_coef' in missing:
+            print("GC coefficient column is missing, but will still read"
+            " in data to ensure backwards compatibility.")
+            self.__gc_coef_absent = True
+            missing.remove('gc_coef')
         if missing:
             self.close()
             raise pa.lib.ArrowInvalid(
@@ -237,6 +250,9 @@ class FragFile:
             raise ValueError("FragFile is closed")
 
         columns: list[str] = [f.name for f in FRAG_SCHEMA]
+        # ensure backward compatibility
+        if self.__gc_coef_absent:
+            columns.remove('gc_coef')
         batch: pa.RecordBatch
         for batch in self.__parquet.iter_batches(
             batch_size=self.ITER_BATCH_SIZE, columns=columns,
@@ -248,13 +264,18 @@ class FragFile:
             forward_cols = batch.column("is_forward").to_pylist()
             e5_cols = batch.column("end5p").to_pylist()
             e3_cols = batch.column("end3p").to_pylist()
+            if self.__gc_coef_absent:
+                gccoef_cols = np.full((len(start_cols)), None)
+            else:
+                gccoef_cols = batch.column("gc_coef").to_pylist()
             bogus_cols = batch.column("is_bogus").to_pylist()
             mutated_cols = batch.column("is_mutated").to_pylist()
-            for s, e, l, c, fw, e5, e3, b, m in zip(
+            for s, e, l, c, fw, e5, e3, gc, b, m in zip(
                 start_cols, end_cols, length_cols, chrom_cols,
-                forward_cols, e5_cols, e3_cols, bogus_cols, mutated_cols,
+                forward_cols, e5_cols, e3_cols, gccoef_cols, bogus_cols, 
+                mutated_cols,
             ):
-                yield fragment_from_row(s, e, l, c, fw, e5, e3, b, m)
+                yield fragment_from_row(s, e, l, c, fw, e5, e3, gc, b, m)
 
     def get_fragment_list(self) -> FragmentList:
         """
@@ -286,6 +307,9 @@ class FragFile:
 
         fragment_list: FragmentList = FragmentList()
         columns: list[str] = [f.name for f in FRAG_SCHEMA]
+        # ensure backward compatibility
+        if self.__gc_coef_absent:
+            columns.remove('gc_coef')
         tbl: pa.Table = self.__parquet.read(columns=columns)
 
         start_cols = tbl.column("start_pos").to_pylist()
@@ -295,14 +319,19 @@ class FragFile:
         forward_cols = tbl.column("is_forward").to_pylist()
         e5_cols = tbl.column("end5p").to_pylist()
         e3_cols = tbl.column("end3p").to_pylist()
+        if self.__gc_coef_absent:
+            gccoef_cols = np.full((len(start_cols)), None)
+        else:
+            gccoef_cols = tbl.column("gc_coef").to_pylist()
         bogus_cols = tbl.column("is_bogus").to_pylist()
         mutated_cols = tbl.column("is_mutated").to_pylist()
-        for s, e, l, c, fw, e5, e3, b, m in zip(
+        for s, e, l, c, fw, e5, e3, gc, b, m in zip(
             start_cols, end_cols, length_cols, chrom_cols,
-            forward_cols, e5_cols, e3_cols, bogus_cols, mutated_cols,
+            forward_cols, e5_cols, e3_cols, gccoef_cols, bogus_cols, 
+            mutated_cols,
         ):
             fragment_list.append(
-                fragment_from_row(s, e, l, c, fw, e5, e3, b, m)
+                fragment_from_row(s, e, l, c, fw, e5, e3, gc, b, m)
             )
         return fragment_list
 
