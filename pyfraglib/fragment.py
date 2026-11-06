@@ -1116,32 +1116,32 @@ class FragmentList():
         for fragment in self.__fragments:
             yield fragment
 
-    def count_fragments(self, gc_correct=False) -> int:
+    def count_fragments(self, gc_correct=False) -> float:
             """
             Count the number of fragments.
             """
-            counter: int = 0
+            counter: float = 0
             for frag in self.__fragments:
                 gc_coef = extract_gc_coef(frag, gc_correct)
                 counter += 1 * gc_coef
             return counter
 
-    def count_bogus_fragments(self, gc_correct=False) -> int:
+    def count_bogus_fragments(self, gc_correct=False) -> float:
         """
         Count the number of bogus fragments.
         """
-        counter: int = 0
+        counter: float = 0
         for frag in self.__fragments:
             gc_coef = extract_gc_coef(frag, gc_correct)
             if frag.is_bogus:
                 counter += 1 * gc_coef
         return counter
 
-    def count_mutated_fragments(self, gc_correct=False) -> int:
+    def count_mutated_fragments(self, gc_correct=False) -> float:
         """
         Count the number of mutated fragments.
         """
-        counter: int = 0
+        counter: float = 0
         for frag in self.__fragments:
             gc_coef = extract_gc_coef(frag, gc_correct)
             if frag.is_mutated:
@@ -1210,17 +1210,17 @@ class FragmentList():
 
     def count_endmotifs(
         self, kmer_len: int, gc_correct = False,
-    ) -> tuple[defaultdict[str, int], defaultdict[str, int], int]:
+    ) -> tuple[defaultdict[str, float], defaultdict[str, float], float]:
         """
         Count the number of unique fragment end motifs.
 
         Returns the 5' and 3' motifs as well as the number of analyzed
         fragments.
         """
-        motifs_5p: defaultdict[str, int] = defaultdict(int)
-        motifs_3p: defaultdict[str, int] = defaultdict(int)
+        motifs_5p: defaultdict[str, float] = defaultdict(float)
+        motifs_3p: defaultdict[str, float] = defaultdict(float)
 
-        num_frags: int = 0
+        num_frags: float = 0
         fragment: Fragment
 
         for fragment in self.__fragments:

@@ -299,17 +299,17 @@ def windowed_protection_score_fast(
     """
     assert win_size > 0
 
-    chrom_map_wps: dict[str, npt.NDArray[np.int64]] = \
+    chrom_map_wps: dict[str, npt.NDArray[np.float64]] = \
         create_chromosome_map(genome)
-    chrom_map_depth: dict[str, npt.NDArray[np.int64]] = \
+    chrom_map_depth: dict[str, npt.NDArray[np.float64]] = \
         create_chromosome_map(genome)
 
     # @NOTE(ds): We also want to record the exact number of spanning and ending
     # fragments per window. As with the WPS, we record those numbers at the
     # window midpoint.
-    chrom_map_end: dict[str, npt.NDArray[np.int64]] = \
+    chrom_map_end: dict[str, npt.NDArray[np.float64]] = \
         create_chromosome_map(genome)
-    chrom_map_span: dict[str, npt.NDArray[np.int64]] = \
+    chrom_map_span: dict[str, npt.NDArray[np.float64]] = \
         create_chromosome_map(genome)
 
     for fragment in fragments:
@@ -367,11 +367,11 @@ def precalc_size(regions: pysam.TabixFile) -> int:
 
 def create_chromosome_map(
     genome: str = "hg19"
-) -> dict[str, npt.NDArray[np.int64]]:
+) -> dict[str, npt.NDArray[np.float64]]:
     """
     Internal utility function.
     """
-    chrom_map: dict[str, npt.NDArray[np.int64]] = dict()
+    chrom_map: dict[str, npt.NDArray[np.float64]] = dict()
     name: str
     length: int
     chromosomes: list[tuple[str, int, str, str]]
@@ -384,7 +384,7 @@ def create_chromosome_map(
         fail(f"unknown genome ``{genome}`` requested")
 
     for name, length, _, _ in chromosomes:
-        chrom_map[name] = np.zeros(length, dtype=np.int64)
+        chrom_map[name] = np.zeros(length, dtype=np.float64)
 
     return chrom_map
 

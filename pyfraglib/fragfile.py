@@ -89,6 +89,7 @@ License along with this program. If not, see <https://www.gnu.org/licenses/>.
 """
 from typing import Generator
 
+import numpy as np
 import pyarrow as pa
 import pyarrow.parquet as pq
 
@@ -200,10 +201,17 @@ class FragFile:
         self.__path: str = path
         self.__parquet: pq.ParquetFile | None = pq.ParquetFile(path)
         self.__closed: bool = False
+        self.__gc_coef_absent = False
 
         required: set[str] = {f.name for f in FRAG_SCHEMA}
         present: set[str] = set(self.__parquet.schema_arrow.names)
         missing: set[str] = required - present
+        # Make backward compatible with previous .frag files
+        if 'gc_coef' in missing:
+            print("GC coefficient column is missing, but will still read"
+            " in data to ensure backwards compatibility.")
+            self.__gc_coef_absent = True
+            missing.remove('gc_coef')
         if missing:
             self.close()
             raise pa.lib.ArrowInvalid(
@@ -242,6 +250,9 @@ class FragFile:
             raise ValueError("FragFile is closed")
 
         columns: list[str] = [f.name for f in FRAG_SCHEMA]
+        # ensure backward compatibility
+        if self.__gc_coef_absent:
+            columns.remove('gc_coef')
         batch: pa.RecordBatch
         for batch in self.__parquet.iter_batches(
             batch_size=self.ITER_BATCH_SIZE, columns=columns,
@@ -253,7 +264,10 @@ class FragFile:
             forward_cols = batch.column("is_forward").to_pylist()
             e5_cols = batch.column("end5p").to_pylist()
             e3_cols = batch.column("end3p").to_pylist()
-            gccoef_cols = batch.column("gc_coef").to_pylist()
+            if self.__gc_coef_absent:
+                gccoef_cols = np.full((len(start_cols)), None)
+            else:
+                gccoef_cols = batch.column("gc_coef").to_pylist()
             bogus_cols = batch.column("is_bogus").to_pylist()
             mutated_cols = batch.column("is_mutated").to_pylist()
             for s, e, l, c, fw, e5, e3, gc, b, m in zip(
@@ -293,6 +307,9 @@ class FragFile:
 
         fragment_list: FragmentList = FragmentList()
         columns: list[str] = [f.name for f in FRAG_SCHEMA]
+        # ensure backward compatibility
+        if self.__gc_coef_absent:
+            columns.remove('gc_coef')
         tbl: pa.Table = self.__parquet.read(columns=columns)
 
         start_cols = tbl.column("start_pos").to_pylist()
@@ -302,7 +319,10 @@ class FragFile:
         forward_cols = tbl.column("is_forward").to_pylist()
         e5_cols = tbl.column("end5p").to_pylist()
         e3_cols = tbl.column("end3p").to_pylist()
-        gccoef_cols = tbl.column("gc_coef").to_pylist()
+        if self.__gc_coef_absent:
+            gccoef_cols = np.full((len(start_cols)), None)
+        else:
+            gccoef_cols = tbl.column("gc_coef").to_pylist()
         bogus_cols = tbl.column("is_bogus").to_pylist()
         mutated_cols = tbl.column("is_mutated").to_pylist()
         for s, e, l, c, fw, e5, e3, gc, b, m in zip(

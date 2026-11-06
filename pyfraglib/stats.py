@@ -80,8 +80,8 @@ def fragments_per_chromosome_barplot(
         "creating fragment-per-chromosome histograms in ``{}``".format(out_dir)
     )
 
-    chrom_map_mut: defaultdict[str, int] = defaultdict(int)
-    chrom_map_wt:  defaultdict[str, int] = defaultdict(int)
+    chrom_map_mut: defaultdict[str, float] = defaultdict(float)
+    chrom_map_wt:  defaultdict[str, float] = defaultdict(float)
     num_frags = 0
     for frag in fragments:
         if frag.is_bogus:
