@@ -123,7 +123,7 @@ from scipy.signal import find_peaks, savgol_filter
 from pyfraglib.core import shannon_entropy, simpson_index, fail, \
                            get_chromosome_length, hg19_chromosomes, \
                            hg38_chromosomes, homogenize_contig_name
-from pyfraglib.fragment import FragmentList
+from pyfraglib.fragment import FragmentList, extract_gc_coef
 from pyfraglib import get_logger
 
 
@@ -152,7 +152,8 @@ target the spectral-power band (``1 / (nucl_period + 10)`` to
 
 
 def motif_diversity(
-    fragments: FragmentList, name: str, index: str = "shannon"
+    fragments: FragmentList, name: str, index: str = "shannon", 
+    gc_correct: bool = False
 ) -> tuple[float, float]:
     """
     Calculate diversity indices for fragment end motifs.
@@ -163,6 +164,7 @@ def motif_diversity(
         name: Sample or analysis name for logging purposes. Used in log
             messages to identify which sample is being processed.
         index: Diversity index to calculate. Options are:
+        gc_correct: If True then calculate using GC correction
 
             * ``"shannon"``: Shannon entropy (default)
             * ``"simpson"``: Simpson index
@@ -201,7 +203,9 @@ def motif_diversity(
     ends_5p: defaultdict[str, int] = defaultdict(int)
     ends_3p: defaultdict[str, int] = defaultdict(int)
 
-    ends_5p, ends_3p, num_frags = fragments.count_endmotifs(kmer_len=4)
+    ends_5p, ends_3p, num_frags = fragments.count_endmotifs(
+        kmer_len=4, gc_correct=gc_correct
+    )
 
     # @NOTE(ds): Filter out zero counts to avoid log(0) issues in diversity
     # score calculations.
@@ -223,7 +227,7 @@ def motif_diversity(
 
 def windowed_protection_score(
     fragments: FragmentList, regions: pysam.TabixFile, win_size: int = 120,
-    genome: str = "hg19"
+    genome: str = "hg19", gc_correct=False,
 ) -> pd.DataFrame:
     """
     Calculate Windowed Protection Score (WPS) for genomic regions.
@@ -245,6 +249,7 @@ def windowed_protection_score(
             positive.
         genome: Reference genome version for chromosome length validation.
             Supported values are "hg19" and "hg38".
+        gc_correct: If True then apply GC correction.
 
     Returns:
         pd.DataFrame: DataFrame containing WPS results with columns:
@@ -265,12 +270,12 @@ def windowed_protection_score(
         * :func:`windowed_protection_score_fast` - Optimized WPS implementation
         * :func:`score_line_plot` - Visualization of WPS results
     """
-    return windowed_protection_score_fast(fragments, regions, win_size, genome)
+    return windowed_protection_score_fast(fragments, regions, win_size, genome, gc_correct)
 
 
 def windowed_protection_score_fast(
     fragments: FragmentList, regions: pysam.TabixFile, win_size: int = 120,
-    genome: str = "hg19"
+    genome: str = "hg19", gc_correct: bool = False,
 ) -> pd.DataFrame:
     """
     This fast WPS implementation replaces the previous ``pyfraglib`` WPS
@@ -311,6 +316,8 @@ def windowed_protection_score_fast(
         if fragment.is_bogus:
             continue
 
+        gc_coef = extract_gc_coef(fragment, gc_correct)
+
         frag_start: int = fragment.start_pos
         frag_end: int = fragment.end_pos  # 1 past end
         frag_len: int = fragment.length
@@ -321,21 +328,21 @@ def windowed_protection_score_fast(
         iend: int = min(frag_end + win_half,
                         get_chromosome_length(frag_chrom, genome))
 
-        chrom_map_depth[frag_chrom][frag_start:frag_end] += 1
+        chrom_map_depth[frag_chrom][frag_start:frag_end] += 1 * gc_coef
         if frag_len < win_size:
-            chrom_map_wps[frag_chrom][istart:iend] -= 1
-            chrom_map_end[frag_chrom][istart:iend] += 1
+            chrom_map_wps[frag_chrom][istart:iend] -= 1 * gc_coef
+            chrom_map_end[frag_chrom][istart:iend] += 1 * gc_coef
         else:
             ostart: int = frag_start + win_half
             oend: int = frag_end - win_half  # 1 past end
 
-            chrom_map_wps[frag_chrom][istart:ostart] -= 1
-            chrom_map_wps[frag_chrom][ostart:oend] += 1
-            chrom_map_wps[frag_chrom][oend:iend] -= 1
+            chrom_map_wps[frag_chrom][istart:ostart] -= 1 * gc_coef
+            chrom_map_wps[frag_chrom][ostart:oend] += 1 * gc_coef
+            chrom_map_wps[frag_chrom][oend:iend] -= 1 * gc_coef
 
-            chrom_map_end[frag_chrom][istart:ostart] += 1
-            chrom_map_span[frag_chrom][ostart:oend] += 1
-            chrom_map_end[frag_chrom][oend:iend] += 1
+            chrom_map_end[frag_chrom][istart:ostart] += 1 * gc_coef
+            chrom_map_span[frag_chrom][ostart:oend] += 1 * gc_coef
+            chrom_map_end[frag_chrom][oend:iend] += 1 * gc_coef
 
     return chromosome_maps_to_df(chrom_map_wps, chrom_map_depth,
                                  chrom_map_span, chrom_map_end,

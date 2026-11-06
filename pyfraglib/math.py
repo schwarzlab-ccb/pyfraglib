@@ -24,6 +24,8 @@ import os
 import json
 import logging
 
+from collections import Counter
+
 import matplotlib.pyplot as plt
 import numpy as np
 import numpy.typing as npt
@@ -212,13 +214,16 @@ def hessian(
 
 
 def fit_gmm(
-    data: npt.NDArray[np.float64], config_filepath: str
+    data: npt.NDArray[np.float64], config_filepath: str,
+    weights: npt.NDArray[np.float64] = None,
 ) -> tuple[object, int, list[float], npt.NDArray[np.float64]]:
     """
     Fit a GMM of ``n`` 1D Gaussians with bounds on the free parameters. The
     bounds are read from a configuration file. Optimized parameters are
     returned and ordered as follows:
     [m_1, m_2, ..., std_1, std_2, ..., pi_1, pi_2, ...].
+    If the data has weights, then we will generate a distribution using these
+    and then fit a GMM to the result.
     """
     logger: logging.Logger = get_logger()
 
@@ -228,9 +233,24 @@ def fit_gmm(
         read_gmm_config(config_filepath)
 
     subsample_size: int = int(len(data)*subsample_perc)
-    data_sample: npt.NDArray[np.float64] = np.random.choice(
-        a=data, size=subsample_size, replace=False
-    )
+
+    if weights is not None:
+        # count frequency of each item
+        counts = Counter()
+        for x in zip(data, weights):
+            counts.update({x[0]:x[1]})
+        # generate data sample
+        data = list(counts.keys())
+        weights = list(counts.values())
+        weights_sum = np.sum(weights)
+        probs = [x/weights_sum for x in weights]
+        data_sample: npt.NDArray[np.float64] = np.random.choice(
+            a=data, size=subsample_size, replace=True, p=probs,
+        )
+    else:
+        data_sample: npt.NDArray[np.float64] = np.random.choice(
+            a=data, size=subsample_size, replace=False
+        )
     if subsample_size > LARGE_DATASET_THRESHOLD:
         logger.warning(
             f"fitting a GMM to {subsample_size} fragments might take "

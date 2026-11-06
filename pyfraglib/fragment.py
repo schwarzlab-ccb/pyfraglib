@@ -223,6 +223,7 @@ FRAG_SCHEMA: pa.Schema = pa.schema([  # type: ignore
     pa.field("is_forward", pa.bool_(), nullable=False),
     pa.field("end5p", pa.string(), nullable=False),
     pa.field("end3p", pa.string(), nullable=False),
+    pa.field("gc_coef", pa.float64(), nullable=True),
     pa.field("is_bogus", pa.bool_(), nullable=False),
     pa.field("is_mutated", pa.bool_(), nullable=True),
 ])
@@ -271,6 +272,9 @@ class Fragment:
     #: Bases at the 3' end of this fragment (5' -> 3' orientation).
     end3p: str
 
+    #: GC correction coefficient for the fragment.
+    gc_coef: float
+
     #: Flag indicating whether this is a bogus fragment
     #: (see module- and class-level documentation for definition).
     is_bogus: bool
@@ -284,6 +288,7 @@ class Fragment:
         read: pysam.AlignedSegment, 
         mate: Optional[pysam.AlignedSegment] = None,
         mutated_reads: Optional[set[str]] = None,
+        gc_coef: Optional[float] = None,
         max_insert_size: int = INSERT_SIZE_UPPER_BOUND,
         min_mapq: int = MIN_MAPQ
     ) -> None:
@@ -302,6 +307,8 @@ class Fragment:
             mutated_reads: Set of read names that contain mutations, or None
                 if mutation annotation is not available. Used to mark fragments
                 as mutated based on VCF analysis.
+            gc_coef: GC correction coefficient for the fragment, or None if 
+                fragment does not contain GC correction tag.
             max_insert_size: Upper bound on fragment insert size in bp; used
                 by :meth:`_determine_bogus`. Defaults to
                 :data:`INSERT_SIZE_UPPER_BOUND`.
@@ -314,6 +321,9 @@ class Fragment:
             * Fragment coordinates follow BAM 0-based conventions
             * Quality filtering and bogus detection are applied automatically
         """
+        # we assume gc tag is per-fragment rather than per-read
+        self.gc_coef: float | None = gc_coef 
+
         if not mate:
             self._init_single_ended(read, mutated_reads,
                                     max_insert_size, min_mapq)
@@ -549,7 +559,7 @@ class Fragment:
 
     @staticmethod
     def from_bam(filepath: str, vcfpath: Optional[str] = None,
-                 is_nanopore: bool = False,
+                 is_nanopore: bool = False, gc_tag: Optional[str] = None, 
                  max_insert_size: int = INSERT_SIZE_UPPER_BOUND,
                  min_mapq: int = MIN_MAPQ) -> "FragmentList":
         """
@@ -575,6 +585,8 @@ class Fragment:
                 mutated.
             is_nanopore: Whether to process as single-end Nanopore data.
                 Default False assumes paired-end Illumina data.
+            gc_tag: Name of the GC tag in the read. Default None assumes
+                data does not contain a GC tag.
 
         Returns:
             FragmentList: List of extracted fragments with quality metrics
@@ -643,8 +655,19 @@ class Fragment:
                 if read.is_duplicate:
                     num_duplicates += 1
                 else:
-                    fragments.append(Fragment(read, None, mut_reads,
-                                              max_insert_size, min_mapq))
+                    if gc_tag is not None:
+                        gc_coef = read.get_tag(gc_tag)
+                    else:
+                        gc_coef = None
+                    fragments.append(
+                        Fragment(
+                            read, 
+                            None, 
+                            mut_reads,
+                            gc_coef,
+                            max_insert_size, 
+                            min_mapq)
+                    )
 
             progress_bar.close()
             logger.info(
@@ -682,8 +705,22 @@ class Fragment:
                     if read.query_name in read_cache:
                         mate: pysam.AlignedSegment = \
                             read_cache[read.query_name]
-                        fragments.append(Fragment(read, mate, mut_reads,
-                                                  max_insert_size, min_mapq))
+                        if gc_tag is not None:
+                            gc_coef = read.get_tag(gc_tag)
+                            # Assume using tool such as GCParagon or GCFix, which calculate
+                            # correction using both pairs i.e. per-fragment correction
+                            assert gc_coef == mate.get_tag(gc_tag)
+                        else:
+                            gc_coef = None
+                        fragments.append(
+                            Fragment(
+                                read,
+                                mate,
+                                mut_reads,
+                                gc_coef,
+                                max_insert_size,
+                                min_mapq)
+                            )
                         read_cache.pop(read.query_name)  # _major_ mem saver
                     else:
                         read_cache[read.query_name] = read
@@ -827,7 +864,7 @@ class Fragment:
     @staticmethod
     def from_bams(
         filepaths: list[str], vcfpaths: Optional[list[str]] = None,
-        is_nanopore: bool = False,
+        is_nanopore: bool = False, gc_tag: str = None, 
         max_insert_size: int = INSERT_SIZE_UPPER_BOUND,
         min_mapq: int = MIN_MAPQ
     ) -> "FragmentCollection":
@@ -855,8 +892,9 @@ class Fragment:
             with Pool(processes=detect_cpus()) as pool:
                 partial_task: Callable[[str, str], None] = partial(
                     task0, frags_per_bam=shared_collection,
-                    is_nanopore=is_nanopore,
-                    max_insert_size=max_insert_size, min_mapq=min_mapq
+                    is_nanopore=is_nanopore, gc_tag=gc_tag, 
+                    max_insert_size=max_insert_size, 
+                    min_mapq=min_mapq
                 )
                 pool.starmap(partial_task, input_data)
 
@@ -871,6 +909,7 @@ class Fragment:
         vcfpaths: Optional[list[str]], 
         out_dir: str,
         is_nanopore: bool = False,
+        gc_tag: str = None,
         max_insert_size: int = INSERT_SIZE_UPPER_BOUND,
         min_mapq: int = MIN_MAPQ
     ) -> None:
@@ -900,14 +939,15 @@ class Fragment:
         with Pool(processes=detect_cpus()) as pool:
             partial_task: Callable[[str, str], None] = partial(
                 task1, out_dir=out_dir, is_nanopore=is_nanopore,
-                max_insert_size=max_insert_size, min_mapq=min_mapq
+                gc_tag=gc_tag, max_insert_size=max_insert_size, 
+                min_mapq=min_mapq
             )
             pool.starmap(partial_task, input_data)
 
     @classmethod
     def create_simulated(
         cls, start_pos: int, end_pos: int, chrom: str, length: int,
-        end5p: str, end3p: str, is_forward: bool = True,
+        end5p: str, end3p: str, gc_coef: float = None, is_forward: bool = True, 
         is_mutated: bool | None = None
     ) -> "Fragment":
         """
@@ -925,6 +965,7 @@ class Fragment:
             length: Fragment length in base pairs.
             end5p: 5' end motif sequence (nucleotide string).
             end3p: 3' end motif sequence (nucleotide string).
+            gc_coef: GC correction coefficient, or None is not present.
             is_forward: Strand orientation. Default True for forward strand.
             is_mutated: Mutation status, or None if unknown.
 
@@ -944,6 +985,7 @@ class Fragment:
         fragment.length = length
         fragment.end5p = end5p
         fragment.end3p = end3p
+        fragment.gc_coef = gc_coef
         fragment.is_forward = is_forward
         fragment.is_mutated = is_mutated
 
@@ -958,7 +1000,7 @@ class Fragment:
 
 def task0(filepath: str, vcfpath: str | None,
           frags_per_bam: "FragmentCollection", is_nanopore: bool,
-          max_insert_size: int = INSERT_SIZE_UPPER_BOUND,
+          gc_tag: str = None, max_insert_size: int = INSERT_SIZE_UPPER_BOUND,
           min_mapq: int = MIN_MAPQ) -> None:
     """
     Helper function for parallel BAM file processing.
@@ -971,7 +1013,7 @@ def task0(filepath: str, vcfpath: str | None,
         That is freeing the used memory and reducing our mem footprint.
     """
     frags: FragmentList = Fragment.from_bam(
-        filepath, vcfpath, is_nanopore, max_insert_size, min_mapq
+        filepath, vcfpath, is_nanopore, gc_tag, max_insert_size, min_mapq
     )
     filename: str = os.path.basename(filepath)
     name, _ = os.path.splitext(filename)
@@ -980,7 +1022,7 @@ def task0(filepath: str, vcfpath: str | None,
 
 def task1(filepath: str, vcfpath: str | None,
           out_dir: str, is_nanopore: bool,
-          max_insert_size: int = INSERT_SIZE_UPPER_BOUND,
+          gc_tag: str = None, max_insert_size: int = INSERT_SIZE_UPPER_BOUND,
           min_mapq: int = MIN_MAPQ) -> None:
     """
     Helper function for parallel BAM file processing.
@@ -988,7 +1030,7 @@ def task1(filepath: str, vcfpath: str | None,
     logger: logging.Logger = get_logger()
 
     frags: FragmentList = Fragment.from_bam(
-        filepath, vcfpath, is_nanopore, max_insert_size, min_mapq
+        filepath, vcfpath, is_nanopore, gc_tag, max_insert_size, min_mapq
     )
     filename: str = os.path.basename(filepath)
     name, _ = os.path.splitext(filename)
@@ -999,6 +1041,15 @@ def task1(filepath: str, vcfpath: str | None,
     logger.info("saving ``{}.frag`` to ``{}``".format(name, out_dir))
     frags.to_frag_file(name, out_dir)
 
+def extract_gc_coef(frag, gc_correct):
+    """Internal utility function"""
+    if gc_correct:
+        gc_coef = frag.gc_coef
+        if gc_coef is None:
+            raise ValueError("All fragments should have GC coefficient")
+    else:
+        gc_coef = 1.0
+    return gc_coef
 
 @dataclass(slots=True)
 class FragmentList():
@@ -1030,7 +1081,7 @@ class FragmentList():
             fragments.append(fragment2)
 
             # Get statistics
-            total = fragments.length()
+            total = fragments.count_fragments()
             bogus = fragments.count_bogus_fragments()
             mutated = fragments.count_mutated_fragments()
 
@@ -1065,24 +1116,36 @@ class FragmentList():
         for fragment in self.__fragments:
             yield fragment
 
-    def count_bogus_fragments(self) -> int:
+    def count_fragments(self, gc_correct=False) -> int:
+            """
+            Count the number of fragments.
+            """
+            counter: int = 0
+            for frag in self.__fragments:
+                gc_coef = extract_gc_coef(frag, gc_correct)
+                counter += 1 * gc_coef
+            return counter
+
+    def count_bogus_fragments(self, gc_correct=False) -> int:
         """
         Count the number of bogus fragments.
         """
         counter: int = 0
         for frag in self.__fragments:
+            gc_coef = extract_gc_coef(frag, gc_correct)
             if frag.is_bogus:
-                counter += 1
+                counter += 1 * gc_coef
         return counter
 
-    def count_mutated_fragments(self) -> int:
+    def count_mutated_fragments(self, gc_correct=False) -> int:
         """
         Count the number of mutated fragments.
         """
         counter: int = 0
         for frag in self.__fragments:
+            gc_coef = extract_gc_coef(frag, gc_correct)
             if frag.is_mutated:
-                counter += 1
+                counter += 1 * gc_coef
         return counter
 
     def to_frag_file(self, name: str, out_dir: str) -> None:
@@ -1108,6 +1171,7 @@ class FragmentList():
         is_forward: list[bool] = [False] * n
         end5p: list[str] = [""] * n
         end3p: list[str] = [""] * n
+        gc_coef: list[Optional[float]] = [None] * n
         is_bogus: list[bool] = [False] * n
         is_mutated: list[Optional[bool]] = [None] * n
 
@@ -1121,6 +1185,7 @@ class FragmentList():
             is_forward[i] = f.is_forward
             end5p[i] = f.end5p
             end3p[i] = f.end3p
+            gc_coef[i] = f.gc_coef
             is_bogus[i] = f.is_bogus
             is_mutated[i] = f.is_mutated
 
@@ -1133,6 +1198,7 @@ class FragmentList():
                 "is_forward": is_forward,
                 "end5p": end5p,
                 "end3p": end3p,
+                "gc_coef": gc_coef,
                 "is_bogus": is_bogus,
                 "is_mutated": is_mutated,
             },
@@ -1143,7 +1209,7 @@ class FragmentList():
         )
 
     def count_endmotifs(
-        self, kmer_len: int
+        self, kmer_len: int, gc_correct = False,
     ) -> tuple[defaultdict[str, int], defaultdict[str, int], int]:
         """
         Count the number of unique fragment end motifs.
@@ -1160,12 +1226,12 @@ class FragmentList():
         for fragment in self.__fragments:
             if fragment.is_bogus:
                 continue
-
-            num_frags += 1
+            gc_coef = extract_gc_coef(fragment, gc_correct)
+            num_frags += 1 * gc_coef
             end5p, end3p = fragment.get_end_motifs(kmer_len)
-            motifs_5p[end5p] += 1
+            motifs_5p[end5p] += 1 * gc_coef
             _ = motifs_3p[end5p]
-            motifs_3p[end3p] += 1
+            motifs_3p[end3p] += 1 * gc_coef
             _ = motifs_5p[end3p]
 
         return motifs_5p, motifs_3p, num_frags

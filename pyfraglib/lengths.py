@@ -36,12 +36,13 @@ import seaborn as sns
 
 from typing import Final
 from pyfraglib import FragmentList, fail, get_logger
+from pyfraglib.fragment import extract_gc_coef
 from pyfraglib.math import fit_gmm, plot_gmm, goodness_of_fit_stats
 
 
 def fragment_length_plot(
     fragments: FragmentList, out_dir: str, name: str,
-    kde_bandwidth: float = 0.3
+    kde_bandwidth: float = 0.3, gc_correct: bool = False,
 ) -> None:
     """
     Create kernel density estimation plots for fragment length distributions.
@@ -59,6 +60,7 @@ def fragment_length_plot(
         name: Base name for the output file. The plot will be saved as
             ``{name}_frags_len_kde.png``.
         kde_bandwidth: Bandwidth parameter for the KDE plot.
+        gc_correct: If True, adds GC corrected KDE plot.
 
     Returns:
         None. The function saves a PNG plot to the specified output directory.
@@ -82,25 +84,39 @@ def fragment_length_plot(
     frag_lengths_mut: list[int] = []
     frag_lengths_wt: list[int] = []
 
+    gc_coefs_mut: list[int] = []
+    gc_coefs_wt: list[int] = []
+
     for frag in fragments:
         if frag.is_bogus:
             continue
         if frag.is_mutated:
             frag_lengths_mut.append(frag.length)
+            gc_coefs_mut.append(extract_gc_coef(frag, gc_correct))
         else:
             frag_lengths_wt.append(frag.length)
+            gc_coefs_wt.append(extract_gc_coef(frag, gc_correct))
 
     num_frags: Final[int] = len(frag_lengths_mut) + len(frag_lengths_wt)
+    num_frags_gc_corrected: Final[int] = np.sum(gc_coefs_mut) + np.sum(gc_coefs_wt)
 
     fig = plt.figure()
-    outpath: str = \
-        os.path.join(out_dir, "{}_frags_len_kde.png".format(name))
-
+    outpath = f"{name}_frags_len_kde.png"
+    if gc_correct:
+        outpath = outpath.removesuffix('.png') + "_GC_corrected.png"
+    outpath: str = os.path.join(out_dir, outpath)
+    title = f"{name}: Length Distribution n={num_frags}"
     sns.kdeplot(frag_lengths_wt, bw_adjust=kde_bandwidth,
                 label="wildtype, n={}".format(len(frag_lengths_wt)))
     sns.kdeplot(frag_lengths_mut, bw_adjust=1,
                 label="mutated, n={}".format(len(frag_lengths_mut)))
-    plt.title("{}: Length Distribution n={}".format(name, num_frags))
+    if gc_correct:
+        sns.kdeplot(frag_lengths_wt, bw_adjust=kde_bandwidth, weights=gc_coefs_wt,
+                        label="wildtype (GC corrected), n={}".format(np.sum(gc_coefs_wt)))
+        sns.kdeplot(frag_lengths_mut, bw_adjust=1, weights=gc_coefs_mut,
+                    label="mutated (GC corrected), n={}".format(np.sum(gc_coefs_mut)))
+        title += f" n_GCcorrected={num_frags_gc_corrected}"
+    plt.title(title)
     plt.xlabel("Fragment Lengths")
     plt.ylabel("Density")
     plt.legend()
@@ -109,7 +125,7 @@ def fragment_length_plot(
 
 
 def fragment_length_gmm(fragments: FragmentList, config_filepath: str,
-                        out_dir: str, name: str) -> None:
+                        out_dir: str, name: str, gc_correct: bool = False) -> None:
     """
     Fit Gaussian mixture models to fragment length distributions.
 
@@ -171,9 +187,16 @@ def fragment_length_gmm(fragments: FragmentList, config_filepath: str,
     frag_lens: npt.NDArray[np.float64] = np.array(
         [frag.length for frag in fragments if not frag.is_bogus]
     )
+    if gc_correct:
+        gc_coefs: npt.NDArray[np.float64] = np.array(
+            [frag.gc_coef for frag in fragments if not frag.is_bogus]
+        )
+        name += "_GC_corrected"
+    else:
+        gc_coefs = None
 
     try:
-        opt_result, n, params, data = fit_gmm(frag_lens, config_filepath)
+        opt_result, n, params, data = fit_gmm(frag_lens, config_filepath, weights=gc_coefs)
     except Exception:
         fail("fitting the GMM failed, probably due to non-convergence")
 

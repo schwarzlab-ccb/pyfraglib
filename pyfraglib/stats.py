@@ -42,12 +42,12 @@ import matplotlib.pyplot as plt
 
 from collections import defaultdict, Counter
 from pyfraglib.core import fail
-from pyfraglib.fragment import FragmentList
+from pyfraglib.fragment import FragmentList, extract_gc_coef
 from pyfraglib import get_logger
 
 
 def fragments_per_chromosome_barplot(
-    fragments: FragmentList, out_dir: str, name: str
+    fragments: FragmentList, out_dir: str, name: str, gc_correct: bool = False,
 ) -> None:
     """
     Generate chromosome-wise fragment distribution plots with mutation status.
@@ -68,6 +68,8 @@ def fragments_per_chromosome_barplot(
     name : str
         Sample identifier used for plot title and output filename. Used to
         generate informative plot titles and unique output filenames.
+    gc_correct : bool
+        If True then calculates GC corrected plot.
 
     Returns
     -------
@@ -85,16 +87,20 @@ def fragments_per_chromosome_barplot(
         if frag.is_bogus:
             continue
 
-        num_frags += 1
+        gc_coef = extract_gc_coef(frag, gc_correct)
+        num_frags += 1 * gc_coef
         if frag.is_mutated:
-            chrom_map_mut[frag.chrom] += 1
+            chrom_map_mut[frag.chrom] += 1 * gc_coef
             _ = chrom_map_wt[frag.chrom]
         else:
-            chrom_map_wt[frag.chrom] += 1
+            chrom_map_wt[frag.chrom] += 1 * gc_coef
             _ = chrom_map_mut[frag.chrom]
 
     fig = plt.figure()
-    outpath = os.path.join(out_dir, "{}_mut_frags_per_chrom.png".format(name))
+    outpath = f"{name}_mut_frags_per_chrom.png"
+    if gc_correct:
+        outpath = outpath.removesuffix('.png') + "_GC_corrected.png"
+    outpath = os.path.join(out_dir, outpath)
 
     assert chrom_map_wt.keys() == chrom_map_mut.keys()
     plt.bar(list(chrom_map_wt.keys()), list(chrom_map_wt.values()),
@@ -104,7 +110,10 @@ def fragments_per_chromosome_barplot(
                 bottom=list(chrom_map_wt.values()), label="mutated fragments")
 
     plt.xticks(rotation=45)  # better rotate bc. we do not homogenize chr names
-    plt.title("{}: Fragments per chromosome n={}".format(name, num_frags))
+    title = "{}: Fragments per chromosome n={}".format(name, num_frags)
+    if gc_correct:
+        title += " (GC corrected)"
+    plt.title(title)
     plt.xlabel("Chromosomes")
     plt.ylabel("# of Fragments")
     plt.legend()
@@ -113,7 +122,7 @@ def fragments_per_chromosome_barplot(
 
 
 def end_motifs_barplot(
-    fragments: FragmentList, out_dir: str, name: str, kmer_len: int
+    fragments: FragmentList, out_dir: str, name: str, kmer_len: int, gc_correct: bool = False,
 ) -> None:
     """
     Generate color-coded bar plots for fragment end motif frequencies.
@@ -135,6 +144,8 @@ def end_motifs_barplot(
     kmer_len : int
         Length of k-mer motifs to analyze. Typically 3 or 4 nucleotides.
         Determines the resolution of motif analysis.
+    gc_correct : bool
+        If True then generate plot using GC correction
 
     Returns
     -------
@@ -150,7 +161,9 @@ def end_motifs_barplot(
     motifs_3p: defaultdict[str, int]
     num_frags: int
 
-    motifs_5p, motifs_3p, num_frags = fragments.count_endmotifs(kmer_len)
+    motifs_5p, motifs_3p, num_frags = fragments.count_endmotifs(
+        kmer_len, gc_correct=gc_correct
+    )
     assert motifs_5p.keys() == motifs_3p.keys()
 
     for label, motifs in [("5", motifs_5p), ("3", motifs_3p)]:
@@ -170,10 +183,10 @@ def end_motifs_barplot(
         sec_len: int = len(motifs_names) // 4
 
         fig: matplotlib.figure.Figure = plt.figure()
-        outpath: str = os.path.join(
-            out_dir, "{}_k{}_{}p_frag_end_motifs.png".format(
-                name, kmer_len, label)
-        )
+        outpath = f"{name}_k{kmer_len}_{label}p_frag_end_motifs.png"
+        if gc_correct:
+            outpath = outpath.removesuffix('.png') + "_GC_corrected.png"
+        outpath: str = os.path.join(out_dir, outpath)
 
         colors: list[str] = ["red", "green", "blue", "gold"]
         bases: list[str] = ["A", "C", "G", "T"]
@@ -189,9 +202,10 @@ def end_motifs_barplot(
                        xmin=x_start, xmax=x_end)
             plt.text(x_mid, max_count*1.12, base, ha="center", va="top",
                      color=color, fontsize=18)
-
-        plt.title("{}: {}' End motif distribution n={}".format(
-            name, label, num_frags))
+        title = f"{name}: {label}' End motif distribution n={num_frags}"
+        if gc_correct:
+            title += " (GC corrected)"
+        plt.title(title)
         plt.xlabel("{}-mer End Motifs".format(kmer_len))
         plt.ylabel("# of Motifs")
         plt.xticks(rotation=80, fontsize=0.6)
@@ -202,7 +216,7 @@ def end_motifs_barplot(
 
 def log_stats(
     fragments: FragmentList, logger: logging.Logger,
-    out_dir: str, name: str
+    out_dir: str, name: str, gc_correct=False,
 ) -> None:
     """
     Generate overview fragment statistics with logging and JSON export.
@@ -227,27 +241,33 @@ def log_stats(
         Output directory for JSON file. Must exist and be writable.
     name : str
         Sample identifier used for JSON filename and log messages.
+    gc_correct: bool
+        If True then calculate GC corrected stats
 
     Returns
     -------
     A JSON file named ``{name}_frag_stats.json``.
     """
-    num_bogus_frags: int = fragments.count_bogus_fragments()
-    num_mut_frags: int = fragments.count_mutated_fragments()
-    num_frags: int = fragments.length()
+    num_bogus_frags: int = fragments.count_bogus_fragments(gc_correct=gc_correct)
+    num_mut_frags: int = fragments.count_mutated_fragments(gc_correct=gc_correct)
+    num_frags: int = fragments.count_fragments(gc_correct=gc_correct)
 
     if num_frags == 0:
         fail("no fragments found")
 
     logger.info(
-        "identified {} fragments (bogus: {} ({}%), mutated: {} ({}%))".format(
+        "identified {} fragments (bogus: {} ({}%), mutated: {} ({}%), GC corrected: {})".format(
             num_frags, num_bogus_frags,
             round(100*num_bogus_frags/num_frags, 3),
             num_mut_frags,
-            round(100*num_mut_frags/num_frags, 3))
+            round(100*num_mut_frags/num_frags, 3)),
+            gc_correct,
     )
 
-    outpath: str = os.path.join(out_dir, "{}_frag_stats.json".format(name))
+    outpath = f"{name}_frag_stats.json"
+    if gc_correct:
+        outpath = outpath.removesuffix(".json") + "_GC_corrected.json"
+    outpath: str = os.path.join(out_dir, outpath)
     with open(outpath, "w") as file:
         data: dict[str, object] = {
             "number_of_fragments": num_frags,
@@ -258,7 +278,7 @@ def log_stats(
 
 
 def export_length_distribution_csv(
-    fragments: FragmentList, out_dir: str, name: str
+    fragments: FragmentList, out_dir: str, name: str, gc_correct=False,
 ) -> None:
     """
     Export fragment length distribution to CSV file.
@@ -282,39 +302,47 @@ def export_length_distribution_csv(
     name : str
         Sample identifier used for the output filename. Used to generate
         unique CSV filenames for each sample.
+    gc_correct: bool
+        If True then calculate GC corrected length distribution
 
     Returns
     -------
     A CSV file named ``{name}_length_distribution.csv``.
     """
     logger: logging.Logger = get_logger()
-    lengths: list[int] = []
+    length_counts = Counter()
     for frag in fragments:
         if not frag.is_bogus:
-            lengths.append(frag.length)
+            gc_coef = extract_gc_coef(frag, gc_correct)
+            length = frag.length
+            length_counts.update({length:gc_coef})
 
-    if not lengths:
+    if not length_counts:
         fail("no valid fragments found for length distribution")
 
-    length_counts: Counter[int] = Counter(lengths)
     sorted_lengths: list[tuple[int, int]] = sorted(length_counts.items())
 
-    outpath: str = os.path.join(out_dir, f"{name}_length_distribution.csv")
+    outpath = f"{name}_length_distribution.csv"
+    if gc_correct:
+        outpath = outpath.removesuffix('.csv') + "_GC_corrected.csv"
+    outpath: str = os.path.join(out_dir, outpath)
     with open(outpath, "w", newline="") as csvfile:
         writer = csv.writer(csvfile)
         writer.writerow(["fragment_length", "count"])
         for length, count in sorted_lengths:
             writer.writerow([length, count])
 
+    msg = f"exported {len(sorted_lengths)} unique fragment lengths to {outpath}"
+    if gc_correct:
+        msg += " after GC correction"
     logger.info(
-        "exported {} unique fragment lengths to {}".format(
-            len(sorted_lengths), outpath
-        )
+        msg
     )
 
 
 def export_end_motifs_csv(
-    fragments: FragmentList, out_dir: str, name: str, kmer_len: int
+    fragments: FragmentList, out_dir: str, name: str, kmer_len: int,
+    gc_correct: bool = False,
 ) -> None:
     """
     Export fragment end motif counts to CSV file.
@@ -342,6 +370,8 @@ def export_end_motifs_csv(
         unique CSV filenames for each sample.
     kmer_len : int
         Length of k-mer motifs to analyze. Typically 3 or 4 nucleotides.
+    gc_correct: bool
+        If True then calculate using GC correction
 
     Returns
     -------
@@ -352,14 +382,18 @@ def export_end_motifs_csv(
     motifs_3p: defaultdict[str, int]
     num_frags: int
 
-    motifs_5p, motifs_3p, num_frags = fragments.count_endmotifs(kmer_len)
+    motifs_5p, motifs_3p, num_frags = fragments.count_endmotifs(
+        kmer_len, gc_correct=gc_correct)
     if num_frags == 0:
         fail("no valid fragments found for end motif analysis")
 
     all_motifs: set[str] = set(motifs_5p.keys()) | set(motifs_3p.keys())
     sorted_motifs: list[str] = sorted(all_motifs)
 
-    outpath: str = os.path.join(out_dir, f"{name}_k{kmer_len}_end_motifs.csv")
+    outpath = f"{name}_k{kmer_len}_end_motifs.csv"
+    if gc_correct:
+        outpath = outpath.removesuffix('.csv') + "_GC_corrected.csv"
+    outpath: str = os.path.join(out_dir, outpath)
     with open(outpath, "w", newline="") as csvfile:
         writer = csv.writer(csvfile)
         writer.writerow(
@@ -372,8 +406,9 @@ def export_end_motifs_csv(
                 [motif, count_5p, motif, count_3p]
             )
 
+    msg = f"exported {len(sorted_motifs)} unique k-mer motifs to {outpath}"
+    if gc_correct:
+        msg += " after GC correction"
     logger.info(
-        "exported {} unique k-mer motifs to {}".format(
-            len(sorted_motifs), outpath
-        )
+        msg
     )
