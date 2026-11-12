@@ -63,9 +63,9 @@ recommend using this functionality for the analysis of large cohorts. Even 10
 BAM files cannot be extracted at once without exceeding most workstation's
 memory. Thus, we include a convenient Nextflow pipeline in `tools/pipeline.nf`.
 It reads the input data from a TSV file and Nextflow parallelizes `pyfraglib`s
-operations as much as possible. See `tools/nextflow.config` for all paths and
+operations as much as possible. See `tools/example.config` for all paths and
 variables that must be set by the user. Currently, only `slurm` is supported as
-a scheduler (via the `ramses` profile).
+a scheduler.
 
 ## Available fragmentomics features
 
