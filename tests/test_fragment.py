@@ -15,13 +15,15 @@ import unittest
 import tempfile
 import os
 
+import pysam
+
 from unittest.mock import Mock
 from typing import Final
 from pyfraglib.fragment import Fragment, FragmentList, FragmentCollection, \
                                IntervalTable, is_duplex, \
                                VALID_CHROMOSOME_NAMES, \
                                INSERT_SIZE_UPPER_BOUND, MIN_MAPQ, \
-                               DEFAULT_KMER_LEN, MAX_KMER_LEN
+                               DEFAULT_KMER_LEN, MAX_KMER_LEN, UNKNOWN_END
 from tests.test_fixtures import MockAlignedSegment, create_mock_fragment, \
                                 create_test_fragment_list, \
                                 create_mock_variant_record, \
@@ -69,10 +71,54 @@ class TestFragment(unittest.TestCase):
         self.assertEqual(fragment.chrom, "1")
         self.assertEqual(fragment.length, 150)
         self.assertEqual(fragment.end5p, "ATCG")
-        self.assertEqual(fragment.end3p, "ATCG")
+        self.assertEqual(fragment.end3p, UNKNOWN_END)
         self.assertTrue(fragment.is_forward)
         self.assertIsNone(fragment.is_mutated)
         self.assertFalse(fragment.is_bogus)
+
+    def test_fragment_init_single_ended_ignores_soft_clips(self) -> None:
+        """End motifs of single-ended reads exclude soft-clipped bases."""
+        read = MockAlignedSegment(
+            reference_start=100,
+            reference_end=250,
+            reference_name="1",
+            query_sequence="TTTTTTGGCCAAAAAAAAAACCGGTTTTTT",
+            query_alignment_sequence="GGCCAAAAAAAAAACCGG",
+            mapping_quality=30
+        )
+
+        fragment: Fragment = Fragment(read, None, None)  # type: ignore
+        self.assertEqual(fragment.end5p, "GGCC")
+        self.assertEqual(fragment.end3p, UNKNOWN_END)
+        self.assertEqual(fragment.length, 150)
+        self.assertFalse(fragment.is_bogus)
+
+    def test_fragment_init_single_ended_reverse(self) -> None:
+        """Reverse single-end reads keep only the 3' end (reference
+        orientation), and an N in the unobserved end is irrelevant."""
+        read = MockAlignedSegment(
+            reference_start=100,
+            reference_end=250,
+            reference_name="1",
+            query_sequence="TTTTNGCCAAAAAAAAAACCGGTTTTTT",
+            query_alignment_sequence="NGCCAAAAAAAAAACCGG",
+            is_forward=False,
+            is_reverse=True,
+            mapping_quality=30
+        )
+
+        fragment: Fragment = Fragment(read, None, None)  # type: ignore
+        self.assertEqual(fragment.end5p, UNKNOWN_END)
+        self.assertEqual(fragment.end3p, "CCGG")
+        self.assertFalse(fragment.is_bogus)
+
+    def test_fragment_init_single_ended_n_in_observed_end(self) -> None:
+        """An N in the observed end of a single-end read is bogus."""
+        read = MockAlignedSegment(
+            query_sequence="ANCGATCGATCG", mapping_quality=30
+        )
+        fragment: Fragment = Fragment(read, None, None)  # type: ignore
+        self.assertTrue(fragment.is_bogus)
 
     def test_fragment_init_paired_ended(self) -> None:
         """Test Fragment initialization with paired-ended reads."""
@@ -274,6 +320,80 @@ class TestFragmentList(unittest.TestCase):
         overlaps_chr2: list[Fragment] = \
             interval_table.get_overlaps("2", 550, 650)
         self.assertEqual(len(overlaps_chr2), 1)
+
+
+class TestUnknownEnds(unittest.TestCase):
+    """Unknown (all-N) ends are excluded from end motif counts."""
+
+    def test_count_endmotifs_skips_unknown_ends(self) -> None:
+        frags = FragmentList()
+        frags.append(Fragment.create_simulated(
+            0, 150, "1", 150, "CCCA", "TGGG"))
+        fwd = Fragment.create_simulated(0, 150, "1", 150, "CCCA", "TGGG")
+        fwd.end3p = UNKNOWN_END
+        frags.append(fwd)
+        rev = Fragment.create_simulated(0, 150, "1", 150, "TGGG", "AAAG")
+        rev.end5p = UNKNOWN_END
+        frags.append(rev)
+
+        motifs_5p, motifs_3p, num_frags = frags.count_endmotifs(4)
+        self.assertEqual(num_frags, 3)
+        self.assertEqual(motifs_5p["CCCA"], 2)
+        self.assertEqual(motifs_3p["TGGG"], 1)
+        self.assertEqual(motifs_3p["AAAG"], 1)
+        self.assertNotIn(UNKNOWN_END, motifs_5p)
+        self.assertNotIn(UNKNOWN_END, motifs_3p)
+        self.assertEqual(motifs_5p.keys(), motifs_3p.keys())
+
+    def test_count_endmotifs_keeps_partial_n(self) -> None:
+        """Partially masked motifs are still counted (simulator noise)."""
+        frags = FragmentList()
+        frag = Fragment.create_simulated(0, 150, "1", 150, "CCCA", "TGGG")
+        frag.end5p = "CCCN"
+        frags.append(frag)
+        motifs_5p, _, _ = frags.count_endmotifs(4)
+        self.assertEqual(motifs_5p["CCCN"], 1)
+
+
+class TestSkipSupplementary(unittest.TestCase):
+    """``skip_supplementary`` drops secondary/supplementary alignments."""
+
+    def setUp(self) -> None:
+        self.tmpdir = tempfile.mkdtemp()
+        self.bam = os.path.join(self.tmpdir, "se.bam")
+        header = {"HD": {"VN": "1.6", "SO": "coordinate"},
+                  "SQ": [{"SN": "chr1", "LN": 10_000}]}
+        with pysam.AlignmentFile(self.bam, "wb", header=header) as fh:
+            for i, flag in enumerate([0, 16, 256, 2048, 0]):
+                seg = pysam.AlignedSegment(fh.header)
+                seg.query_name = f"read{i}"
+                seg.flag = flag
+                seg.reference_id = 0
+                seg.reference_start = 100 + 200 * i
+                seg.mapping_quality = 60
+                seg.cigarstring = "150M"
+                seg.query_sequence = "CCCA" + "A" * 142 + "TGGG"
+                seg.query_qualities = pysam.qualitystring_to_array(
+                    "I" * 150)
+                fh.write(seg)
+        pysam.index(self.bam)  # type: ignore[attr-defined]
+
+    def tearDown(self) -> None:
+        for f in os.listdir(self.tmpdir):
+            os.remove(os.path.join(self.tmpdir, f))
+        os.rmdir(self.tmpdir)
+
+    def test_default_keeps_all_alignments(self) -> None:
+        frags = Fragment.from_bam(self.bam, None, is_nanopore=True)
+        self.assertEqual(sum(1 for _ in frags), 5)
+
+    def test_skip_supplementary_nanopore(self) -> None:
+        frags = Fragment.from_bam(self.bam, None, is_nanopore=True,
+                                  skip_supplementary=True)
+        self.assertEqual(sum(1 for _ in frags), 3)
+        motifs_5p, motifs_3p, _ = frags.count_endmotifs(4)
+        self.assertEqual(motifs_5p["CCCA"], 2)
+        self.assertEqual(motifs_3p["TGGG"], 1)
 
 
 class TestFragmentCollection(unittest.TestCase):

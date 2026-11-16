@@ -168,7 +168,15 @@ def create_argparser() -> argparse.ArgumentParser:
         "--nanopore", action="store_true", dest="is_nanopore",
         default=False, help="If set, input BAM file(s) will be treated as "
         "single-end long read sequencing (e.g. ONT sequencing). If not set "
-        "(default), BAMs are expected to be paired-end.")
+        "(default), BAMs are expected to be paired-end. For single-end "
+        "reads, only the fragment end where the read starts is used for end "
+        "motifs (5' end for forward, 3' end for reverse reads).")
+    argparser_extract.add_argument(
+        "--skip-supplementary", action="store_true",
+        dest="skip_supplementary", default=False,
+        help="If set, secondary and supplementary alignments are ignored, so "
+        "every molecule yields at most one fragment. Applies to paired-end "
+        "and single-end data. Not set by default.")
     argparser_extract.add_argument(
         "--max-insert-size", type=int, dest="max_insert_size", default=900,
         help="Upper bound on fragment insert size (bp). Fragments whose "
@@ -280,6 +288,7 @@ def extract(out_dir: str, args: argparse.Namespace) -> None:
     is_nanopore: Final[bool] = args.is_nanopore
     max_insert_size: Final[int] = args.max_insert_size
     min_mapq: Final[int] = args.min_mapq
+    skip_supplementary: Final[bool] = args.skip_supplementary
 
     if bam_file and bam_dir:
         fail("--bam-dir and --bam-file are incompatible options", logger)
@@ -317,8 +326,9 @@ def extract(out_dir: str, args: argparse.Namespace) -> None:
         logger.info("not expecting any VCF files")
 
     logger.info(
-        "QC thresholds: max insert size = {} bp, min MAPQ = {}".format(
-            max_insert_size, min_mapq
+        "QC thresholds: max insert size = {} bp, min MAPQ = {}, skip "
+        "secondary/supplementary = {}".format(
+            max_insert_size, min_mapq, skip_supplementary
         )
     )
 
@@ -327,6 +337,7 @@ def extract(out_dir: str, args: argparse.Namespace) -> None:
     Fragment.bams_to_frags(
         bam_files, vcf_files, out_dir, is_nanopore,
         max_insert_size=max_insert_size, min_mapq=min_mapq,
+        skip_supplementary=skip_supplementary,
     )
 
 

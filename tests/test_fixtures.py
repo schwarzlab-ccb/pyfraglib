@@ -35,7 +35,10 @@ class MockAlignedSegment:
         is_unmapped: bool = False,
         is_duplicate: bool = False,
         mapping_quality: int = 30,
-        template_length: int = 150
+        template_length: int = 150,
+        query_alignment_sequence: str | None = None,
+        is_secondary: bool = False,
+        is_supplementary: bool = False
     ) -> None:
         self.query_name = query_name
         self.reference_start = reference_start
@@ -50,6 +53,12 @@ class MockAlignedSegment:
         self.is_duplicate = is_duplicate
         self.mapping_quality = mapping_quality
         self.template_length = template_length
+        self.query_alignment_sequence = (
+            query_sequence if query_alignment_sequence is None
+            else query_alignment_sequence
+        )
+        self.is_secondary = is_secondary
+        self.is_supplementary = is_supplementary
 
     def get_reference_positions(self, full_length: bool = False) -> list[int]:
         """Mock method to return reference positions."""

@@ -211,6 +211,7 @@ INSERT_SIZE_UPPER_BOUND: Final = 900
 MIN_MAPQ: Final = 20
 DEFAULT_KMER_LEN: Final = 3
 MAX_KMER_LEN: Final = 4
+UNKNOWN_END: Final[str] = "N" * MAX_KMER_LEN
 VALID_CHROMOSOME_NAMES: Final = [str(x) for x in range(1, 23)] + \
                                 ["chr{}".format(x) for x in range(1, 23)] + \
                                 ["X", "x", "Y", "y", "chrX", "chrY", "M", "m"]
@@ -356,12 +357,21 @@ class Fragment:
                            if mutated_reads else None)
         self.is_forward = read.is_forward
 
-        default: str = 'N' * MAX_KMER_LEN
-        if read.query_sequence:
-            self.end5p = read.query_sequence[0:MAX_KMER_LEN]
-            self.end3p = read.query_sequence[-MAX_KMER_LEN:]
-        else:
-            self.end3p = self.end5p = default
+        # @NOTE(ds): Long reads oftentimes carry soft-clipped adapter/barcode
+        # sequence. But for our purposes, end motifs must come from the aligned
+        # bases only, i.e. the actual fragment ends at ``reference_start``
+        # and ``reference_end``. Additionally, a single-end read only observes
+        # one fragment end reliably (the one where sequencing starts). The
+        # other end has strong base-calling bias. Thus, forward reads start at
+        # the 5' end, reverse reads at the 3' end. The untrusted end is set to
+        # ``UNKNOWN_END`` and is ignored by motif counting.
+        self.end3p = self.end5p = UNKNOWN_END
+        aligned_seq: Optional[str] = read.query_alignment_sequence
+        if aligned_seq and len(aligned_seq) >= MAX_KMER_LEN:
+            if self.is_forward:
+                self.end5p = aligned_seq[0:MAX_KMER_LEN]
+            else:
+                self.end3p = aligned_seq[-MAX_KMER_LEN:]
 
         self.is_bogus = self._determine_bogus(
             read, None, max_insert_size, min_mapq
@@ -405,8 +415,13 @@ class Fragment:
         """
         is_bogus: bool = False
 
-        if 'N' in self.end5p or 'N' in self.end3p:
-            is_bogus = True
+        if mate:
+            if 'N' in self.end5p or 'N' in self.end3p:
+                is_bogus = True
+        else:
+            observed_end: str = self.end5p if self.is_forward else self.end3p
+            if 'N' in observed_end:
+                is_bogus = True
         if self.chrom not in VALID_CHROMOSOME_NAMES:
             is_bogus = True
 
@@ -547,7 +562,8 @@ class Fragment:
     def from_bam(filepath: str, vcfpath: Optional[str],
                  is_nanopore: bool = False,
                  max_insert_size: int = INSERT_SIZE_UPPER_BOUND,
-                 min_mapq: int = MIN_MAPQ) -> "FragmentList":
+                 min_mapq: int = MIN_MAPQ,
+                 skip_supplementary: bool = False) -> "FragmentList":
         """
         Extract fragments from a BAM file with optional mutation annotation.
 
@@ -569,8 +585,15 @@ class Fragment:
             vcfpath: Optional path to VCF file for mutation annotation.
                 If provided, fragments containing variants will be marked as
                 mutated.
-            is_nanopore: Whether to process as single-end Nanopore data.
-                Default False assumes paired-end Illumina data.
+            is_nanopore: Whether to process as single-end (Nanopore) data.
+                Default False assumes paired-end Illumina data. For
+                single-end data, only the end where the read starts is
+                trusted for end motifs (5' for forward, 3' for reverse
+                reads); the other end is stored as ``UNKNOWN_END``.
+            skip_supplementary: If True, secondary and supplementary
+                alignments are ignored so that each molecule yields at most
+                one fragment. Default False. Recommended for long-read data,
+                where split and multi-mapping alignments are common.
 
         Returns:
             FragmentList: List of extracted fragments with quality metrics
@@ -628,6 +651,8 @@ class Fragment:
             logger.info("processing BAM file ``{}`` as single-ended".format(
                 filepath))
             progress_bar = tqdm.tqdm(total=idxstats_total_reads, leave=False)
+            num_unmapped_se: int = 0
+            num_non_primary: int = 0
 
             for read in bam_file.fetch():
                 assert read.query_name
@@ -636,7 +661,12 @@ class Fragment:
                 if (num_total_reads % increment == 0):
                     progress_bar.update(increment)
 
-                if read.is_duplicate:
+                if read.is_unmapped:
+                    num_unmapped_se += 1
+                elif skip_supplementary and (read.is_secondary or
+                                             read.is_supplementary):
+                    num_non_primary += 1
+                elif read.is_duplicate:
                     num_duplicates += 1
                 else:
                     fragments.append(Fragment(read, None, mut_reads,
@@ -644,8 +674,11 @@ class Fragment:
 
             progress_bar.close()
             logger.info(
-                "total reads: {}, duplicates: {}%".format(
+                "total reads: {}, unmapped: {}%, skipped secondary/"
+                "supplementary: {}%, duplicates: {}%".format(
                     num_total_reads,
+                    round(100*num_unmapped_se/num_total_reads, 3),
+                    round(100*num_non_primary/num_total_reads, 3),
                     round(100*num_duplicates/num_total_reads, 3)))
         else:
             logger.info("processing BAM file ``{}`` as paired-ended".format(
@@ -653,6 +686,7 @@ class Fragment:
             progress_bar = tqdm.tqdm(total=idxstats_total_reads, leave=False)
 
             num_unmapped: int = 0
+            num_non_primary_pe: int = 0
             read_cache: dict[str, pysam.AlignedSegment] = {}
 
             for read in bam_file.fetch():
@@ -673,6 +707,10 @@ class Fragment:
                 if read.is_duplicate:
                     num_duplicates += 1
                     invalid_read = True
+                if skip_supplementary and (read.is_secondary or
+                                           read.is_supplementary):
+                    num_non_primary_pe += 1
+                    invalid_read = True
 
                 if not invalid_read:
                     if read.query_name in read_cache:
@@ -686,9 +724,11 @@ class Fragment:
 
             progress_bar.close()
             logger.info(
-                "total reads: {}, unmapped: {:.3}%, duplicates: {:.3}%".format(
+                "total reads: {}, unmapped: {:.3}%, duplicates: {:.3}%, "
+                "skipped secondary/supplementary: {:.3}%".format(
                     num_total_reads, 100*num_unmapped/num_total_reads,
-                    100*num_duplicates/num_total_reads))
+                    100*num_duplicates/num_total_reads,
+                    100*num_non_primary_pe/num_total_reads))
             logger.info(
                 "{:.3}% reads left in cache (probably unpaired)".format(
                     100*len(read_cache)/num_total_reads))
@@ -825,12 +865,14 @@ class Fragment:
         filepaths: list[str], vcfpaths: Optional[list[str]],
         is_nanopore: bool = False,
         max_insert_size: int = INSERT_SIZE_UPPER_BOUND,
-        min_mapq: int = MIN_MAPQ
+        min_mapq: int = MIN_MAPQ,
+        skip_supplementary: bool = False
     ) -> "FragmentCollection":
         """
         Process multiple BAM files in parallel and collect fragments in memory.
 
-        ``max_insert_size`` and ``min_mapq`` are forwarded to
+        ``max_insert_size``, ``min_mapq`` and ``skip_supplementary`` are
+        forwarded to
         :meth:`Fragment.from_bam` per worker (via ``functools.partial``); see
         that method for their meaning.
 
@@ -852,7 +894,8 @@ class Fragment:
                 partial_task: Callable[[str, str], None] = partial(
                     task0, frags_per_bam=shared_collection,
                     is_nanopore=is_nanopore,
-                    max_insert_size=max_insert_size, min_mapq=min_mapq
+                    max_insert_size=max_insert_size, min_mapq=min_mapq,
+                    skip_supplementary=skip_supplementary
                 )
                 pool.starmap(partial_task, input_data)
 
@@ -866,7 +909,8 @@ class Fragment:
         filepaths: list[str], vcfpaths: Optional[list[str]], out_dir: str,
         is_nanopore: bool = False,
         max_insert_size: int = INSERT_SIZE_UPPER_BOUND,
-        min_mapq: int = MIN_MAPQ
+        min_mapq: int = MIN_MAPQ,
+        skip_supplementary: bool = False
     ) -> None:
         """
         Process multiple BAM files in parallel and save fragments to .frag
@@ -878,7 +922,8 @@ class Fragment:
         by not storing all fragments in memory simultaneously. It can still be
         very expensive.
 
-        ``max_insert_size`` and ``min_mapq`` are forwarded to
+        ``max_insert_size``, ``min_mapq`` and ``skip_supplementary`` are
+        forwarded to
         :meth:`Fragment.from_bam` per worker (via ``functools.partial``); see
         that method for their meaning.
 
@@ -894,7 +939,8 @@ class Fragment:
         with Pool(processes=detect_cpus()) as pool:
             partial_task: Callable[[str, str], None] = partial(
                 task1, out_dir=out_dir, is_nanopore=is_nanopore,
-                max_insert_size=max_insert_size, min_mapq=min_mapq
+                max_insert_size=max_insert_size, min_mapq=min_mapq,
+                skip_supplementary=skip_supplementary
             )
             pool.starmap(partial_task, input_data)
 
@@ -953,7 +999,8 @@ class Fragment:
 def task0(filepath: str, vcfpath: str | None,
           frags_per_bam: "FragmentCollection", is_nanopore: bool,
           max_insert_size: int = INSERT_SIZE_UPPER_BOUND,
-          min_mapq: int = MIN_MAPQ) -> None:
+          min_mapq: int = MIN_MAPQ,
+          skip_supplementary: bool = False) -> None:
     """
     Helper function for parallel BAM file processing.
 
@@ -965,7 +1012,8 @@ def task0(filepath: str, vcfpath: str | None,
         That is freeing the used memory and reducing our mem footprint.
     """
     frags: FragmentList = Fragment.from_bam(
-        filepath, vcfpath, is_nanopore, max_insert_size, min_mapq
+        filepath, vcfpath, is_nanopore, max_insert_size, min_mapq,
+        skip_supplementary
     )
     filename: str = os.path.basename(filepath)
     name, _ = os.path.splitext(filename)
@@ -975,14 +1023,16 @@ def task0(filepath: str, vcfpath: str | None,
 def task1(filepath: str, vcfpath: str | None,
           out_dir: str, is_nanopore: bool,
           max_insert_size: int = INSERT_SIZE_UPPER_BOUND,
-          min_mapq: int = MIN_MAPQ) -> None:
+          min_mapq: int = MIN_MAPQ,
+          skip_supplementary: bool = False) -> None:
     """
     Helper function for parallel BAM file processing.
     """
     logger: logging.Logger = get_logger()
 
     frags: FragmentList = Fragment.from_bam(
-        filepath, vcfpath, is_nanopore, max_insert_size, min_mapq
+        filepath, vcfpath, is_nanopore, max_insert_size, min_mapq,
+        skip_supplementary
     )
     filename: str = os.path.basename(filepath)
     name, _ = os.path.splitext(filename)
@@ -1157,10 +1207,12 @@ class FragmentList():
 
             num_frags += 1
             end5p, end3p = fragment.get_end_motifs(kmer_len)
-            motifs_5p[end5p] += 1
-            _ = motifs_3p[end5p]
-            motifs_3p[end3p] += 1
-            _ = motifs_5p[end3p]
+            if set(end5p) != {"N"}:
+                motifs_5p[end5p] += 1
+                _ = motifs_3p[end5p]
+            if set(end3p) != {"N"}:
+                motifs_3p[end3p] += 1
+                _ = motifs_5p[end3p]
 
         return motifs_5p, motifs_3p, num_frags
 
